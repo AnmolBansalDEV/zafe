@@ -25,6 +25,18 @@ use zcash_protocol::memo::MemoBytes;
 mod common;
 use common::*;
 
+/// Peak resident memory of this process in KiB (Linux/Android `VmHWM`), if available.
+fn peak_rss_kb() -> u64 {
+    std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|s| {
+            s.lines()
+                .find(|l| l.starts_with("VmHWM:"))
+                .and_then(|l| l.split_whitespace().nth(1).and_then(|v| v.parse().ok()))
+        })
+        .unwrap_or(0)
+}
+
 fn main() {
     let mode = std::env::args().nth(1).unwrap_or_else(|| "prove".into());
     let threads = std::env::var("RAYON_NUM_THREADS").unwrap_or_else(|_| "default".into());
@@ -71,7 +83,8 @@ fn main() {
                 .finish();
             let prove_ms = t.elapsed().as_millis();
             println!(
-                r#"{{"mode":"prove","threads":"{threads}","proving_key_build_ms":{keygen_ms},"prove_2_actions_ms":{prove_ms}}}"#
+                r#"{{"mode":"prove","threads":"{threads}","proving_key_build_ms":{keygen_ms},"prove_2_actions_ms":{prove_ms},"peak_rss_kb":{}}}"#,
+                peak_rss_kb()
             );
         }
         "sign" => {
@@ -107,7 +120,10 @@ fn main() {
             let round2_ms = t.elapsed().as_micros() as f64 / 1000.0;
             let mut all = BTreeMap::new();
             all.insert(*id, shares);
-            println!(r#"{{"mode":"sign","round2_verify_and_sign_ms":{round2_ms:.2}}}"#);
+            println!(
+                r#"{{"mode":"sign","round2_verify_and_sign_ms":{round2_ms:.2},"peak_rss_kb":{}}}"#,
+                peak_rss_kb()
+            );
         }
         other => panic!("unknown mode {other}; use prove or sign"),
     }

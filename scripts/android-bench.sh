@@ -5,6 +5,7 @@
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
+export ANDROID_NDK_HOME=${ANDROID_NDK_HOME:-$HOME/android/android-ndk-r29}
 cargo ndk -t arm64-v8a build --release -p zafe-core --example mobile_bench
 BIN=target/aarch64-linux-android/release/examples/mobile_bench
 adb push "$BIN" /data/local/tmp/mobile_bench >/dev/null
