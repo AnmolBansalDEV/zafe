@@ -133,7 +133,40 @@ the first frame; broadcast-before-store for PCZT sends. Zafe's vault account is 
 Vizor's Keystone account shape (UFVK-only, external signer), with FROST instead of a device.
 Keep attribution/NOTICE for anything copied from Vizor.
 
-Toolchain (installed by `~/android/install-toolchain.sh`): Flutter at `~/flutter`, JDK 17 at
+Detailed reference (tokens, components, screens, bridge setup): `docs/vizor-reference.md`.
+Learned while studying it:
+- **Copy** architecture, tokens, component specs, screen structures, and the Keystone
+  signing UX (it starts proving in the background while the external signer works — do the
+  same while FROST round 2 runs). Keep Apache-2.0 attribution + a modification notice.
+- **Do not copy** Vizor's knight/castle illustrations and profile pictures (brand identity, no
+  documented origin), the Vizor name/wordmark, `com.keplr.vizor` bundle IDs or
+  `com.zcash.wallet/*` channel names.
+- **Fonts** (Geist, Geist Mono, Inter, Young Serif) are OFL 1.1 and Vizor ships no license
+  texts: fetch from upstream and bundle the OFL texts.
+- **Improve on Vizor**: encrypt the wallet DB (SQLCipher, spec §14), typed errors across the
+  bridge instead of substring matching.
+- FRB: mark cheap calls `#[flutter_rust_bridge::frb(sync)]` (otherwise Dart gets a Future).
+  `flutter_rust_bridge_codegen generate` works without `cargo-expand` (it only warns).
+  The bridge crate `app/rust` (`rust_lib_zafe`) is a workspace member so it shares pins.
+- App layout: `lib/src/core/` is copied Vizor code (keep in sync with NOTICE); Zafe code is
+  `lib/src/{providers,features}`, `lib/src/app.dart` (GoRouter + redirect on vault state),
+  `lib/main.dart` (RustLib.init → `VaultBootstrap.load()` → ProviderScope override).
+  Secrets (identity, invite, key material) live in `flutter_secure_storage` via
+  `core/storage/zafe_secure_store.dart`. Network/relay/lightwalletd come from dart-defines
+  (`ZAFE_NETWORK`, default regtest) in `core/config/network_config.dart`.
+- Font family names must match Vizor's tokens exactly (`Geist Mono`, `Young Serif`).
+- `pubspec.yaml` must have a single `flutter:` key (a duplicate silently breaks FRB codegen).
+- Cargokit is patched (`rust_builder/cargokit/gradle/plugin.gradle`): debug builds no longer
+  add x86/x64 unless `-Pzafe.debugEmulatorAbis=true`. Build for a phone with
+  `flutter build apk --debug --target-platform android-arm64` (~5 min cold).
+  Stale emulator `.so` files can linger in `build/rust_lib_zafe/jniLibs`; delete them.
+
+App commands (from `app/`, after `source ~/android/env.sh`):
+`flutter_rust_bridge_codegen generate` (after changing `app/rust/src/api`), `flutter analyze`
+(must be clean), `flutter build apk --debug --target-platform android-arm64`,
+`adb install -r build/app/outputs/flutter-apk/app-debug.apk`.
+
+Toolchain (installed by `~/android/install-toolchain.sh`; `source ~/android/env.sh`): Flutter at `~/flutter`, JDK 17 at
 `~/android/jdk-17`, Android SDK at `~/android/sdk` (platform 36, build-tools 36.0.0).
 
 ## Upstream status (check before relying on it)

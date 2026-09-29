@@ -387,3 +387,50 @@ impl BlockCache for MemBlockCache {
         Ok(())
     }
 }
+
+/// The networks Zafe runs on, selectable at runtime (e.g. from the app's settings).
+#[derive(Clone, Copy, Debug)]
+pub enum ZafeNetwork {
+    Main,
+    Test,
+    /// Local regtest with every upgrade through NU6.3 at height 1 (`infra/regtest`).
+    Regtest(LocalNetwork),
+}
+
+impl ZafeNetwork {
+    /// "main", "test" or "regtest".
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "main" => Some(Self::Main),
+            "test" => Some(Self::Test),
+            "regtest" => Some(Self::Regtest(regtest_network())),
+            _ => None,
+        }
+    }
+
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Main => "main",
+            Self::Test => "test",
+            Self::Regtest(_) => "regtest",
+        }
+    }
+}
+
+impl Parameters for ZafeNetwork {
+    fn network_type(&self) -> zcash_protocol::consensus::NetworkType {
+        match self {
+            Self::Main => zcash_protocol::consensus::MainNetwork.network_type(),
+            Self::Test => zcash_protocol::consensus::TestNetwork.network_type(),
+            Self::Regtest(n) => n.network_type(),
+        }
+    }
+
+    fn activation_height(&self, nu: zcash_protocol::consensus::NetworkUpgrade) -> Option<BlockHeight> {
+        match self {
+            Self::Main => zcash_protocol::consensus::MainNetwork.activation_height(nu),
+            Self::Test => zcash_protocol::consensus::TestNetwork.activation_height(nu),
+            Self::Regtest(n) => n.activation_height(nu),
+        }
+    }
+}
