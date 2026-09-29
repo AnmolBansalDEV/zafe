@@ -1,0 +1,22 @@
+[package]
+name = "zafe-proto"
+version = "0.1.0"
+description = "Zafe wire protocol: identities, signed envelopes, HPKE sealing, vault log"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+ed25519-dalek.workspace = true
+hpke.workspace = true
+chacha20poly1305.workspace = true
+rand_core.workspace = true
+blake2b_simd.workspace = true
+serde.workspace = true
+postcard.workspace = true
+thiserror.workspace = true
+zeroize.workspace = true
+hex.workspace = true
+
+[dev-dependencies]
+rand.workspace = true

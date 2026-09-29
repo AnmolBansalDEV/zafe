@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/zafe-core"]
+members = ["crates/zafe-core", "crates/zafe-proto"]
 
 [workspace.package]
 edition = "2021"
@@ -32,6 +32,15 @@ rand_core = "0.6"
 thiserror = "2"
 zeroize = { version = "1", features = ["zeroize_derive"] }
 hex = "0.4"
+
+# Messaging crypto (zafe-proto). The previous dalek/hpke generation: the newest
+# releases need sha2 0.11 stable, which conflicts with bip32's sha2 =0.11.0-pre.4 pin
+# (via zcash_client_backend 0.24). This generation shares rand_core 0.6 with the Zcash stack.
+ed25519-dalek = { version = "2.2", features = ["rand_core", "zeroize"] }
+hpke = { version = "=0.12.0", default-features = false, features = ["x25519", "alloc"] }
+chacha20poly1305 = "0.10"
+serde = { version = "1", features = ["derive"] }
+postcard = { version = "1", features = ["alloc"] }
 serde_json = "1"
 incrementalmerkletree = "0.8"
 shardtree = "0.7"
