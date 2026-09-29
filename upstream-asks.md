@@ -76,3 +76,19 @@ Until then, Zafe uses the `frost-core` 3.0 DKG with a relay that can't read mess
 ## Short Discord message (paste-ready)
 
 > Hi FROST team, we're building Zafe, a mobile shielded multisig on Ironwood using re-randomized FROST (frost-core 3.0 / reddsa 0.5.2 / pczt 0.9.3). Following up on frost#1094: we want to use ZIP 2005 `use_qsk = true` keys, so we derive nk / qsk / qk / rivk_ext from an agreed `sk` per § 4.2.3 and build the FVK with `FullViewingKey::from_bytes(ak||nk||rivk_ext)`. Can you confirm those vaults stay quantum-recoverable whatever `sk`-agreement method zips#895 settles on, and whether use_qsk test vectors are planned (we can contribute)? That's our mainnet gate. Smaller questions (external-randomizer `sign()` deprecation, reddsa 0.5.x support until the ciphersuite moves, interim DKG approach) are in a comment on #1094. Thanks!
+
+---
+
+# Upstream ask: zcashlabs/thus-spoke-zakura (local regtest environment)
+
+**Where to send:** an issue on `zcashlabs/thus-spoke-zakura`.
+
+**Finding (2026-09-29, `ths` at `b24101f`, node `zakuracore/zakura:1.4.0`):** the environment runs a **pre-Ironwood** regtest chain:
+- `crates/tsz-server/src/main.rs` `zakura_config()` sets only `"NU6" = 1` under `[network.testnet_parameters.activation_heights]`.
+- `crates/tsz-server/src/wallet.rs` `regtest_network()` and `db.rs` `local_network()` hardcode `nu6_1`, `nu6_2` and `nu6_3` to `None`.
+
+The **Zakura node itself supports NU6.3 on regtest**. Started with `"NU5"`, `"NU6"`, `"NU6.1"`, `"NU6.2"` and `"NU6.3"` all set to `1`, `getblockchaininfo` reports every upgrade through NU6.3 at height 1, with next-block consensus branch `37a5165b` (NU6.3).
+
+**Ask:** activate every NU6.x (including NU6.3) at height 1 by default, or behind a flag (e.g. `ths start --ironwood`). Make the faucet and "send" route through the Ironwood pool, since Orchard stops accepting deposits after NU6.3. That would make `ths` usable for testing Ironwood apps like Zafe. Zebra's own regtest default already activates every NU6.x at height 1.
+
+**Zafe's workaround until then:** run `zakuracore/zakura:1.4.0` and the `ths` lightwalletd image directly with our own NU6.3 config (`infra/regtest/`).
