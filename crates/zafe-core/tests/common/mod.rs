@@ -255,3 +255,13 @@ pub fn build_pczt_with_fee(
         .finalize_io()
         .unwrap()
 }
+
+/// Member expectations for fixture transactions.
+pub fn expectations(payments: Vec<zafe_core::verify::Payment>) -> zafe_core::verify::Expectations {
+    zafe_core::verify::Expectations {
+        payments,
+        consensus_branch_id: branch_id(),
+        tip_height: TARGET_HEIGHT - 1,
+        max_expiry_delta: 100,
+    }
+}
