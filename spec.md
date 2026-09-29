@@ -144,7 +144,7 @@ The relay never needs the UFVK. No server builds transactions.
 |---|---|---|---|
 | Zafe app | Flutter + `flutter_rust_bridge` | UI state | Trusted, on the member's device |
 | zafe-core | Rust | All keys and secrets for this member; wallet DB | Security-critical |
-| Relay | Rust (axum) + Postgres | Encrypted envelopes, encrypted vault log, push tokens, public identity keys | Untrusted for custody and content; sees metadata |
+| Relay | Rust (axum) + SQLite now (single self-hostable binary); Postgres for the hosted tier later | Encrypted envelopes, encrypted vault log, push tokens, public identity keys | Untrusted for custody and content; sees metadata |
 | lightwalletd | Existing | Nothing vault-specific | Untrusted; availability and IP-level privacy |
 
 ### 4.3 Stack decision and rationale

@@ -3526,6 +3526,7 @@ dependencies = [
  "axum",
  "http-body-util",
  "rand",
+ "rusqlite",
  "serde",
  "thiserror 2.0.21",
  "tokio",

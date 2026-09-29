@@ -6,8 +6,8 @@ use serde::{de::DeserializeOwned, Serialize};
 use zafe_proto::{
     relay::{
         decode_body, encode_body, join_token_hash, AppendResult, CreateMailbox, InboxRead,
-        InboxResponse, Join, LogRead, LogResponse, MembersRead, MembersResponse, Remove, Seal,
-        Signed,
+        InboxResponse, Join, LogRead, LogResponse, MembersRead, MembersResponse, PushPlatform,
+        RegisterPush, Remove, Seal, Signed,
     },
     Envelope, Identity, LogEntry, MailboxId,
 };
@@ -134,6 +134,26 @@ impl RelayClient {
     ) -> Result<(), RelayClientError> {
         self.signed("/v1/mailbox/remove", creator, Remove { mailbox, member })
             .await
+    }
+
+    /// Registers this member's push token for the mailbox (content-free notifications).
+    pub async fn register_push(
+        &self,
+        member: &Identity,
+        mailbox: MailboxId,
+        platform: PushPlatform,
+        token: String,
+    ) -> Result<(), RelayClientError> {
+        self.signed(
+            "/v1/push/register",
+            member,
+            RegisterPush {
+                mailbox,
+                platform,
+                token,
+            },
+        )
+        .await
     }
 
     pub async fn members(

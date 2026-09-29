@@ -159,3 +159,28 @@ pub fn encode_body<T: Serialize>(value: &T) -> Result<Vec<u8>, ProtoError> {
 pub fn decode_body<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, ProtoError> {
     postcard::from_bytes(bytes).map_err(|_| ProtoError::Encoding)
 }
+
+/// Push notification platform for a member device.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PushPlatform {
+    Apns,
+    Fcm,
+}
+
+impl PushPlatform {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            PushPlatform::Apns => "apns",
+            PushPlatform::Fcm => "fcm",
+        }
+    }
+}
+
+/// Registers (or replaces) this member's push token for a mailbox. Notifications carry no
+/// content, only "vault activity" (spec §6.1). Signed by the member.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RegisterPush {
+    pub mailbox: MailboxId,
+    pub platform: PushPlatform,
+    pub token: String,
+}

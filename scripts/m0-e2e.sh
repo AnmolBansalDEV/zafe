@@ -40,7 +40,7 @@ wait_lwd() {  # wait until lightwalletd serves height $1
 }
 
 step "relay"
-ZAFE_RELAY_LISTEN="127.0.0.1:$RELAY_PORT" "$ROOT/target/debug/zafe-relay" &
+ZAFE_RELAY_LISTEN="127.0.0.1:$RELAY_PORT" ZAFE_RELAY_DB="$WORK/relay.sqlite" "$ROOT/target/debug/zafe-relay" &
 RELAY_PID=$!
 sleep 1
 

@@ -161,12 +161,13 @@ pub fn verify_pczt(
         .with_ironwood::<VerifyError, _>(|bundle| {
             let custom = OrchardError::Custom;
             action_count = bundle.actions().len() as u64;
+            // Pass 1: every spend. Checked before any output so a foreign spend is always
+            // reported as such, whatever order the builder shuffled the actions into.
             for (i, action) in bundle.actions().iter().enumerate() {
                 action
                     .verify_cv_net()
                     .map_err(|_| custom(VerifyError::BadOutputNote(i)))?;
 
-                // Spend side.
                 let spend = action.spend();
                 let spend_value = spend.value().map(|v| v.inner());
                 if spend.fvk().as_ref() == Some(vault_fvk) {
@@ -185,7 +186,11 @@ pub fn verify_pczt(
                         return Err(custom(VerifyError::ForeignSpend(i)));
                     }
                 }
+            }
 
+            // Pass 2: every output.
+            for (i, action) in bundle.actions().iter().enumerate() {
+                let spend = action.spend();
                 // Output side: plaintext fields must match the note commitment.
                 let output = action.output();
                 output
