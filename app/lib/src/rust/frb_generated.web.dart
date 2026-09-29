@@ -6,6 +6,8 @@
 // Static analysis wrongly picks the IO variant, thus ignore this
 // ignore_for_file: argument_type_not_assignable
 
+import 'api/error.dart';
+import 'api/proposals.dart';
 import 'api/vault.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -24,13 +26,33 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AnyhowException dco_decode_AnyhowException(dynamic raw);
 
   @protected
+  RustStreamSink<SendProgress> dco_decode_StreamSink_send_progress_Sse(
+    dynamic raw,
+  );
+
+  @protected
   String dco_decode_String(dynamic raw);
+
+  @protected
+  AddressCheck dco_decode_address_check(dynamic raw);
 
   @protected
   Balance dco_decode_balance(dynamic raw);
 
   @protected
   bool dco_decode_bool(dynamic raw);
+
+  @protected
+  int dco_decode_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  BigInt dco_decode_box_autoadd_u_64(dynamic raw);
+
+  @protected
+  ZafeError dco_decode_box_autoadd_zafe_error(dynamic raw);
+
+  @protected
+  int dco_decode_i_32(dynamic raw);
 
   @protected
   IdentityInfo dco_decode_identity_info(dynamic raw);
@@ -42,13 +64,58 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String> dco_decode_list_String(dynamic raw);
 
   @protected
+  List<PaymentInfo> dco_decode_list_payment_info(dynamic raw);
+
+  @protected
+  List<PaymentInput> dco_decode_list_payment_input(dynamic raw);
+
+  @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
 
   @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
+  List<ProposalInfo> dco_decode_list_proposal_info(dynamic raw);
+
+  @protected
   MembershipInfo dco_decode_membership_info(dynamic raw);
+
+  @protected
+  MyVote dco_decode_my_vote(dynamic raw);
+
+  @protected
+  String? dco_decode_opt_String(dynamic raw);
+
+  @protected
+  int? dco_decode_opt_box_autoadd_u_32(dynamic raw);
+
+  @protected
+  BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw);
+
+  @protected
+  ZafeError? dco_decode_opt_box_autoadd_zafe_error(dynamic raw);
+
+  @protected
+  PaymentInfo dco_decode_payment_info(dynamic raw);
+
+  @protected
+  PaymentInput dco_decode_payment_input(dynamic raw);
+
+  @protected
+  ProposalInfo dco_decode_proposal_info(dynamic raw);
+
+  @protected
+  ProposalStage dco_decode_proposal_stage(dynamic raw);
+
+  @protected
+  ReviewInfo dco_decode_review_info(dynamic raw);
+
+  @protected
+  SendProgress dco_decode_send_progress(dynamic raw);
+
+  @protected
+  SendStage dco_decode_send_stage(dynamic raw);
 
   @protected
   int dco_decode_u_16(dynamic raw);
@@ -69,16 +136,42 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   VaultSummary dco_decode_vault_summary(dynamic raw);
 
   @protected
+  ZafeError dco_decode_zafe_error(dynamic raw);
+
+  @protected
+  ZafeErrorKind dco_decode_zafe_error_kind(dynamic raw);
+
+  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
 
   @protected
+  RustStreamSink<SendProgress> sse_decode_StreamSink_send_progress_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer);
+
+  @protected
+  AddressCheck sse_decode_address_check(SseDeserializer deserializer);
 
   @protected
   Balance sse_decode_balance(SseDeserializer deserializer);
 
   @protected
   bool sse_decode_bool(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
+  ZafeError sse_decode_box_autoadd_zafe_error(SseDeserializer deserializer);
+
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
   IdentityInfo sse_decode_identity_info(SseDeserializer deserializer);
@@ -90,13 +183,64 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String> sse_decode_list_String(SseDeserializer deserializer);
 
   @protected
+  List<PaymentInfo> sse_decode_list_payment_info(SseDeserializer deserializer);
+
+  @protected
+  List<PaymentInput> sse_decode_list_payment_input(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
 
   @protected
+  List<ProposalInfo> sse_decode_list_proposal_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   MembershipInfo sse_decode_membership_info(SseDeserializer deserializer);
+
+  @protected
+  MyVote sse_decode_my_vote(SseDeserializer deserializer);
+
+  @protected
+  String? sse_decode_opt_String(SseDeserializer deserializer);
+
+  @protected
+  int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer);
+
+  @protected
+  BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer);
+
+  @protected
+  ZafeError? sse_decode_opt_box_autoadd_zafe_error(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  PaymentInfo sse_decode_payment_info(SseDeserializer deserializer);
+
+  @protected
+  PaymentInput sse_decode_payment_input(SseDeserializer deserializer);
+
+  @protected
+  ProposalInfo sse_decode_proposal_info(SseDeserializer deserializer);
+
+  @protected
+  ProposalStage sse_decode_proposal_stage(SseDeserializer deserializer);
+
+  @protected
+  ReviewInfo sse_decode_review_info(SseDeserializer deserializer);
+
+  @protected
+  SendProgress sse_decode_send_progress(SseDeserializer deserializer);
+
+  @protected
+  SendStage sse_decode_send_stage(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_16(SseDeserializer deserializer);
@@ -117,7 +261,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   VaultSummary sse_decode_vault_summary(SseDeserializer deserializer);
 
   @protected
-  int sse_decode_i_32(SseDeserializer deserializer);
+  ZafeError sse_decode_zafe_error(SseDeserializer deserializer);
+
+  @protected
+  ZafeErrorKind sse_decode_zafe_error_kind(SseDeserializer deserializer);
 
   @protected
   void sse_encode_AnyhowException(
@@ -126,13 +273,37 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_send_progress_Sse(
+    RustStreamSink<SendProgress> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_String(String self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_address_check(AddressCheck self, SseSerializer serializer);
 
   @protected
   void sse_encode_balance(Balance self, SseSerializer serializer);
 
   @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_zafe_error(
+    ZafeError self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_identity_info(IdentityInfo self, SseSerializer serializer);
@@ -144,6 +315,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_payment_info(
+    List<PaymentInfo> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_payment_input(
+    List<PaymentInput> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
 
   @protected
@@ -153,10 +336,55 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_proposal_info(
+    List<ProposalInfo> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_membership_info(
     MembershipInfo self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_my_vote(MyVote self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_String(String? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_zafe_error(
+    ZafeError? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_payment_info(PaymentInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_payment_input(PaymentInput self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_proposal_info(ProposalInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_proposal_stage(ProposalStage self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_review_info(ReviewInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_send_progress(SendProgress self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_send_stage(SendStage self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_16(int self, SseSerializer serializer);
@@ -177,7 +405,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_vault_summary(VaultSummary self, SseSerializer serializer);
 
   @protected
-  void sse_encode_i_32(int self, SseSerializer serializer);
+  void sse_encode_zafe_error(ZafeError self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_zafe_error_kind(ZafeErrorKind self, SseSerializer serializer);
 }
 
 // Section: wire_class

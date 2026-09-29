@@ -16,6 +16,13 @@ tokio.workspace = true
 rand.workspace = true
 hex.workspace = true
 postcard.workspace = true
+zcash_protocol.workspace = true
+zcash_keys.workspace = true
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
+
+[dev-dependencies]
+zafe-relay = { path = "../../crates/zafe-relay" }
+axum.workspace = true
+orchard.workspace = true

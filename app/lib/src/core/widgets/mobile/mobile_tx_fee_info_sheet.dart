@@ -33,7 +33,7 @@ Future<void> showMobileTxFeeInfoSheet(BuildContext context) {
             const SizedBox(height: AppSpacing.xs),
             Text(
               'The network fee is set by the Zcash protocol (ZIP 317) '
-              'based on the transaction size. Vizor adds no extra fee.',
+              'based on the transaction size. Zafe adds no extra fee.',
               style: AppTypography.bodyMedium.copyWith(
                 color: colors.text.primary,
               ),

@@ -3,6 +3,8 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
+import 'api/error.dart';
+import 'api/proposals.dart';
 import 'api/vault.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -66,7 +68,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -649286018;
+  int get rustContentHash => -873790410;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -77,6 +79,30 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 }
 
 abstract class RustLibApi extends BaseApi {
+  Future<int> crateApiProposalsAnswerSigningRequests({
+    required String relayUrl,
+    required String lightwalletdUrl,
+    required String dbDir,
+    required String stateDir,
+    required List<int> seeds,
+    required List<int> material,
+  });
+
+  Future<void> crateApiProposalsApproveProposal({
+    required String relayUrl,
+    required String lightwalletdUrl,
+    required String dbDir,
+    required String stateDir,
+    required List<int> seeds,
+    required List<int> material,
+    required String proposalId,
+  });
+
+  AddressCheck crateApiProposalsCheckAddress({
+    required String networkName,
+    required String address,
+  });
+
   Future<String> crateApiVaultCreateVault({
     required String relayUrl,
     required List<int> seeds,
@@ -97,7 +123,43 @@ abstract class RustLibApi extends BaseApi {
     required String invite,
   });
 
+  Future<List<ProposalInfo>> crateApiProposalsListProposals({
+    required String relayUrl,
+    required String stateDir,
+    required List<int> seeds,
+    required List<int> material,
+  });
+
+  int crateApiProposalsMemoLength({required String memo});
+
   InviteInfo crateApiVaultParseInvite({required String invite});
+
+  BigInt? crateApiProposalsParseZec({required String text});
+
+  Future<String> crateApiProposalsProposePayment({
+    required String relayUrl,
+    required String lightwalletdUrl,
+    required String dbDir,
+    required List<int> seeds,
+    required List<int> material,
+    required List<PaymentInput> payments,
+  });
+
+  Future<void> crateApiProposalsRejectProposal({
+    required String relayUrl,
+    required List<int> seeds,
+    required List<int> material,
+    required String proposalId,
+  });
+
+  Future<ReviewInfo> crateApiProposalsReviewProposal({
+    required String relayUrl,
+    required String lightwalletdUrl,
+    required String dbDir,
+    required List<int> seeds,
+    required List<int> material,
+    required String proposalId,
+  });
 
   Future<Uint8List> crateApiVaultRunKeygen({
     required String relayUrl,
@@ -107,12 +169,23 @@ abstract class RustLibApi extends BaseApi {
     required String invite,
     required String confirmedSafetyNumber,
     required int timeoutSecs,
+    int? birthdayHeight,
   });
 
   Future<void> crateApiVaultSealVault({
     required String relayUrl,
     required List<int> seeds,
     required String invite,
+  });
+
+  Stream<SendProgress> crateApiProposalsSendProposal({
+    required String relayUrl,
+    required String lightwalletdUrl,
+    required String dbDir,
+    required String stateDir,
+    required List<int> seeds,
+    required List<int> material,
+    required String proposalId,
   });
 
   Future<Balance> crateApiVaultSyncVault({
@@ -139,6 +212,154 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   });
 
   @override
+  Future<int> crateApiProposalsAnswerSigningRequests({
+    required String relayUrl,
+    required String lightwalletdUrl,
+    required String dbDir,
+    required String stateDir,
+    required List<int> seeds,
+    required List<int> material,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(relayUrl, serializer);
+          sse_encode_String(lightwalletdUrl, serializer);
+          sse_encode_String(dbDir, serializer);
+          sse_encode_String(stateDir, serializer);
+          sse_encode_list_prim_u_8_loose(seeds, serializer);
+          sse_encode_list_prim_u_8_loose(material, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 1,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_u_32,
+          decodeErrorData: sse_decode_zafe_error,
+        ),
+        constMeta: kCrateApiProposalsAnswerSigningRequestsConstMeta,
+        argValues: [
+          relayUrl,
+          lightwalletdUrl,
+          dbDir,
+          stateDir,
+          seeds,
+          material,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiProposalsAnswerSigningRequestsConstMeta =>
+      const TaskConstMeta(
+        debugName: "answer_signing_requests",
+        argNames: [
+          "relayUrl",
+          "lightwalletdUrl",
+          "dbDir",
+          "stateDir",
+          "seeds",
+          "material",
+        ],
+      );
+
+  @override
+  Future<void> crateApiProposalsApproveProposal({
+    required String relayUrl,
+    required String lightwalletdUrl,
+    required String dbDir,
+    required String stateDir,
+    required List<int> seeds,
+    required List<int> material,
+    required String proposalId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(relayUrl, serializer);
+          sse_encode_String(lightwalletdUrl, serializer);
+          sse_encode_String(dbDir, serializer);
+          sse_encode_String(stateDir, serializer);
+          sse_encode_list_prim_u_8_loose(seeds, serializer);
+          sse_encode_list_prim_u_8_loose(material, serializer);
+          sse_encode_String(proposalId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 2,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_zafe_error,
+        ),
+        constMeta: kCrateApiProposalsApproveProposalConstMeta,
+        argValues: [
+          relayUrl,
+          lightwalletdUrl,
+          dbDir,
+          stateDir,
+          seeds,
+          material,
+          proposalId,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiProposalsApproveProposalConstMeta =>
+      const TaskConstMeta(
+        debugName: "approve_proposal",
+        argNames: [
+          "relayUrl",
+          "lightwalletdUrl",
+          "dbDir",
+          "stateDir",
+          "seeds",
+          "material",
+          "proposalId",
+        ],
+      );
+
+  @override
+  AddressCheck crateApiProposalsCheckAddress({
+    required String networkName,
+    required String address,
+  }) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(networkName, serializer);
+          sse_encode_String(address, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_address_check,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiProposalsCheckAddressConstMeta,
+        argValues: [networkName, address],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiProposalsCheckAddressConstMeta =>
+      const TaskConstMeta(
+        debugName: "check_address",
+        argNames: ["networkName", "address"],
+      );
+
+  @override
   Future<String> crateApiVaultCreateVault({
     required String relayUrl,
     required List<int> seeds,
@@ -158,13 +379,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 1,
+            funcId: 4,
             port: port_,
           );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_zafe_error,
         ),
         constMeta: kCrateApiVaultCreateVaultConstMeta,
         argValues: [relayUrl, seeds, name, threshold, members],
@@ -184,7 +405,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 2)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 5)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_identity_info,
@@ -207,11 +428,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_u_8_loose(seeds, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 3)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_String,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_zafe_error,
         ),
         constMeta: kCrateApiVaultIdentityPublicKeyConstMeta,
         argValues: [seeds],
@@ -235,7 +456,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 4,
+            funcId: 7,
             port: port_,
           );
         },
@@ -269,13 +490,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 5,
+            funcId: 8,
             port: port_,
           );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_zafe_error,
         ),
         constMeta: kCrateApiVaultJoinVaultConstMeta,
         argValues: [relayUrl, seeds, invite],
@@ -290,17 +511,79 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
+  Future<List<ProposalInfo>> crateApiProposalsListProposals({
+    required String relayUrl,
+    required String stateDir,
+    required List<int> seeds,
+    required List<int> material,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(relayUrl, serializer);
+          sse_encode_String(stateDir, serializer);
+          sse_encode_list_prim_u_8_loose(seeds, serializer);
+          sse_encode_list_prim_u_8_loose(material, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 9,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_list_proposal_info,
+          decodeErrorData: sse_decode_zafe_error,
+        ),
+        constMeta: kCrateApiProposalsListProposalsConstMeta,
+        argValues: [relayUrl, stateDir, seeds, material],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiProposalsListProposalsConstMeta =>
+      const TaskConstMeta(
+        debugName: "list_proposals",
+        argNames: ["relayUrl", "stateDir", "seeds", "material"],
+      );
+
+  @override
+  int crateApiProposalsMemoLength({required String memo}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(memo, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 10)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_u_32,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiProposalsMemoLengthConstMeta,
+        argValues: [memo],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiProposalsMemoLengthConstMeta =>
+      const TaskConstMeta(debugName: "memo_length", argNames: ["memo"]);
+
+  @override
   InviteInfo crateApiVaultParseInvite({required String invite}) {
     return handler.executeSync(
       SyncTask(
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(invite, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 6)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_invite_info,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_zafe_error,
         ),
         constMeta: kCrateApiVaultParseInviteConstMeta,
         argValues: [invite],
@@ -313,6 +596,182 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "parse_invite", argNames: ["invite"]);
 
   @override
+  BigInt? crateApiProposalsParseZec({required String text}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(text, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 12)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_opt_box_autoadd_u_64,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiProposalsParseZecConstMeta,
+        argValues: [text],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiProposalsParseZecConstMeta =>
+      const TaskConstMeta(debugName: "parse_zec", argNames: ["text"]);
+
+  @override
+  Future<String> crateApiProposalsProposePayment({
+    required String relayUrl,
+    required String lightwalletdUrl,
+    required String dbDir,
+    required List<int> seeds,
+    required List<int> material,
+    required List<PaymentInput> payments,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(relayUrl, serializer);
+          sse_encode_String(lightwalletdUrl, serializer);
+          sse_encode_String(dbDir, serializer);
+          sse_encode_list_prim_u_8_loose(seeds, serializer);
+          sse_encode_list_prim_u_8_loose(material, serializer);
+          sse_encode_list_payment_input(payments, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 13,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_zafe_error,
+        ),
+        constMeta: kCrateApiProposalsProposePaymentConstMeta,
+        argValues: [
+          relayUrl,
+          lightwalletdUrl,
+          dbDir,
+          seeds,
+          material,
+          payments,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiProposalsProposePaymentConstMeta =>
+      const TaskConstMeta(
+        debugName: "propose_payment",
+        argNames: [
+          "relayUrl",
+          "lightwalletdUrl",
+          "dbDir",
+          "seeds",
+          "material",
+          "payments",
+        ],
+      );
+
+  @override
+  Future<void> crateApiProposalsRejectProposal({
+    required String relayUrl,
+    required List<int> seeds,
+    required List<int> material,
+    required String proposalId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(relayUrl, serializer);
+          sse_encode_list_prim_u_8_loose(seeds, serializer);
+          sse_encode_list_prim_u_8_loose(material, serializer);
+          sse_encode_String(proposalId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 14,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_zafe_error,
+        ),
+        constMeta: kCrateApiProposalsRejectProposalConstMeta,
+        argValues: [relayUrl, seeds, material, proposalId],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiProposalsRejectProposalConstMeta =>
+      const TaskConstMeta(
+        debugName: "reject_proposal",
+        argNames: ["relayUrl", "seeds", "material", "proposalId"],
+      );
+
+  @override
+  Future<ReviewInfo> crateApiProposalsReviewProposal({
+    required String relayUrl,
+    required String lightwalletdUrl,
+    required String dbDir,
+    required List<int> seeds,
+    required List<int> material,
+    required String proposalId,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(relayUrl, serializer);
+          sse_encode_String(lightwalletdUrl, serializer);
+          sse_encode_String(dbDir, serializer);
+          sse_encode_list_prim_u_8_loose(seeds, serializer);
+          sse_encode_list_prim_u_8_loose(material, serializer);
+          sse_encode_String(proposalId, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 15,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_review_info,
+          decodeErrorData: sse_decode_zafe_error,
+        ),
+        constMeta: kCrateApiProposalsReviewProposalConstMeta,
+        argValues: [
+          relayUrl,
+          lightwalletdUrl,
+          dbDir,
+          seeds,
+          material,
+          proposalId,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiProposalsReviewProposalConstMeta =>
+      const TaskConstMeta(
+        debugName: "review_proposal",
+        argNames: [
+          "relayUrl",
+          "lightwalletdUrl",
+          "dbDir",
+          "seeds",
+          "material",
+          "proposalId",
+        ],
+      );
+
+  @override
   Future<Uint8List> crateApiVaultRunKeygen({
     required String relayUrl,
     required String lightwalletdUrl,
@@ -321,6 +780,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String invite,
     required String confirmedSafetyNumber,
     required int timeoutSecs,
+    int? birthdayHeight,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -333,16 +793,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(invite, serializer);
           sse_encode_String(confirmedSafetyNumber, serializer);
           sse_encode_u_32(timeoutSecs, serializer);
+          sse_encode_opt_box_autoadd_u_32(birthdayHeight, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 16,
             port: port_,
           );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_list_prim_u_8_strict,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_zafe_error,
         ),
         constMeta: kCrateApiVaultRunKeygenConstMeta,
         argValues: [
@@ -353,6 +814,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           invite,
           confirmedSafetyNumber,
           timeoutSecs,
+          birthdayHeight,
         ],
         apiImpl: this,
       ),
@@ -369,6 +831,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       "invite",
       "confirmedSafetyNumber",
       "timeoutSecs",
+      "birthdayHeight",
     ],
   );
 
@@ -388,13 +851,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 17,
             port: port_,
           );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_unit,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_zafe_error,
         ),
         constMeta: kCrateApiVaultSealVaultConstMeta,
         argValues: [relayUrl, seeds, invite],
@@ -407,6 +870,74 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     debugName: "seal_vault",
     argNames: ["relayUrl", "seeds", "invite"],
   );
+
+  @override
+  Stream<SendProgress> crateApiProposalsSendProposal({
+    required String relayUrl,
+    required String lightwalletdUrl,
+    required String dbDir,
+    required String stateDir,
+    required List<int> seeds,
+    required List<int> material,
+    required String proposalId,
+  }) {
+    final sink = RustStreamSink<SendProgress>();
+    unawaited(
+      handler.executeNormal(
+        NormalTask(
+          callFfi: (port_) {
+            final serializer = SseSerializer(generalizedFrbRustBinding);
+            sse_encode_String(relayUrl, serializer);
+            sse_encode_String(lightwalletdUrl, serializer);
+            sse_encode_String(dbDir, serializer);
+            sse_encode_String(stateDir, serializer);
+            sse_encode_list_prim_u_8_loose(seeds, serializer);
+            sse_encode_list_prim_u_8_loose(material, serializer);
+            sse_encode_String(proposalId, serializer);
+            sse_encode_StreamSink_send_progress_Sse(sink, serializer);
+            pdeCallFfi(
+              generalizedFrbRustBinding,
+              serializer,
+              funcId: 18,
+              port: port_,
+            );
+          },
+          codec: SseCodec(
+            decodeSuccessData: sse_decode_unit,
+            decodeErrorData: sse_decode_zafe_error,
+          ),
+          constMeta: kCrateApiProposalsSendProposalConstMeta,
+          argValues: [
+            relayUrl,
+            lightwalletdUrl,
+            dbDir,
+            stateDir,
+            seeds,
+            material,
+            proposalId,
+            sink,
+          ],
+          apiImpl: this,
+        ),
+      ),
+    );
+    return sink.stream;
+  }
+
+  TaskConstMeta get kCrateApiProposalsSendProposalConstMeta =>
+      const TaskConstMeta(
+        debugName: "send_proposal",
+        argNames: [
+          "relayUrl",
+          "lightwalletdUrl",
+          "dbDir",
+          "stateDir",
+          "seeds",
+          "material",
+          "proposalId",
+          "sink",
+        ],
+      );
 
   @override
   Future<Balance> crateApiVaultSyncVault({
@@ -424,13 +955,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 19,
             port: port_,
           );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_balance,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_zafe_error,
         ),
         constMeta: kCrateApiVaultSyncVaultConstMeta,
         argValues: [dbDir, lightwalletdUrl, material],
@@ -460,13 +991,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 20,
             port: port_,
           );
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_membership_info,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_zafe_error,
         ),
         constMeta: kCrateApiVaultVaultMembershipConstMeta,
         argValues: [relayUrl, seeds, invite],
@@ -488,11 +1019,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: () {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_list_prim_u_8_loose(material, serializer);
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 11)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 21)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_vault_summary,
-          decodeErrorData: sse_decode_AnyhowException,
+          decodeErrorData: sse_decode_zafe_error,
         ),
         constMeta: kCrateApiVaultVaultSummaryConstMeta,
         argValues: [material],
@@ -511,9 +1042,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  RustStreamSink<SendProgress> dco_decode_StreamSink_send_progress_Sse(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    throw UnimplementedError();
+  }
+
+  @protected
   String dco_decode_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as String;
+  }
+
+  @protected
+  AddressCheck dco_decode_address_check(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return AddressCheck(
+      valid: dco_decode_bool(arr[0]),
+      reason: dco_decode_String(arr[1]),
+    );
   }
 
   @protected
@@ -533,6 +1084,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   bool dco_decode_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as bool;
+  }
+
+  @protected
+  int dco_decode_box_autoadd_u_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
+  }
+
+  @protected
+  BigInt dco_decode_box_autoadd_u_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_u_64(raw);
+  }
+
+  @protected
+  ZafeError dco_decode_box_autoadd_zafe_error(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_zafe_error(raw);
+  }
+
+  @protected
+  int dco_decode_i_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as int;
   }
 
   @protected
@@ -568,6 +1143,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<PaymentInfo> dco_decode_list_payment_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_payment_info).toList();
+  }
+
+  @protected
+  List<PaymentInput> dco_decode_list_payment_input(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_payment_input).toList();
+  }
+
+  @protected
   List<int> dco_decode_list_prim_u_8_loose(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as List<int>;
@@ -577,6 +1164,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Uint8List;
+  }
+
+  @protected
+  List<ProposalInfo> dco_decode_list_proposal_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_proposal_info).toList();
   }
 
   @protected
@@ -591,6 +1184,131 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       safetyNumber: dco_decode_String(arr[2]),
       isCreator: dco_decode_bool(arr[3]),
     );
+  }
+
+  @protected
+  MyVote dco_decode_my_vote(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return MyVote.values[raw as int];
+  }
+
+  @protected
+  String? dco_decode_opt_String(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_String(raw);
+  }
+
+  @protected
+  int? dco_decode_opt_box_autoadd_u_32(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_u_32(raw);
+  }
+
+  @protected
+  BigInt? dco_decode_opt_box_autoadd_u_64(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_u_64(raw);
+  }
+
+  @protected
+  ZafeError? dco_decode_opt_box_autoadd_zafe_error(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_zafe_error(raw);
+  }
+
+  @protected
+  PaymentInfo dco_decode_payment_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return PaymentInfo(
+      address: dco_decode_String(arr[0]),
+      amountZat: dco_decode_u_64(arr[1]),
+      memo: dco_decode_String(arr[2]),
+    );
+  }
+
+  @protected
+  PaymentInput dco_decode_payment_input(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return PaymentInput(
+      address: dco_decode_String(arr[0]),
+      amountZat: dco_decode_u_64(arr[1]),
+      memo: dco_decode_String(arr[2]),
+    );
+  }
+
+  @protected
+  ProposalInfo dco_decode_proposal_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 14)
+      throw Exception('unexpected arr length: expect 14 but see ${arr.length}');
+    return ProposalInfo(
+      id: dco_decode_String(arr[0]),
+      author: dco_decode_String(arr[1]),
+      isMine: dco_decode_bool(arr[2]),
+      payments: dco_decode_list_payment_info(arr[3]),
+      totalZat: dco_decode_u_64(arr[4]),
+      stage: dco_decode_proposal_stage(arr[5]),
+      approvals: dco_decode_list_String(arr[6]),
+      rejections: dco_decode_list_String(arr[7]),
+      myVote: dco_decode_my_vote(arr[8]),
+      threshold: dco_decode_u_16(arr[9]),
+      rejectionThreshold: dco_decode_u_16(arr[10]),
+      createdAt: dco_decode_u_64(arr[11]),
+      txid: dco_decode_opt_String(arr[12]),
+      signingStarted: dco_decode_bool(arr[13]),
+    );
+  }
+
+  @protected
+  ProposalStage dco_decode_proposal_stage(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ProposalStage.values[raw as int];
+  }
+
+  @protected
+  ReviewInfo dco_decode_review_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    return ReviewInfo(
+      verified: dco_decode_bool(arr[0]),
+      problem: dco_decode_String(arr[1]),
+      feeZat: dco_decode_u_64(arr[2]),
+      changeZat: dco_decode_u_64(arr[3]),
+      inputZat: dco_decode_u_64(arr[4]),
+      spends: dco_decode_u_32(arr[5]),
+      expiryHeight: dco_decode_u_32(arr[6]),
+      tipHeight: dco_decode_u_32(arr[7]),
+    );
+  }
+
+  @protected
+  SendProgress dco_decode_send_progress(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return SendProgress(
+      stage: dco_decode_send_stage(arr[0]),
+      received: dco_decode_u_32(arr[1]),
+      needed: dco_decode_u_32(arr[2]),
+      txid: dco_decode_opt_String(arr[3]),
+      error: dco_decode_opt_box_autoadd_zafe_error(arr[4]),
+    );
+  }
+
+  @protected
+  SendStage dco_decode_send_stage(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return SendStage.values[raw as int];
   }
 
   @protected
@@ -640,6 +1358,24 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ZafeError dco_decode_zafe_error(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return ZafeError(
+      kind: dco_decode_zafe_error_kind(arr[0]),
+      message: dco_decode_String(arr[1]),
+    );
+  }
+
+  @protected
+  ZafeErrorKind dco_decode_zafe_error_kind(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return ZafeErrorKind.values[raw as int];
+  }
+
+  @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_String(deserializer);
@@ -647,10 +1383,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  RustStreamSink<SendProgress> sse_decode_StreamSink_send_progress_Sse(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    throw UnimplementedError('Unreachable ()');
+  }
+
+  @protected
   String sse_decode_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_list_prim_u_8_strict(deserializer);
     return utf8.decoder.convert(inner);
+  }
+
+  @protected
+  AddressCheck sse_decode_address_check(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_valid = sse_decode_bool(deserializer);
+    var var_reason = sse_decode_String(deserializer);
+    return AddressCheck(valid: var_valid, reason: var_reason);
   }
 
   @protected
@@ -670,6 +1422,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   bool sse_decode_bool(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint8() != 0;
+  }
+
+  @protected
+  int sse_decode_box_autoadd_u_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_u_32(deserializer));
+  }
+
+  @protected
+  BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_u_64(deserializer));
+  }
+
+  @protected
+  ZafeError sse_decode_box_autoadd_zafe_error(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_zafe_error(deserializer));
+  }
+
+  @protected
+  int sse_decode_i_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return deserializer.buffer.getInt32();
   }
 
   @protected
@@ -708,6 +1484,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<PaymentInfo> sse_decode_list_payment_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <PaymentInfo>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_payment_info(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<PaymentInput> sse_decode_list_payment_input(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <PaymentInput>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_payment_input(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
@@ -719,6 +1521,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
     return deserializer.buffer.getUint8List(len_);
+  }
+
+  @protected
+  List<ProposalInfo> sse_decode_list_proposal_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ProposalInfo>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_proposal_info(deserializer));
+    }
+    return ans_;
   }
 
   @protected
@@ -734,6 +1550,174 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       safetyNumber: var_safetyNumber,
       isCreator: var_isCreator,
     );
+  }
+
+  @protected
+  MyVote sse_decode_my_vote(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return MyVote.values[inner];
+  }
+
+  @protected
+  String? sse_decode_opt_String(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_String(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  int? sse_decode_opt_box_autoadd_u_32(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_u_32(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  BigInt? sse_decode_opt_box_autoadd_u_64(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_u_64(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  ZafeError? sse_decode_opt_box_autoadd_zafe_error(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_zafe_error(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  PaymentInfo sse_decode_payment_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_address = sse_decode_String(deserializer);
+    var var_amountZat = sse_decode_u_64(deserializer);
+    var var_memo = sse_decode_String(deserializer);
+    return PaymentInfo(
+      address: var_address,
+      amountZat: var_amountZat,
+      memo: var_memo,
+    );
+  }
+
+  @protected
+  PaymentInput sse_decode_payment_input(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_address = sse_decode_String(deserializer);
+    var var_amountZat = sse_decode_u_64(deserializer);
+    var var_memo = sse_decode_String(deserializer);
+    return PaymentInput(
+      address: var_address,
+      amountZat: var_amountZat,
+      memo: var_memo,
+    );
+  }
+
+  @protected
+  ProposalInfo sse_decode_proposal_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_id = sse_decode_String(deserializer);
+    var var_author = sse_decode_String(deserializer);
+    var var_isMine = sse_decode_bool(deserializer);
+    var var_payments = sse_decode_list_payment_info(deserializer);
+    var var_totalZat = sse_decode_u_64(deserializer);
+    var var_stage = sse_decode_proposal_stage(deserializer);
+    var var_approvals = sse_decode_list_String(deserializer);
+    var var_rejections = sse_decode_list_String(deserializer);
+    var var_myVote = sse_decode_my_vote(deserializer);
+    var var_threshold = sse_decode_u_16(deserializer);
+    var var_rejectionThreshold = sse_decode_u_16(deserializer);
+    var var_createdAt = sse_decode_u_64(deserializer);
+    var var_txid = sse_decode_opt_String(deserializer);
+    var var_signingStarted = sse_decode_bool(deserializer);
+    return ProposalInfo(
+      id: var_id,
+      author: var_author,
+      isMine: var_isMine,
+      payments: var_payments,
+      totalZat: var_totalZat,
+      stage: var_stage,
+      approvals: var_approvals,
+      rejections: var_rejections,
+      myVote: var_myVote,
+      threshold: var_threshold,
+      rejectionThreshold: var_rejectionThreshold,
+      createdAt: var_createdAt,
+      txid: var_txid,
+      signingStarted: var_signingStarted,
+    );
+  }
+
+  @protected
+  ProposalStage sse_decode_proposal_stage(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return ProposalStage.values[inner];
+  }
+
+  @protected
+  ReviewInfo sse_decode_review_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_verified = sse_decode_bool(deserializer);
+    var var_problem = sse_decode_String(deserializer);
+    var var_feeZat = sse_decode_u_64(deserializer);
+    var var_changeZat = sse_decode_u_64(deserializer);
+    var var_inputZat = sse_decode_u_64(deserializer);
+    var var_spends = sse_decode_u_32(deserializer);
+    var var_expiryHeight = sse_decode_u_32(deserializer);
+    var var_tipHeight = sse_decode_u_32(deserializer);
+    return ReviewInfo(
+      verified: var_verified,
+      problem: var_problem,
+      feeZat: var_feeZat,
+      changeZat: var_changeZat,
+      inputZat: var_inputZat,
+      spends: var_spends,
+      expiryHeight: var_expiryHeight,
+      tipHeight: var_tipHeight,
+    );
+  }
+
+  @protected
+  SendProgress sse_decode_send_progress(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_stage = sse_decode_send_stage(deserializer);
+    var var_received = sse_decode_u_32(deserializer);
+    var var_needed = sse_decode_u_32(deserializer);
+    var var_txid = sse_decode_opt_String(deserializer);
+    var var_error = sse_decode_opt_box_autoadd_zafe_error(deserializer);
+    return SendProgress(
+      stage: var_stage,
+      received: var_received,
+      needed: var_needed,
+      txid: var_txid,
+      error: var_error,
+    );
+  }
+
+  @protected
+  SendStage sse_decode_send_stage(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return SendStage.values[inner];
   }
 
   @protected
@@ -785,9 +1769,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  int sse_decode_i_32(SseDeserializer deserializer) {
+  ZafeError sse_decode_zafe_error(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return deserializer.buffer.getInt32();
+    var var_kind = sse_decode_zafe_error_kind(deserializer);
+    var var_message = sse_decode_String(deserializer);
+    return ZafeError(kind: var_kind, message: var_message);
+  }
+
+  @protected
+  ZafeErrorKind sse_decode_zafe_error_kind(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return ZafeErrorKind.values[inner];
   }
 
   @protected
@@ -800,9 +1793,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_StreamSink_send_progress_Sse(
+    RustStreamSink<SendProgress> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(
+      self.setupAndSerialize(
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_send_progress,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+      ),
+      serializer,
+    );
+  }
+
+  @protected
   void sse_encode_String(String self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_prim_u_8_strict(utf8.encoder.convert(self), serializer);
+  }
+
+  @protected
+  void sse_encode_address_check(AddressCheck self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.valid, serializer);
+    sse_encode_String(self.reason, serializer);
   }
 
   @protected
@@ -817,6 +1834,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_bool(bool self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putUint8(self ? 1 : 0);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_u_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_32(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_64(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_zafe_error(
+    ZafeError self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_zafe_error(self, serializer);
+  }
+
+  @protected
+  void sse_encode_i_32(int self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    serializer.buffer.putInt32(self);
   }
 
   @protected
@@ -845,6 +1889,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_payment_info(
+    List<PaymentInfo> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_payment_info(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_payment_input(
+    List<PaymentInput> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_payment_input(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_prim_u_8_loose(
     List<int> self,
     SseSerializer serializer,
@@ -867,6 +1935,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_proposal_info(
+    List<ProposalInfo> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_proposal_info(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_membership_info(
     MembershipInfo self,
     SseSerializer serializer,
@@ -876,6 +1956,125 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.sealed, serializer);
     sse_encode_String(self.safetyNumber, serializer);
     sse_encode_bool(self.isCreator, serializer);
+  }
+
+  @protected
+  void sse_encode_my_vote(MyVote self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_opt_String(String? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_String(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_32(int? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_u_32(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_u_64(BigInt? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_u_64(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_zafe_error(
+    ZafeError? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_zafe_error(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_payment_info(PaymentInfo self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.address, serializer);
+    sse_encode_u_64(self.amountZat, serializer);
+    sse_encode_String(self.memo, serializer);
+  }
+
+  @protected
+  void sse_encode_payment_input(PaymentInput self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.address, serializer);
+    sse_encode_u_64(self.amountZat, serializer);
+    sse_encode_String(self.memo, serializer);
+  }
+
+  @protected
+  void sse_encode_proposal_info(ProposalInfo self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.id, serializer);
+    sse_encode_String(self.author, serializer);
+    sse_encode_bool(self.isMine, serializer);
+    sse_encode_list_payment_info(self.payments, serializer);
+    sse_encode_u_64(self.totalZat, serializer);
+    sse_encode_proposal_stage(self.stage, serializer);
+    sse_encode_list_String(self.approvals, serializer);
+    sse_encode_list_String(self.rejections, serializer);
+    sse_encode_my_vote(self.myVote, serializer);
+    sse_encode_u_16(self.threshold, serializer);
+    sse_encode_u_16(self.rejectionThreshold, serializer);
+    sse_encode_u_64(self.createdAt, serializer);
+    sse_encode_opt_String(self.txid, serializer);
+    sse_encode_bool(self.signingStarted, serializer);
+  }
+
+  @protected
+  void sse_encode_proposal_stage(ProposalStage self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_review_info(ReviewInfo self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.verified, serializer);
+    sse_encode_String(self.problem, serializer);
+    sse_encode_u_64(self.feeZat, serializer);
+    sse_encode_u_64(self.changeZat, serializer);
+    sse_encode_u_64(self.inputZat, serializer);
+    sse_encode_u_32(self.spends, serializer);
+    sse_encode_u_32(self.expiryHeight, serializer);
+    sse_encode_u_32(self.tipHeight, serializer);
+  }
+
+  @protected
+  void sse_encode_send_progress(SendProgress self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_send_stage(self.stage, serializer);
+    sse_encode_u_32(self.received, serializer);
+    sse_encode_u_32(self.needed, serializer);
+    sse_encode_opt_String(self.txid, serializer);
+    sse_encode_opt_box_autoadd_zafe_error(self.error, serializer);
+  }
+
+  @protected
+  void sse_encode_send_stage(SendStage self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
   }
 
   @protected
@@ -919,8 +2118,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_i_32(int self, SseSerializer serializer) {
+  void sse_encode_zafe_error(ZafeError self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    serializer.buffer.putInt32(self);
+    sse_encode_zafe_error_kind(self.kind, serializer);
+    sse_encode_String(self.message, serializer);
+  }
+
+  @protected
+  void sse_encode_zafe_error_kind(
+    ZafeErrorKind self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
   }
 }

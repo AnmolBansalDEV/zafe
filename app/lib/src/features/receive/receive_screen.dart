@@ -20,7 +20,8 @@ class ReceiveScreen extends ConsumerWidget {
     final summary = ref.watch(vaultProvider).summary;
     if (summary == null) return const SizedBox.shrink();
     final address = summary.address;
-    final compact = '${address.substring(0, 13)} ... ${address.substring(address.length - 11)}';
+    final compact =
+        '${address.substring(0, 13)} ... ${address.substring(address.length - 11)}';
 
     return ZafeScreen(
       title: 'Receive',
@@ -38,7 +39,9 @@ class ReceiveScreen extends ConsumerWidget {
             ),
             child: PrettyQrView.data(
               data: address,
-              decoration: PrettyQrDecoration(shape: DotQrShape(color: colors.text.homeCard)),
+              decoration: PrettyQrDecoration(
+                shape: DotQrShape(color: colors.text.homeCard),
+              ),
             ),
           ),
         ),
@@ -46,11 +49,21 @@ class ReceiveScreen extends ConsumerWidget {
         Center(
           child: Text(
             summary.name,
-            style: AppTypography.bodyLarge.copyWith(color: colors.text.accent, fontWeight: FontWeight.w600),
+            style: AppTypography.bodyLarge.copyWith(
+              color: colors.text.accent,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
         const SizedBox(height: AppSpacing.xxs),
-        Center(child: Text(compact, style: AppTypography.labelLarge.copyWith(color: colors.text.secondary))),
+        Center(
+          child: Text(
+            compact,
+            style: AppTypography.labelLarge.copyWith(
+              color: colors.text.secondary,
+            ),
+          ),
+        ),
         const SizedBox(height: AppSpacing.xs),
         Center(
           child: Text(
@@ -71,7 +84,11 @@ class ReceiveScreen extends ConsumerWidget {
         AppButton(
           expand: true,
           variant: AppButtonVariant.ghost,
-          onPressed: () => copyTextWithToast(context, text: address, toastMessage: 'Address copied'),
+          onPressed: () => copyTextWithToast(
+            context,
+            text: address,
+            toastMessage: 'Address copied',
+          ),
           leading: const AppIcon(AppIcons.copy, size: 20),
           child: const Text('Copy vault address'),
         ),

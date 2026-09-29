@@ -53,7 +53,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       await ref.read(vaultProvider.notifier).refreshMembership();
       if (mounted && _error != null) setState(() => _error = null);
     } catch (e) {
-      if (mounted) setState(() => _error = 'Can\'t reach the relay. Retrying...');
+      if (mounted) {
+        setState(() => _error = 'Can\'t reach the relay. Retrying...');
+      }
     }
   }
 
@@ -62,7 +64,13 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     try {
       await ref.read(vaultProvider.notifier).seal();
     } catch (e) {
-      if (mounted) showAppToast(context, 'Couldn\'t lock membership. $e', iconName: AppIcons.warning);
+      if (mounted) {
+        showAppToast(
+          context,
+          'Couldn\'t lock membership. $e',
+          iconName: AppIcons.warning,
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -77,7 +85,11 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _creatingKeys = false);
-        showAppToast(context, 'Key generation failed. $e', iconName: AppIcons.warning);
+        showAppToast(
+          context,
+          'Key generation failed. $e',
+          iconName: AppIcons.warning,
+        );
         _poll = Timer.periodic(const Duration(seconds: 2), (_) => _refresh());
       }
     }
@@ -101,7 +113,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     if (sealed) {
       bottom = AppButton(
         expand: true,
-        onPressed: _compared ? () => _createKeys(membership!.safetyNumber) : null,
+        onPressed: _compared
+            ? () => _createKeys(membership!.safetyNumber)
+            : null,
         leading: const AppIcon(AppIcons.key, size: 20),
         child: const Text('Create vault keys'),
       );
@@ -110,7 +124,9 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         expand: true,
         onPressed: everyoneJoined && !_busy ? _seal : null,
         leading: const AppIcon(AppIcons.lock, size: 20),
-        child: Text(everyoneJoined ? 'Lock membership' : 'Waiting for members...'),
+        child: Text(
+          everyoneJoined ? 'Lock membership' : 'Waiting for members...',
+        ),
       );
     }
 
@@ -131,7 +147,12 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         ),
         const SizedBox(height: AppSpacing.md),
         if (_error != null)
-          Text(_error!, style: AppTypography.bodySmall.copyWith(color: context.colors.text.warning)),
+          Text(
+            _error!,
+            style: AppTypography.bodySmall.copyWith(
+              color: context.colors.text.warning,
+            ),
+          ),
         if (!sealed && !isCreator)
           _Hint(
             text: everyoneJoined
@@ -169,12 +190,20 @@ class _InviteCard extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
       child: Column(
         children: [
-          Text('Invite members', style: AppTypography.bodyLarge.copyWith(color: colors.text.accent, fontWeight: FontWeight.w600)),
+          Text(
+            'Invite members',
+            style: AppTypography.bodyLarge.copyWith(
+              color: colors.text.accent,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
           const SizedBox(height: AppSpacing.xxs),
           Text(
             'Share this with the people who will co-sign. Anyone with it can join until you lock membership.',
             textAlign: TextAlign.center,
-            style: AppTypography.bodySmall.copyWith(color: colors.text.secondary),
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.text.secondary,
+            ),
           ),
           const SizedBox(height: AppSpacing.sm),
           Container(
@@ -187,7 +216,9 @@ class _InviteCard extends StatelessWidget {
             ),
             child: PrettyQrView.data(
               data: invite,
-              decoration: const PrettyQrDecoration(shape: DotQrShape(color: Color(0xFF141818))),
+              decoration: const PrettyQrDecoration(
+                shape: DotQrShape(color: Color(0xFF141818)),
+              ),
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -196,7 +227,8 @@ class _InviteCard extends StatelessWidget {
               Expanded(
                 child: AppButton(
                   variant: AppButtonVariant.secondary,
-                  onPressed: () => SharePlus.instance.share(ShareParams(text: invite)),
+                  onPressed: () =>
+                      SharePlus.instance.share(ShareParams(text: invite)),
                   leading: const AppIcon(AppIcons.share, size: 20),
                   child: const Text('Share'),
                 ),
@@ -205,7 +237,11 @@ class _InviteCard extends StatelessWidget {
               Expanded(
                 child: AppButton(
                   variant: AppButtonVariant.secondary,
-                  onPressed: () => copyTextWithToast(context, text: invite, toastMessage: 'Invite copied'),
+                  onPressed: () => copyTextWithToast(
+                    context,
+                    text: invite,
+                    toastMessage: 'Invite copied',
+                  ),
                   leading: const AppIcon(AppIcons.copy, size: 20),
                   child: const Text('Copy'),
                 ),
@@ -244,12 +280,17 @@ class _MembersCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Members',
-                  style: AppTypography.labelLarge.copyWith(color: colors.text.accent, fontWeight: FontWeight.w600),
+                  style: AppTypography.labelLarge.copyWith(
+                    color: colors.text.accent,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               Text(
                 '${members.length} of $expected joined',
-                style: AppTypography.labelMedium.copyWith(color: colors.text.secondary),
+                style: AppTypography.labelMedium.copyWith(
+                  color: colors.text.secondary,
+                ),
               ),
             ],
           ),
@@ -267,16 +308,27 @@ class _MembersCard extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
-                    child: AppIcon(AppIcons.user, size: 16, color: colors.icon.regular),
+                    child: AppIcon(
+                      AppIcons.user,
+                      size: 16,
+                      color: colors.icon.regular,
+                    ),
                   ),
                   const SizedBox(width: AppSpacing.s),
                   Text(
                     '${m.substring(0, 8)}...${m.substring(m.length - 6)}',
-                    style: AppTypography.codeSmall.copyWith(color: colors.text.primary),
+                    style: AppTypography.codeSmall.copyWith(
+                      color: colors.text.primary,
+                    ),
                   ),
                   if (m == myKeyHex) ...[
                     const SizedBox(width: AppSpacing.xs),
-                    Text('You', style: AppTypography.labelMedium.copyWith(color: colors.text.secondary)),
+                    Text(
+                      'You',
+                      style: AppTypography.labelMedium.copyWith(
+                        color: colors.text.secondary,
+                      ),
+                    ),
                   ],
                 ],
               ),
@@ -295,14 +347,21 @@ class _MembersCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: AppSpacing.s),
-                  Text('Waiting...', style: AppTypography.bodySmall.copyWith(color: colors.text.muted)),
+                  Text(
+                    'Waiting...',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: colors.text.muted,
+                    ),
+                  ),
                 ],
               ),
             ),
           const SizedBox(height: AppSpacing.xs),
           Text(
             '$threshold signatures needed for each payment.',
-            style: AppTypography.bodySmall.copyWith(color: colors.text.secondary),
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.text.secondary,
+            ),
           ),
         ],
       ),
@@ -329,15 +388,26 @@ class _SafetyNumberCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AppIcon(AppIcons.shieldKeyhole, size: 20, color: colors.text.homeCard),
+              AppIcon(
+                AppIcons.shieldKeyhole,
+                size: 20,
+                color: colors.text.homeCard,
+              ),
               const SizedBox(width: AppSpacing.xs),
-              Text('Safety number', style: AppTypography.labelMedium.copyWith(color: colors.text.homeCard)),
+              Text(
+                'Safety number',
+                style: AppTypography.labelMedium.copyWith(
+                  color: colors.text.homeCard,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
             number,
-            style: AppTypography.headlineLarge.copyWith(color: colors.text.homeCard),
+            style: AppTypography.headlineLarge.copyWith(
+              color: colors.text.homeCard,
+            ),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -345,7 +415,9 @@ class _SafetyNumberCard extends StatelessWidget {
             'Read it to each member over a call, or compare in person. Every member must see the same number. '
             'If any member sees a different one, stop: someone may be impersonating a member.',
             textAlign: TextAlign.center,
-            style: AppTypography.bodySmall.copyWith(color: colors.text.homeCard.withValues(alpha: 0.7)),
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.text.homeCard.withValues(alpha: 0.7),
+            ),
           ),
         ],
       ),
@@ -354,7 +426,11 @@ class _SafetyNumberCard extends StatelessWidget {
 }
 
 class _ConfirmOption extends StatelessWidget {
-  const _ConfirmOption({required this.selected, required this.label, required this.onTap});
+  const _ConfirmOption({
+    required this.selected,
+    required this.label,
+    required this.onTap,
+  });
   final bool selected;
   final String label;
   final VoidCallback onTap;
@@ -377,16 +453,31 @@ class _ConfirmOption extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Expanded(child: Text(label, style: AppTypography.bodyMediumStrong.copyWith(color: colors.text.accent))),
+            Expanded(
+              child: Text(
+                label,
+                style: AppTypography.bodyMediumStrong.copyWith(
+                  color: colors.text.accent,
+                ),
+              ),
+            ),
             Container(
               width: 24,
               height: 24,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: selected ? colors.background.inverse : colors.background.neutralSubtleOpacity,
+                color: selected
+                    ? colors.background.inverse
+                    : colors.background.neutralSubtleOpacity,
               ),
               alignment: Alignment.center,
-              child: selected ? AppIcon(AppIcons.check, size: 14, color: colors.icon.inverse) : null,
+              child: selected
+                  ? AppIcon(
+                      AppIcons.check,
+                      size: 14,
+                      color: colors.icon.inverse,
+                    )
+                  : null,
             ),
           ],
         ),
@@ -406,7 +497,14 @@ class _Hint extends StatelessWidget {
       children: [
         AppIcon(AppIcons.loader, size: 16, color: colors.icon.muted),
         const SizedBox(width: AppSpacing.xs),
-        Expanded(child: Text(text, style: AppTypography.bodySmall.copyWith(color: colors.text.secondary))),
+        Expanded(
+          child: Text(
+            text,
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.text.secondary,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -431,13 +529,20 @@ class _CreatingKeys extends StatelessWidget {
               const SizedBox(height: AppSpacing.sm),
               Text(
                 'Creating your vault keys...',
-                style: TextStyle(fontFamily: 'Young Serif', fontSize: 24, height: 28 / 24, color: colors.text.accent),
+                style: TextStyle(
+                  fontFamily: 'Young Serif',
+                  fontSize: 24,
+                  height: 28 / 24,
+                  color: colors.text.accent,
+                ),
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(
                 'Keep Zafe open. Your share is being created together with the other members; '
                 'the full key never exists anywhere.',
-                style: AppTypography.bodyMedium.copyWith(color: colors.text.secondary),
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.text.secondary,
+                ),
               ),
               const SizedBox(height: AppSpacing.lg),
             ],

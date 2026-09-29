@@ -2692,13 +2692,18 @@ name = "rust_lib_zafe"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "axum",
  "flutter_rust_bridge",
  "hex",
+ "orchard",
  "postcard",
  "rand",
  "tokio",
  "zafe-core",
  "zafe-proto",
+ "zafe-relay",
+ "zcash_keys",
+ "zcash_protocol",
 ]
 
 [[package]]

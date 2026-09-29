@@ -9,11 +9,11 @@ use std::{fs, path::PathBuf, time::Duration};
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
 use rand::rngs::OsRng;
-use reddsa::frost::redpallas::round1::{SigningCommitments, SigningNonces};
 use zafe_core::{
     node::{self, Invite, VaultMaterial},
+    nonce_store::FileNonceStore,
     relay_client::RelayClient,
-    session::{NonceStore, ProposalId},
+    session::ProposalId,
     wallet::{connect, latest_height, regtest_network, PaymentRequest, VaultWallet},
 };
 use zafe_proto::{Identity, IdentitySeeds};
@@ -131,61 +131,6 @@ impl Home {
 }
 
 /// Nonces on disk, one file per (proposal, PCZT hash). `take` deletes before returning.
-struct FileNonceStore(PathBuf);
-
-impl FileNonceStore {
-    fn file(&self, proposal: &ProposalId, hash: &[u8; 32]) -> PathBuf {
-        self.0.join(format!(
-            "{}-{}.bin",
-            hex::encode(proposal),
-            hex::encode(hash)
-        ))
-    }
-}
-
-impl NonceStore for FileNonceStore {
-    fn contains(&self, proposal: &ProposalId, hash: &[u8; 32]) -> bool {
-        self.file(proposal, hash).exists()
-    }
-
-    fn commitments(
-        &self,
-        proposal: &ProposalId,
-        hash: &[u8; 32],
-    ) -> Option<Vec<SigningCommitments>> {
-        let encoded: Vec<Vec<u8>> =
-            postcard::from_bytes(&fs::read(self.file(proposal, hash)).ok()?).ok()?;
-        encoded
-            .iter()
-            .map(|b| SigningNonces::deserialize(b).ok().map(|n| *n.commitments()))
-            .collect()
-    }
-
-    fn put(&mut self, proposal: ProposalId, hash: [u8; 32], nonces: Vec<SigningNonces>) {
-        let encoded: Vec<Vec<u8>> = nonces
-            .iter()
-            .map(|n| n.serialize().expect("serializable"))
-            .collect();
-        fs::create_dir_all(&self.0).expect("nonce dir");
-        fs::write(
-            self.file(&proposal, &hash),
-            postcard::to_allocvec(&encoded).expect("encodable"),
-        )
-        .expect("write nonces");
-    }
-
-    fn take(&mut self, proposal: &ProposalId, hash: &[u8; 32]) -> Option<Vec<SigningNonces>> {
-        let path = self.file(proposal, hash);
-        let bytes = fs::read(&path).ok()?;
-        fs::remove_file(&path).ok()?; // delete before use: never reusable
-        let encoded: Vec<Vec<u8>> = postcard::from_bytes(&bytes).ok()?;
-        encoded
-            .iter()
-            .map(|b| SigningNonces::deserialize(b).ok())
-            .collect()
-    }
-}
-
 fn network() -> LocalNetwork {
     regtest_network()
 }
@@ -307,7 +252,7 @@ async fn main() -> Result<()> {
         Command::Approve { proposal } => {
             let material = home.material()?;
             let tip = tip(&home, &material, &cli.lightwalletd).await?;
-            let mut store = FileNonceStore(home.path("nonces"));
+            let mut store = FileNonceStore::new(home.path("nonces"));
             let verified = node::approve(
                 &relay,
                 &home.identity()?,
@@ -366,6 +311,24 @@ async fn main() -> Result<()> {
                 home.path(&format!("requests/{proposal}.bin")),
                 node::encode_request(&sent.request)?,
             )?;
+            // If this member is also a signer, it signs its own part now (never via relay).
+            let mut store = FileNonceStore::new(home.path("nonces"));
+            if let Some(own) = node::sign_own_shares(
+                &relay,
+                &home.identity()?,
+                &material,
+                &network(),
+                tip,
+                &sent.request,
+                &mut store,
+            )
+            .await?
+            {
+                fs::write(
+                    home.path(&format!("requests/{proposal}.own")),
+                    postcard::to_allocvec(&own)?,
+                )?;
+            }
             println!(
                 "signing requests sent to {} member(s)",
                 sent.request.signers.len()
@@ -374,7 +337,7 @@ async fn main() -> Result<()> {
         Command::Respond => {
             let material = home.material()?;
             let tip = tip(&home, &material, &cli.lightwalletd).await?;
-            let mut store = FileNonceStore(home.path("nonces"));
+            let mut store = FileNonceStore::new(home.path("nonces"));
             let report = node::respond(
                 &relay,
                 &home.identity()?,
@@ -396,23 +359,21 @@ async fn main() -> Result<()> {
                 &fs::read(home.path(&format!("requests/{proposal}.bin")))
                     .context("run `zafe request` first")?,
             )?;
+            let own: Option<Vec<Vec<u8>>> =
+                fs::read(home.path(&format!("requests/{proposal}.own")))
+                    .ok()
+                    .map(|b| postcard::from_bytes(&b))
+                    .transpose()?;
             let mut client = connect(&cli.lightwalletd).await?;
-            eprintln!("building proving key...");
-            let pk = orchard::circuit::ProvingKey::build(
-                orchard::circuit::OrchardCircuitVersion::PostNu6_3,
-            );
-            let vk = orchard::circuit::VerifyingKey::build(
-                orchard::circuit::OrchardCircuitVersion::PostNu6_3,
-            );
             let txid = node::finalize(
                 &relay,
                 &home.identity()?,
                 &material,
                 &request,
+                own.as_deref(),
                 &mut client,
-                &pk,
-                &vk,
                 Duration::from_secs(120),
+                |p| eprintln!("shares {}/{}", p.received, p.needed),
                 &mut rng,
             )
             .await?;

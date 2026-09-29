@@ -142,10 +142,8 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
         birthday_height: u32,
         client: &mut Client,
     ) -> Result<Self, WalletError> {
-        let mut db =
-            WalletDb::for_path(path, params.clone(), SystemClock, OsRng).map_err(db_err)?;
-        init_wallet_db(&mut db, None).map_err(db_err)?;
-
+        // Everything that needs the network happens before the database file exists: a
+        // half-created database (no account) would make every later `open` fail.
         let tip: u32 = client
             .get_latest_block(service::ChainSpec::default())
             .await
@@ -172,22 +170,38 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
         let birthday = AccountBirthday::from_treestate(treestate, Some(BlockHeight::from_u32(tip)))
             .map_err(|e| WalletError::Remote(format!("birthday: {e:?}")))?;
 
-        let account = db
-            .import_account_ufvk(
-                name,
-                ufvk,
-                &birthday,
-                AccountPurpose::Spending { derivation: None },
-                None,
-            )
-            .map_err(db_err)?
-            .id();
+        let created = (|| {
+            let mut db =
+                WalletDb::for_path(path, params.clone(), SystemClock, OsRng).map_err(db_err)?;
+            init_wallet_db(&mut db, None).map_err(db_err)?;
+            let account = db
+                .import_account_ufvk(
+                    name,
+                    ufvk,
+                    &birthday,
+                    AccountPurpose::Spending { derivation: None },
+                    None,
+                )
+                .map_err(db_err)?
+                .id();
+            Ok::<_, WalletError>((db, account))
+        })();
+        let (db, account) = created.inspect_err(|_| {
+            let _ = std::fs::remove_file(path);
+        })?;
         Ok(Self {
             db,
             params,
             account,
             cache: MemBlockCache::default(),
         })
+    }
+
+    /// Whether `path` holds a usable vault wallet (a database with its account). Callers
+    /// use this to decide between `open` and `create`; a leftover file without an account
+    /// (e.g. from an older build) should be deleted and recreated.
+    pub fn exists(path: &Path, params: P) -> bool {
+        path.exists() && Self::open(path, params).is_ok()
     }
 
     /// Opens an existing wallet database holding exactly one vault account.
@@ -426,7 +440,10 @@ impl Parameters for ZafeNetwork {
         }
     }
 
-    fn activation_height(&self, nu: zcash_protocol::consensus::NetworkUpgrade) -> Option<BlockHeight> {
+    fn activation_height(
+        &self,
+        nu: zcash_protocol::consensus::NetworkUpgrade,
+    ) -> Option<BlockHeight> {
         match self {
             Self::Main => zcash_protocol::consensus::MainNetwork.activation_height(nu),
             Self::Test => zcash_protocol::consensus::TestNetwork.activation_height(nu),

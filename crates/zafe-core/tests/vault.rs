@@ -106,6 +106,7 @@ fn proposal(id: u8) -> VaultEvent {
         pczt: vec![1, 2, 3],
         pczt_hash: [id; 32],
         tip_height: 100,
+        created_at: 1_700_000_000,
     }
 }
 

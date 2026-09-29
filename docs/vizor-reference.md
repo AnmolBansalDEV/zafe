@@ -1,6 +1,6 @@
 # Vizor wallet reference (for building Zafe)
 
-Source studied: `github.com/valargroup/vizor-wallet` at commit `ff02152` (upstream PRs come from `chainapsis`, the Keplr team). License: Apache-2.0. Local clone: `/tmp/claude-1000/zafe-scratch/vizor-wallet`. All paths below are relative to that repo root unless stated otherwise.
+Upstream: **`github.com/chainapsis/vizor-wallet`** (the Keplr team; Apache-2.0). This document was written from an older snapshot (`ff02152`, via a stale `valargroup` mirror); upstream has since moved on (checked at `4bff2e7`: Ironwood, Tor/network privacy, Ledger, payment links). Tokens and components changed only additively (new utility colors, extra `AppButton` options). Re-check upstream before copying anything new. All paths below are relative to that repo root unless stated otherwise.
 
 Vizor's `AGENTS.md` covers architecture and sync. This document covers what it leaves out: exact design tokens, components, mobile screen layouts, the Keystone/PCZT UX, Dart state patterns, flutter_rust_bridge wiring, copy rules and licensing. Everything was read from source. Where the design screenshots disagree with the code, the code is treated as authoritative.
 
@@ -1555,7 +1555,7 @@ From `AGENTS.md` "UI Copy Conventions", confirmed across the code.
 **Obligations when Zafe copies Vizor code (Apache-2.0 §4)**
 1. Include a copy of the Apache-2.0 license with Zafe's distribution, e.g. `third_party/vizor/LICENSE` or in-app via `LicenseRegistry`.
 2. Mark modified files with a prominent notice. Recommended header on each copied or derived Dart file:
-   `// Portions derived from Vizor (https://github.com/valargroup/vizor-wallet, commit ff02152), Copyright 2026 Vizor contributors, Apache-2.0. Modified by Zafe.`
+   `// Portions derived from Vizor (https://github.com/chainapsis/vizor-wallet), Copyright 2026 Vizor contributors, Apache-2.0. Modified by Zafe.`
 3. Keep any existing copyright or attribution notices. There are none in-file today, but keep the cargokit `LICENSE` if its code is copied.
 4. Vizor has no NOTICE file, so nothing must be propagated from one. Adding a Zafe `NOTICE` that credits Vizor is good practice.
 5. **Trademarks are not licensed (§6).** Do not use "Vizor", the wordmark (`AppIcons.vizor`, `VizorWordmark`), Keplr branding, or confusingly similar trade dress. Also rename channel names (`com.zcash.wallet/*`), bundle IDs (`com.keplr.vizor`), secure-store service names, and every piece of copy containing "Vizor".

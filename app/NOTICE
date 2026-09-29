@@ -1,12 +1,13 @@
 Zafe app
 ========
 
-Portions of this app are derived from Vizor (https://github.com/valargroup/vizor-wallet),
+Portions of this app are derived from Vizor (https://github.com/chainapsis/vizor-wallet),
 Copyright the Vizor authors, licensed under the Apache License, Version 2.0
 (http://www.apache.org/licenses/LICENSE-2.0).
 
 Derived files (lib/src/core/theme, lib/src/core/layout, lib/src/core/widgets,
-lib/src/core/feedback, lib/src/core/formatting, lib/src/core/motion, assets/icons) were
+lib/src/core/feedback, lib/src/core/formatting, lib/src/core/motion,
+lib/src/core/privacy/privacy_mask.dart, assets/icons) were
 modified for Zafe: imports made relative, platform channel names renamed to xyz.zafe/*,
 account/avatar widgets removed, and Zafe-specific screens built on top. Vizor's name,
 wordmark and illustrations are not included.

@@ -10,7 +10,11 @@ import 'features/onboarding/create_vault_screen.dart';
 import 'features/onboarding/join_vault_screen.dart';
 import 'features/onboarding/setup_screen.dart';
 import 'features/onboarding/welcome_screen.dart';
+import 'features/proposals/proposal_screen.dart';
 import 'features/receive/receive_screen.dart';
+import 'features/send/send_screen.dart';
+import 'features/settings/settings_screen.dart';
+import 'providers/theme_mode_provider.dart';
 import 'providers/vault_provider.dart';
 
 final _routerProvider = Provider<GoRouter>((ref) {
@@ -28,8 +32,9 @@ final _routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final vault = ref.read(vaultProvider);
       final loc = state.matchedLocation;
-      if (vault.hasVault && !(loc == '/home' || loc == '/receive')) return '/home';
-      if (!vault.hasVault && (loc == '/home' || loc == '/receive')) {
+      final inVault = const ['/home', '/receive', '/send', '/proposal', '/settings'].any(loc.startsWith);
+      if (vault.hasVault && !inVault) return '/home';
+      if (!vault.hasVault && inVault) {
         return vault.isSettingUp ? '/setup' : '/welcome';
       }
       return null;
@@ -41,6 +46,12 @@ final _routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/setup', pageBuilder: (_, _) => page(const SetupScreen())),
       GoRoute(path: '/home', pageBuilder: (_, _) => page(const HomeScreen())),
       GoRoute(path: '/receive', pageBuilder: (_, _) => page(const ReceiveScreen())),
+      GoRoute(path: '/settings', pageBuilder: (_, _) => page(const SettingsScreen())),
+      GoRoute(path: '/send', pageBuilder: (_, _) => page(const SendScreen())),
+      GoRoute(
+        path: '/proposal/:id',
+        pageBuilder: (_, state) => page(ProposalScreen(id: state.pathParameters['id']!)),
+      ),
     ],
   );
 });
@@ -50,13 +61,15 @@ class ZafeApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
     return AppThemeHost(
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
       child: MaterialApp.router(
         title: 'Zafe',
         debugShowCheckedModeBanner: false,
         theme: buildLegacyLightTheme(),
         darkTheme: buildLegacyDarkTheme(),
+        themeMode: themeMode,
         routerConfig: ref.watch(_routerProvider),
       ),
     );

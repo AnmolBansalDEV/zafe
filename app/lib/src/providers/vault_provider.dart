@@ -1,24 +1,41 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/config/network_config.dart';
 import '../core/storage/zafe_secure_store.dart';
+import '../core/errors/zafe_error_copy.dart';
+import '../rust/api/error.dart';
 import '../rust/api/vault.dart' as rust;
+import 'privacy_mode_provider.dart' show kPrivacyModeKey;
+import 'theme_mode_provider.dart' show kThemeModeKey, themeModeFromName;
 
 /// Snapshot read before the first frame (Vizor's bootstrap pattern), so the router can
 /// start on the right screen without a flash.
 class VaultBootstrap {
-  const VaultBootstrap({this.identity, this.invite, this.material});
+  const VaultBootstrap({
+    this.identity,
+    this.invite,
+    this.material,
+    this.privacyMode = false,
+    this.themeMode = ThemeMode.system,
+  });
   final Uint8List? identity;
   final String? invite;
   final Uint8List? material;
+  final bool privacyMode;
+  final ThemeMode themeMode;
 
   static Future<VaultBootstrap> load() async {
     final store = ZafeSecureStore.instance;
+    final prefs = await SharedPreferences.getInstance();
     return VaultBootstrap(
+      privacyMode: prefs.getBool(kPrivacyModeKey) ?? false,
+      themeMode: themeModeFromName(prefs.getString(kThemeModeKey)),
       identity: await store.readIdentity(),
       invite: await store.readInvite(),
       material: await store.readMaterial(),
@@ -26,7 +43,9 @@ class VaultBootstrap {
   }
 }
 
-final vaultBootstrapProvider = Provider<VaultBootstrap>((ref) => const VaultBootstrap());
+final vaultBootstrapProvider = Provider<VaultBootstrap>(
+  (ref) => const VaultBootstrap(),
+);
 
 class VaultState {
   const VaultState({
@@ -45,13 +64,23 @@ class VaultState {
   final rust.MembershipInfo? membership;
   final rust.Balance? balance;
   final bool syncing;
-  final String? syncError;
+
+  /// Last sync failure (a `ZafeError` from Rust), cleared by the next successful sync.
+  final Object? syncError;
+
+  bool get syncOffline =>
+      syncError is ZafeError &&
+      (syncError as ZafeError).kind == ZafeErrorKind.network;
 
   bool get hasVault => material != null;
   bool get isSettingUp => !hasVault && invite != null;
 
-  rust.InviteInfo? get inviteInfo => invite == null ? null : rust.parseInvite(invite: invite!);
-  rust.VaultSummary? get summary => material == null ? null : rust.vaultSummary(material: material!);
+  rust.InviteInfo? get inviteInfo =>
+      invite == null ? null : rust.parseInvite(invite: invite!);
+  rust.VaultSummary? get summary =>
+      material == null ? null : rust.vaultSummary(material: material!);
+  String? get myKeyHex =>
+      identity == null ? null : rust.identityPublicKey(seeds: identity!);
 
   VaultState copyWith({
     Uint8List? identity,
@@ -60,7 +89,7 @@ class VaultState {
     rust.MembershipInfo? membership,
     rust.Balance? balance,
     bool? syncing,
-    String? syncError,
+    Object? syncError,
     bool clearSyncError = false,
   }) => VaultState(
     identity: identity ?? this.identity,
@@ -80,7 +109,11 @@ class VaultNotifier extends Notifier<VaultState> {
   @override
   VaultState build() {
     final boot = ref.watch(vaultBootstrapProvider);
-    return VaultState(identity: boot.identity, invite: boot.invite, material: boot.material);
+    return VaultState(
+      identity: boot.identity,
+      invite: boot.invite,
+      material: boot.material,
+    );
   }
 
   Future<Uint8List> _ensureIdentity() async {
@@ -93,7 +126,11 @@ class VaultNotifier extends Notifier<VaultState> {
     return seeds;
   }
 
-  Future<void> createVault({required String name, required int threshold, required int members}) async {
+  Future<void> createVault({
+    required String name,
+    required int threshold,
+    required int members,
+  }) async {
     final seeds = await _ensureIdentity();
     final invite = await rust.createVault(
       relayUrl: kZafeRelayUrl,
@@ -107,9 +144,15 @@ class VaultNotifier extends Notifier<VaultState> {
   }
 
   Future<void> joinVault(String invite) async {
-    rust.parseInvite(invite: invite.trim()); // validates before touching the relay
+    rust.parseInvite(
+      invite: invite.trim(),
+    ); // validates before touching the relay
     final seeds = await _ensureIdentity();
-    await rust.joinVault(relayUrl: kZafeRelayUrl, seeds: seeds, invite: invite.trim());
+    await rust.joinVault(
+      relayUrl: kZafeRelayUrl,
+      seeds: seeds,
+      invite: invite.trim(),
+    );
     await _store.writeInvite(invite.trim());
     state = state.copyWith(invite: invite.trim());
   }
@@ -125,7 +168,11 @@ class VaultNotifier extends Notifier<VaultState> {
   }
 
   Future<void> seal() async {
-    await rust.sealVault(relayUrl: kZafeRelayUrl, seeds: state.identity!, invite: state.invite!);
+    await rust.sealVault(
+      relayUrl: kZafeRelayUrl,
+      seeds: state.identity!,
+      invite: state.invite!,
+    );
     await refreshMembership();
   }
 
@@ -140,6 +187,7 @@ class VaultNotifier extends Notifier<VaultState> {
       invite: state.invite!,
       confirmedSafetyNumber: safetyNumber,
       timeoutSecs: 600,
+      birthdayHeight: null,
     );
     await _store.writeMaterial(material);
     state = state.copyWith(material: material);
@@ -159,9 +207,12 @@ class VaultNotifier extends Notifier<VaultState> {
       );
       state = state.copyWith(balance: balance, syncing: false);
     } catch (e) {
-      state = state.copyWith(syncing: false, syncError: '$e');
+      debugPrint('sync failed: ${describeError(e)}');
+      state = state.copyWith(syncing: false, syncError: e);
     }
   }
 }
 
-final vaultProvider = NotifierProvider<VaultNotifier, VaultState>(VaultNotifier.new);
+final vaultProvider = NotifierProvider<VaultNotifier, VaultState>(
+  VaultNotifier.new,
+);

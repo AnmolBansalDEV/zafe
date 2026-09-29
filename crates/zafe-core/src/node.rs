@@ -43,6 +43,9 @@ pub enum NodeError {
     EchoMismatch,
     #[error("timed out waiting for {0}")]
     Timeout(&'static str),
+    /// This member's independent check of a proposal failed: do not approve or sign it.
+    #[error("verification failed: {0}")]
+    Verification(String),
     #[error("protocol: {0}")]
     Protocol(String),
 }
@@ -908,6 +911,9 @@ pub async fn propose<P: Parameters + Clone + Send + Sync + 'static, R: RngCore +
         pczt_hash: pczt_hash(&pczt).map_err(proto)?,
         pczt: pczt.serialize().map_err(proto)?,
         tip_height: tip,
+        created_at: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs()),
     };
     let (mut chain, mut state) = load_state(relay, me, material).await?;
     append_event(relay, me, material, &mut chain, &mut state, &event, rng).await?;
@@ -929,6 +935,25 @@ fn proposal_pczt(
         ));
     }
     Ok((pczt, p.payments.clone()))
+}
+
+/// Verifies a logged proposal independently against this member's view of the chain tip,
+/// without voting (what the review screen shows).
+pub fn review<P: Parameters>(
+    state: &VaultState,
+    material: &VaultMaterial,
+    network: &P,
+    tip_height: u32,
+    proposal: ProposalId,
+) -> Result<VerifiedTx, NodeError> {
+    let (pczt, payments) = proposal_pczt(state, &proposal)?;
+    let keys = material.vault_keys()?;
+    verify_pczt(
+        &pczt,
+        keys.fvk(),
+        &expectations(network, &payments, tip_height)?,
+    )
+    .map_err(|e| NodeError::Verification(e.to_string()))
 }
 
 /// Verifies a proposal independently and, if it passes, votes Approve with fresh round-1
@@ -956,7 +981,13 @@ pub async fn approve<P: Parameters, R: RngCore + CryptoRng>(
     };
     let (approval, verified) = member
         .approve(proposal, &pczt, &expected, store, rng)
-        .map_err(proto)?;
+        .map_err(|e| match e {
+            crate::session::SessionError::Verify(v) => NodeError::Verification(v.to_string()),
+            crate::session::SessionError::AlreadyApproved => {
+                NodeError::NotReady("you already approved this proposal".into())
+            }
+            e => proto(e),
+        })?;
     let commitments = approval
         .commitments
         .iter()
@@ -1091,6 +1122,9 @@ pub async fn request_signatures<P: Parameters, R: RngCore + CryptoRng>(
     let mut seq = SeqCounter::default();
     for id in &request.signers {
         let to = member_by_frost_id(material, id)?;
+        if to.sig_pk == me.public().sig_pk {
+            continue; // the leader signs its own part locally (`sign_own_shares`)
+        }
         let env = Envelope::sealed(
             me,
             &to,
@@ -1195,80 +1229,199 @@ pub async fn respond<P: Parameters, R: RngCore + CryptoRng>(
     Ok(report)
 }
 
-/// Leader: waits for the shares answering exactly `request`, aggregates (verifying every
-/// share), proves, extracts (fully verified), broadcasts via lightwalletd, and logs the
-/// broadcast. Returns the txid.
+/// The Ironwood (post-NU6.3) proving key, built once per process (seconds on a phone).
+pub fn proving_key() -> &'static orchard::circuit::ProvingKey {
+    static PK: std::sync::OnceLock<orchard::circuit::ProvingKey> = std::sync::OnceLock::new();
+    PK.get_or_init(|| {
+        orchard::circuit::ProvingKey::build(orchard::circuit::OrchardCircuitVersion::PostNu6_3)
+    })
+}
+
+/// The Ironwood verifying key, built once per process.
+pub fn verifying_key() -> &'static orchard::circuit::VerifyingKey {
+    static VK: std::sync::OnceLock<orchard::circuit::VerifyingKey> = std::sync::OnceLock::new();
+    VK.get_or_init(|| {
+        orchard::circuit::VerifyingKey::build(orchard::circuit::OrchardCircuitVersion::PostNu6_3)
+    })
+}
+
+/// How far the leader got with collecting shares for a request.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ShareProgress {
+    pub received: usize,
+    pub needed: usize,
+}
+
+/// Leader: reads the shares answering exactly `request` that have arrived so far.
+async fn read_shares(
+    relay: &RelayClient,
+    me: &Identity,
+    material: &VaultMaterial,
+    request: &SigningRequest,
+) -> Result<BTreeMap<Identifier, Vec<SignatureShare>>, NodeError> {
+    let members = members_by_pk(material);
+    let wanted = request_hash(request)?;
+    let mut shares = BTreeMap::new();
+    for (_, from, env) in read_inbox(relay, me, material.descriptor.vault_id, &members, 0).await? {
+        if env.header.kind != Kind::SignatureShares {
+            continue;
+        }
+        let Ok(bytes) = env.open(me, &from) else {
+            continue;
+        };
+        let Ok(msg) = postcard::from_bytes::<SharesMsg>(&bytes) else {
+            continue;
+        };
+        if msg.proposal != request.proposal || msg.request_hash != wanted {
+            continue; // a share from another proposal or an earlier round
+        }
+        let Some(info) = material.descriptor.member(&from.sig_pk) else {
+            continue;
+        };
+        let id = Identifier::deserialize(&info.frost_id).map_err(proto)?;
+        if !request.signers.contains(&id) {
+            continue;
+        }
+        let Ok(parsed) = msg
+            .shares
+            .iter()
+            .map(|s| SignatureShare::deserialize(s))
+            .collect::<Result<Vec<_>, _>>()
+        else {
+            continue;
+        };
+        shares.insert(id, parsed);
+    }
+    Ok(shares)
+}
+
+/// Leader: how many of the request's signers have answered so far.
+pub async fn share_progress(
+    relay: &RelayClient,
+    me: &Identity,
+    material: &VaultMaterial,
+    request: &SigningRequest,
+) -> Result<ShareProgress, NodeError> {
+    Ok(ShareProgress {
+        received: read_shares(relay, me, material, request).await?.len(),
+        needed: request.signers.len(),
+    })
+}
+
+/// Leader: its own signature shares when it is one of the request's signers (the relay
+/// never carries a member's envelope to itself). Re-verifies the proposal like any signer.
+/// Returns serialized shares for the caller to keep until `finalize` succeeds: the nonces
+/// are consumed here, so a retry must reuse these shares rather than sign again. `None` if
+/// the leader is not a signer of this request.
+#[allow(clippy::too_many_arguments)]
+pub async fn sign_own_shares<P: Parameters>(
+    relay: &RelayClient,
+    me: &Identity,
+    material: &VaultMaterial,
+    network: &P,
+    tip_height: u32,
+    request: &SigningRequest,
+    store: &mut impl NonceStore,
+) -> Result<Option<Vec<Vec<u8>>>, NodeError> {
+    let key_package = material.key_package()?;
+    if !request.signers.contains(key_package.identifier()) {
+        return Ok(None);
+    }
+    let (_, state) = load_state(relay, me, material).await?;
+    let (pczt, payments) = proposal_pczt(&state, &request.proposal)?;
+    let keys = material.vault_keys()?;
+    let member = Member {
+        identifier: *key_package.identifier(),
+        key_package: &key_package,
+        vault_fvk: keys.fvk(),
+    };
+    let shares = member
+        .sign(
+            request,
+            &pczt,
+            &expectations(network, &payments, tip_height)?,
+            store,
+        )
+        .map_err(proto)?;
+    Ok(Some(shares.iter().map(|s| s.serialize()).collect()))
+}
+
+/// Leader: waits for the shares answering exactly `request` (plus `own_shares` from
+/// `sign_own_shares` when the leader is a signer), aggregates (verifying every
+/// share), and broadcasts via lightwalletd, then logs the broadcast. Returns the txid.
+///
+/// The proof does not depend on the spend authorization signatures, so it is created on a
+/// blocking thread while the shares arrive (Vizor's Keystone pattern). `on_progress` is
+/// called whenever the number of received shares changes. Safe to call again with the
+/// same request after a timeout: shares already sent are still in the inbox.
 #[allow(clippy::too_many_arguments)]
 pub async fn finalize<R: RngCore + CryptoRng>(
     relay: &RelayClient,
     me: &Identity,
     material: &VaultMaterial,
     request: &SigningRequest,
+    own_shares: Option<&[Vec<u8>]>,
     lightwalletd: &mut Client,
-    proving_key: &orchard::circuit::ProvingKey,
-    verifying_key: &orchard::circuit::VerifyingKey,
     timeout: Duration,
+    mut on_progress: impl FnMut(ShareProgress),
     rng: &mut R,
 ) -> Result<[u8; 32], NodeError> {
     let deadline = Instant::now() + timeout;
     let (mut chain, mut state) = load_state(relay, me, material).await?;
     let (pczt, _) = proposal_pczt(&state, &request.proposal)?;
-    let members = members_by_pk(material);
-    let wanted = request_hash(request)?;
 
-    let mut shares: BTreeMap<Identifier, Vec<SignatureShare>> = BTreeMap::new();
-    let mut cursor = 0;
-    while shares.len() < request.signers.len() {
-        for (c, from, env) in
-            read_inbox(relay, me, material.descriptor.vault_id, &members, cursor).await?
-        {
-            cursor = c;
-            if env.header.kind != Kind::SignatureShares {
-                continue;
-            }
-            let Ok(bytes) = env.open(me, &from) else {
-                continue;
-            };
-            let Ok(msg) = postcard::from_bytes::<SharesMsg>(&bytes) else {
-                continue;
-            };
-            if msg.proposal != request.proposal || msg.request_hash != wanted {
-                continue; // a share from another proposal or an earlier round
-            }
-            let Some(info) = material.descriptor.member(&from.sig_pk) else {
-                continue;
-            };
-            let id = Identifier::deserialize(&info.frost_id).map_err(proto)?;
-            if !request.signers.contains(&id) {
-                continue;
-            }
-            let parsed = msg
-                .shares
+    let to_prove = pczt.clone();
+    let proving = tokio::task::spawn_blocking(move || {
+        Prover::new(to_prove)
+            .create_ironwood_proof(proving_key())
+            .map(|p| p.finish())
+            .map_err(proto)
+    });
+
+    let needed = request.signers.len();
+    let mut reported = usize::MAX;
+    let own = match own_shares {
+        Some(bytes) => Some((
+            *material.key_package()?.identifier(),
+            bytes
                 .iter()
-                .map(|s| SignatureShare::deserialize(s).map_err(proto))
-                .collect::<Result<_, _>>()?;
-            shares.insert(id, parsed);
+                .map(|b| SignatureShare::deserialize(b).map_err(proto))
+                .collect::<Result<Vec<_>, _>>()?,
+        )),
+        None => None,
+    };
+    let shares = loop {
+        let mut shares = read_shares(relay, me, material, request).await?;
+        if let Some((id, own)) = &own {
+            shares.insert(*id, own.clone());
         }
-        if shares.len() < request.signers.len() {
-            if Instant::now() > deadline {
-                return Err(NodeError::Timeout("signature shares"));
-            }
-            tokio::time::sleep(Duration::from_millis(250)).await;
+        if shares.len() != reported {
+            reported = shares.len();
+            on_progress(ShareProgress {
+                received: reported,
+                needed,
+            });
         }
-    }
+        if shares.len() == needed {
+            break shares;
+        }
+        if Instant::now() > deadline {
+            return Err(NodeError::Timeout("signature shares"));
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    };
 
     let keys = material.vault_keys()?;
     let spends = tx::spends_to_sign(&pczt, keys.fvk()).map_err(proto)?;
     let signatures = aggregate_request(request, &spends, &shares, &material.public_key_package()?)
         .map_err(proto)?;
 
-    let signed = tx::apply_signatures(pczt, &signatures).map_err(proto)?;
-    let proved = Prover::new(signed)
-        .create_ironwood_proof(proving_key)
-        .map_err(proto)?
-        .finish();
-    let transaction = TransactionExtractor::new(proved)
-        .with_orchard(verifying_key)
+    let proved = proving
+        .await
+        .map_err(|e| NodeError::Protocol(format!("proving task: {e}")))??;
+    let signed = tx::apply_signatures(proved, &signatures).map_err(proto)?;
+    let transaction = TransactionExtractor::new(signed)
+        .with_orchard(verifying_key())
         .extract()
         .map_err(proto)?;
     let mut raw = Vec::new();

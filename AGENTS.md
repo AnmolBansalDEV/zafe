@@ -28,6 +28,9 @@ ZCASH_SIGN_BIN=/path/to/zcash-sign cargo test -p zafe-core --test zcash_sign_cro
 
 # Phone benchmark (proving + round-2 signing) over adb
 scripts/android-bench.sh
+
+# The app's payment flow through the Flutter bridge API (3 members, regtest, Docker)
+cargo test -p rust_lib_zafe --test bridge_e2e -- --ignored --nocapture
 ```
 
 Commits end with the attribution lines the harness gives (Co-Authored-By, and
@@ -70,9 +73,28 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   (recipient, amount, memo); change must belong to the vault **and trial-decrypt** with its IVK;
   fee must **equal** ZIP 317 (5000 × max(2, actions)); sighash computed locally.
 - **Proposals are built with `OvkPolicy::Sender`** and Ironwood change, or verification fails.
+- **Nonce storage**: `nonce_store::FileNonceStore` (atomic write+rename; `put` returns an
+  error so a failed write never publishes an approval). The directory must be excluded from
+  backups/device transfer: the Android app disables both (`allowBackup=false`,
+  `res/xml/data_extraction_rules.xml`); iOS needs `isExcludedFromBackup` (not done yet).
 - **Nonces**: one pair per spend, keyed by (proposal, pczt hash); check the request's
   packages against stored commitments **before** consuming; delete before sending a share;
   never reuse. Re-approval produces fresh commitments; leaders track used commitment sets.
+- **Proving runs in parallel with share collection** (`node::finalize`, Vizor's Keystone
+  pattern): the Halo 2 proof doesn't depend on spend-auth signatures, so the unsigned PCZT
+  is proved on a blocking thread, then signatures are applied to the proved PCZT (verified
+  on regtest). Proving/verifying keys are process-wide `OnceLock`s (`node::proving_key()`).
+- **The leader never messages itself**: the relay rejects self-addressed envelopes (403).
+  When the leader is one of the chosen signers, `request_signatures` skips it and the
+  leader signs locally with `node::sign_own_shares`, keeping the serialized shares
+  (`<id>.own`) until broadcast, because signing consumes its nonces; `finalize` takes them
+  as `own_shares`. M0/regtest tests originally missed this (their leader never approved);
+  `bridge_e2e` now makes the leader an approver.
+- **Signing requests are deterministic** (same approvals → same bytes → same request
+  hash), so re-running `request_signatures` after a partial failure is safe.
+- **Leader resumability**: the app persists each signing request (`<state>/leader/<id>.req`)
+  and the used-commitments set; `send_proposal` after a timeout resumes the same round.
+  Known gap: if an approver never answers, there is no "start over" yet.
 - **Shares are bound to the exact request** (request hash); aggregation always goes through
   `session::aggregate_request` (signer-set check + per-share verification).
 - **Vault log replay is lenient after creation**: invalid entries go to `VaultState.ignored`
@@ -122,7 +144,7 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   on the same line (non-interactive shell). NDK r29 at `~/android/android-ndk-r29`,
   `cargo ndk -t arm64-v8a`.
 
-## M1 app: follow Vizor (valargroup/vizor-wallet, Apache-2.0)
+## M1 app: follow Vizor (chainapsis/vizor-wallet, Apache-2.0)
 
 Take Vizor's architecture and UI as the reference (the user asked for close alignment):
 Flutter (pinned **3.41.6** via fvm) + `flutter_rust_bridge` **2.11.1** + Rust core; Riverpod
@@ -133,7 +155,12 @@ the first frame; broadcast-before-store for PCZT sends. Zafe's vault account is 
 Vizor's Keystone account shape (UFVK-only, external signer), with FROST instead of a device.
 Keep attribution/NOTICE for anything copied from Vizor.
 
-Detailed reference (tokens, components, screens, bridge setup): `docs/vizor-reference.md`.
+Upstream is **github.com/chainapsis/vizor-wallet** (not the stale `valargroup` mirror the
+first study used). Detailed reference (tokens, components, screens, bridge setup):
+`docs/vizor-reference.md`, written from an older snapshot; check upstream for newer work.
+Upstream features to borrow later: Tor via `zcash_client_backend`'s `tor` feature
+(`rust/src/network_privacy.rs`: process-wide fail-closed route policy, bootstrap timeout,
+dormant mode when backgrounded), settings screens, address book.
 Learned while studying it:
 - **Copy** architecture, tokens, component specs, screen structures, and the Keystone
   signing UX (it starts proving in the background while the external signer works — do the
@@ -154,12 +181,49 @@ Learned while studying it:
   Secrets (identity, invite, key material) live in `flutter_secure_storage` via
   `core/storage/zafe_secure_store.dart`. Network/relay/lightwalletd come from dart-defines
   (`ZAFE_NETWORK`, default regtest) in `core/config/network_config.dart`.
+- **Bridge errors are typed**: API functions return `Result<T, ZafeError>` (`api/error.rs`,
+  `kind` + `message`); Dart maps `ZafeErrorKind` to copy in `core/errors/zafe_error_copy.dart`.
+  FRB treats a `type Result<T> = ...` alias as **anyhow** — always write
+  `Result<T, ZafeError>` in public signatures or the typed error silently disappears.
+- FRB `StreamSink<T>` gives Dart a `Stream` (used for send progress). A streaming
+  function's returned `Err` never reaches the Dart listener (unhandled exception), and
+  `sink.add_error(ZafeError)` arrives as an undecodable `AnyhowException`: report failures
+  as a normal event (`SendStage::Failed` + `error: Option<ZafeError>`). The generated Dart
+  `ZafeError` has no useful `toString`; log with `describeError`. Keep a plain-callback
+  twin marked `#[frb(ignore)]` (`send_with_progress`) so Rust tests can drive it.
+- Flows: `/send` (recipient → amount → review → "Propose payment"), `/proposal/:id`
+  (independent check on this device, votes, approve/reject, "Collect signatures & send").
+  Home polls every 15 s: proposals refresh + answering signing requests, then wallet sync.
+  Wallet DB access is serialized by `wallet_lock()` in the bridge.
+- `VaultWallet::create` does all network calls **before** creating the DB file; the bridge
+  also deletes a DB with no account (`VaultWallet::exists`). Previously the first sync with
+  lightwalletd down left an empty DB that failed forever ("expected one account, found 0").
+- Vizor's `AppButton` used an onTapUp-only detector (no semantics tap action); Zafe wraps
+  it in `Semantics(button, onTap)`. Its label still shows as a separate node in
+  accessibility trees (open item). Use `expand: true` inside `Expanded` rows.
+- The pushed-page serif title truncates past ~14 characters: keep page titles short.
+- **Privacy mode is app-wide** (`privacyModeProvider`, persisted in prefs, read in the
+  bootstrap): every amount goes through `amountWithTicker(text, hide:)`. Vizor's
+  `hideAmountIfPrivacyMode` only appends the unit to the *mask*, so passing a bare amount
+  drops the ticker when visible. Payment rows use a 3-star mask (Vizor's activity rows).
+- Settings (`/settings`, opened from the vault name on home): vault info, signer key,
+  hide amounts, theme (`themeModeProvider`, persisted), endpoints (read-only; compile-time
+  dart-defines), open-source licenses (fonts + NOTICE registered in `main.dart`).
 - Font family names must match Vizor's tokens exactly (`Geist Mono`, `Young Serif`).
 - `pubspec.yaml` must have a single `flutter:` key (a duplicate silently breaks FRB codegen).
 - Cargokit is patched (`rust_builder/cargokit/gradle/plugin.gradle`): debug builds no longer
   add x86/x64 unless `-Pzafe.debugEmulatorAbis=true`. Build for a phone with
   `flutter build apk --debug --target-platform android-arm64` (~5 min cold).
   Stale emulator `.so` files can linger in `build/rust_lib_zafe/jniLibs`; delete them.
+
+Device testing (agent-device): emulator AVD `zafe` (API 35 x86_64; needs `/dev/kvm`
+access and `libxkbfile.so.1`, which was unpacked into `~/android/sdk/emulator/lib64` without
+root). Start it windowed with `emulator -avd zafe -gpu swiftshader_indirect -no-snapshot
+-no-audio`; build with `--target-platform android-x64`. `scripts/app-harness.sh` runs the
+relay plus CLI members B and C and sets `adb reverse` for 8787/9067, so the app's localhost
+defaults work on a device. Its `cli` subcommand does not rebuild: `cargo build -p zafe-cli`
+after core changes. agent-device tips: prefer `find "<text>" click`; refs go stale after
+every snapshot; `scroll down --until 'label="..."'` before pressing bottom buttons.
 
 App commands (from `app/`, after `source ~/android/env.sh`):
 `flutter_rust_bridge_codegen generate` (after changing `app/rust/src/api`), `flutter analyze`

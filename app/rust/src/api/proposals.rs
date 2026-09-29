@@ -1,0 +1,608 @@
+//! Payment proposals: propose, review, approve/reject, answer signing requests, and (as the
+//! leader) collect signatures and broadcast.
+//!
+//! `state_dir` must be app-private and excluded from backups: it holds single-use FROST
+//! nonces (`nonces/`) and the leader's signing rounds (`leader/`). Reusing a nonce leaks the
+//! member's key share, so a restored backup must never bring old nonces back.
+
+use std::{collections::BTreeSet, fs, path::PathBuf, time::Duration};
+
+use rand::rngs::OsRng;
+use zafe_core::{
+    node::{self, VaultMaterial},
+    nonce_store::FileNonceStore,
+    relay_client::RelayClient,
+    session::ProposalId,
+    vault::{ProposalStatus, ProposedPayment, VaultState},
+    wallet::{connect, PaymentRequest, ZafeNetwork},
+};
+use zcash_protocol::memo::{Memo, MemoBytes};
+
+use super::{
+    error::{ZafeError, ZafeErrorKind},
+    vault::{identity, material, network, open_wallet, runtime, wallet_lock},
+};
+use crate::frb_generated::StreamSink;
+
+type Result<T, E = ZafeError> = std::result::Result<T, E>;
+
+/// How long the leader waits for signature shares per attempt. Retrying reuses the same
+/// signing request, so shares that arrive later are not wasted.
+const COLLECT_TIMEOUT: Duration = Duration::from_secs(90);
+
+// --- Input helpers ----------------------------------------------------------------------
+
+pub struct AddressCheck {
+    pub valid: bool,
+    /// Why the address can't be paid (empty when valid).
+    pub reason: String,
+}
+
+/// Vault payments go to shielded (Orchard-receiver) unified addresses only.
+#[flutter_rust_bridge::frb(sync)]
+pub fn check_address(network_name: String, address: String) -> AddressCheck {
+    let result = network(&network_name)
+        .map_err(ZafeError::from)
+        .and_then(|net| node::orchard_receiver(&net, address.trim()).map_err(ZafeError::from));
+    match result {
+        Ok(_) => AddressCheck {
+            valid: true,
+            reason: String::new(),
+        },
+        Err(_) => AddressCheck {
+            valid: false,
+            reason: if zcash_keys::address::Address::decode(
+                &network(&network_name).unwrap_or(ZafeNetwork::Main),
+                address.trim(),
+            )
+            .is_some()
+            {
+                "Vaults can only pay shielded unified addresses".into()
+            } else {
+                "Invalid address".into()
+            },
+        },
+    }
+}
+
+/// Parses a ZEC amount ("1.5", "0,25") to zatoshis. `None` if malformed or above 8 decimals.
+#[flutter_rust_bridge::frb(sync)]
+pub fn parse_zec(text: String) -> Option<u64> {
+    let t = text.trim().replace(',', ".");
+    let (whole, frac) = t.split_once('.').unwrap_or((&t, ""));
+    if (whole.is_empty() && frac.is_empty())
+        || frac.len() > 8
+        || !whole.chars().all(|c| c.is_ascii_digit())
+        || !frac.chars().all(|c| c.is_ascii_digit())
+    {
+        return None;
+    }
+    let whole: u64 = if whole.is_empty() {
+        0
+    } else {
+        whole.parse().ok()?
+    };
+    let frac: u64 = format!("{frac:0<8}").parse().ok()?;
+    whole.checked_mul(100_000_000)?.checked_add(frac)
+}
+
+/// Bytes a memo takes (the limit is 512).
+#[flutter_rust_bridge::frb(sync)]
+pub fn memo_length(memo: String) -> u32 {
+    memo.len() as u32
+}
+
+fn memo_bytes(text: &str) -> Result<Option<MemoBytes>, ZafeError> {
+    if text.is_empty() {
+        return Ok(None);
+    }
+    Memo::from_bytes(text.as_bytes())
+        .map(|m| Some(m.encode()))
+        .map_err(|_| ZafeError::invalid("Message is too long"))
+}
+
+fn memo_text(bytes: &[u8]) -> String {
+    MemoBytes::from_bytes(bytes)
+        .ok()
+        .and_then(|b| Memo::try_from(b).ok())
+        .and_then(|m| match m {
+            Memo::Text(t) => Some(t.to_string()),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
+// --- Listing ----------------------------------------------------------------------------
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProposalStage {
+    /// Waiting for approvals.
+    Open,
+    /// Enough approvals; waiting for a member to collect signatures and send.
+    Approved,
+    Rejected,
+    Cancelled,
+    Sent,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MyVote {
+    None,
+    Approved,
+    Rejected,
+}
+
+pub struct PaymentInfo {
+    pub address: String,
+    pub amount_zat: u64,
+    pub memo: String,
+}
+
+pub struct ProposalInfo {
+    pub id: String,
+    pub author: String,
+    pub is_mine: bool,
+    pub payments: Vec<PaymentInfo>,
+    pub total_zat: u64,
+    pub stage: ProposalStage,
+    pub approvals: Vec<String>,
+    pub rejections: Vec<String>,
+    pub my_vote: MyVote,
+    pub threshold: u16,
+    pub rejection_threshold: u16,
+    /// Proposer's clock (unix seconds, display only).
+    pub created_at: u64,
+    pub txid: Option<String>,
+    /// This device already sent a signing request for it (it can resume collecting).
+    pub signing_started: bool,
+}
+
+fn parse_id(hex_id: &str) -> Result<ProposalId, ZafeError> {
+    hex::decode(hex_id)
+        .ok()
+        .and_then(|b| b.try_into().ok())
+        .ok_or_else(|| ZafeError::invalid("bad proposal id"))
+}
+
+fn leader_dir(state_dir: &str) -> PathBuf {
+    PathBuf::from(state_dir).join("leader")
+}
+
+fn request_file(state_dir: &str, id: &ProposalId) -> PathBuf {
+    leader_dir(state_dir).join(format!("{}.req", hex::encode(id)))
+}
+
+fn nonce_store(state_dir: &str) -> FileNonceStore {
+    FileNonceStore::new(PathBuf::from(state_dir).join("nonces"))
+}
+
+fn info(state: &VaultState, me: [u8; 32], state_dir: &str) -> Vec<ProposalInfo> {
+    let d = &state.descriptor;
+    let mut out: Vec<_> = state
+        .proposals
+        .values()
+        .map(|p| ProposalInfo {
+            id: hex::encode(p.id),
+            author: hex::encode(p.author),
+            is_mine: p.author == me,
+            payments: p
+                .payments
+                .iter()
+                .map(|x: &ProposedPayment| PaymentInfo {
+                    address: x.address.clone(),
+                    amount_zat: x.amount_zat,
+                    memo: memo_text(&x.memo),
+                })
+                .collect(),
+            total_zat: p.payments.iter().map(|x| x.amount_zat).sum(),
+            stage: match p.status {
+                ProposalStatus::Open => ProposalStage::Open,
+                ProposalStatus::Approved => ProposalStage::Approved,
+                ProposalStatus::Rejected => ProposalStage::Rejected,
+                ProposalStatus::Cancelled => ProposalStage::Cancelled,
+                ProposalStatus::Broadcast => ProposalStage::Sent,
+            },
+            approvals: p.approvals.keys().map(hex::encode).collect(),
+            rejections: p.rejections.keys().map(hex::encode).collect(),
+            my_vote: if p.approvals.contains_key(&me) {
+                MyVote::Approved
+            } else if p.rejections.contains_key(&me) {
+                MyVote::Rejected
+            } else {
+                MyVote::None
+            },
+            threshold: d.threshold,
+            rejection_threshold: d.rejection_threshold() as u16,
+            created_at: p.created_at,
+            txid: p.txid.map(|t| {
+                let mut t = t;
+                t.reverse(); // display order, like block explorers
+                hex::encode(t)
+            }),
+            signing_started: request_file(state_dir, &p.id).exists(),
+        })
+        .collect();
+    out.sort_by_key(|p| {
+        std::cmp::Reverse(state.proposals[&parse_id(&p.id).expect("own id")].log_index)
+    });
+    out
+}
+
+/// Every proposal in the vault log, newest first.
+pub fn list_proposals(
+    relay_url: String,
+    state_dir: String,
+    seeds: Vec<u8>,
+    material: Vec<u8>,
+) -> Result<Vec<ProposalInfo>, ZafeError> {
+    let me = identity(&seeds)?;
+    let m = self::material(&material)?;
+    let (_, state) = runtime().block_on(node::load_state(&RelayClient::new(relay_url), &me, &m))?;
+    Ok(info(&state, me.public().sig_pk, &state_dir))
+}
+
+// --- Proposing and reviewing ------------------------------------------------------------
+
+pub struct PaymentInput {
+    pub address: String,
+    pub amount_zat: u64,
+    pub memo: String,
+}
+
+/// Syncs, builds the transaction from the vault's notes, and logs it as a proposal. Returns
+/// the proposal id.
+pub fn propose_payment(
+    relay_url: String,
+    lightwalletd_url: String,
+    db_dir: String,
+    seeds: Vec<u8>,
+    material: Vec<u8>,
+    payments: Vec<PaymentInput>,
+) -> Result<String, ZafeError> {
+    let me = identity(&seeds)?;
+    let m = self::material(&material)?;
+    let net = network(&m.descriptor.network)?;
+    if payments.is_empty() {
+        return Err(ZafeError::invalid("Add at least one payment"));
+    }
+    let requests = payments
+        .iter()
+        .map(|p| {
+            node::orchard_receiver(&net, p.address.trim())?;
+            if p.amount_zat == 0 {
+                return Err(ZafeError::invalid("Amount must be more than zero"));
+            }
+            Ok(PaymentRequest {
+                address: p.address.trim().to_string(),
+                amount_zat: p.amount_zat,
+                memo: memo_bytes(&p.memo)?,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let _guard = wallet_lock();
+    let id = runtime().block_on(async {
+        let mut wallet = open_wallet(&db_dir, &lightwalletd_url, &m).await?;
+        wallet.sync(&mut connect(&lightwalletd_url).await?).await?;
+        let relay = RelayClient::new(relay_url);
+        Ok::<_, ZafeError>(
+            node::propose(&relay, &me, &m, &mut wallet, &requests, &mut OsRng).await?,
+        )
+    })?;
+    Ok(hex::encode(id))
+}
+
+/// This device's independent check of a proposal (spec §9.3).
+pub struct ReviewInfo {
+    /// Whether the transaction pays exactly the proposed payments, with change back to
+    /// the vault and the standard fee. If false, `problem` says why: do not approve.
+    pub verified: bool,
+    pub problem: String,
+    pub fee_zat: u64,
+    pub change_zat: u64,
+    pub input_zat: u64,
+    pub spends: u32,
+    pub expiry_height: u32,
+    pub tip_height: u32,
+}
+
+fn local_tip(db_dir: &str, lightwalletd_url: &str, m: &VaultMaterial) -> Result<u32, ZafeError> {
+    let _guard = wallet_lock();
+    let wallet = runtime().block_on(open_wallet(db_dir, lightwalletd_url, m))?;
+    wallet
+        .chain_height()?
+        .ok_or_else(|| ZafeError::new(ZafeErrorKind::NotReady, "The vault has not synced yet"))
+}
+
+pub fn review_proposal(
+    relay_url: String,
+    lightwalletd_url: String,
+    db_dir: String,
+    seeds: Vec<u8>,
+    material: Vec<u8>,
+    proposal_id: String,
+) -> Result<ReviewInfo, ZafeError> {
+    let me = identity(&seeds)?;
+    let m = self::material(&material)?;
+    let net = network(&m.descriptor.network)?;
+    let id = parse_id(&proposal_id)?;
+    let tip = local_tip(&db_dir, &lightwalletd_url, &m)?;
+    let (_, state) = runtime().block_on(node::load_state(&RelayClient::new(relay_url), &me, &m))?;
+    match node::review(&state, &m, &net, tip, id) {
+        Ok(v) => Ok(ReviewInfo {
+            verified: true,
+            problem: String::new(),
+            fee_zat: v.fee_zat,
+            change_zat: v.change_total_zat,
+            input_zat: v.input_total_zat,
+            spends: v.spends_to_sign.len() as u32,
+            expiry_height: v.expiry_height,
+            tip_height: tip,
+        }),
+        Err(node::NodeError::Verification(problem)) => Ok(ReviewInfo {
+            verified: false,
+            problem,
+            fee_zat: 0,
+            change_zat: 0,
+            input_zat: 0,
+            spends: 0,
+            expiry_height: 0,
+            tip_height: tip,
+        }),
+        Err(e) => Err(e.into()),
+    }
+}
+
+// --- Voting -----------------------------------------------------------------------------
+
+/// Verifies the proposal on this device and, only if it passes, approves it.
+pub fn approve_proposal(
+    relay_url: String,
+    lightwalletd_url: String,
+    db_dir: String,
+    state_dir: String,
+    seeds: Vec<u8>,
+    material: Vec<u8>,
+    proposal_id: String,
+) -> Result<(), ZafeError> {
+    let me = identity(&seeds)?;
+    let m = self::material(&material)?;
+    let net = network(&m.descriptor.network)?;
+    let id = parse_id(&proposal_id)?;
+    let tip = local_tip(&db_dir, &lightwalletd_url, &m)?;
+    let mut store = nonce_store(&state_dir);
+    runtime().block_on(node::approve(
+        &RelayClient::new(relay_url),
+        &me,
+        &m,
+        &net,
+        tip,
+        id,
+        &mut store,
+        &mut OsRng,
+    ))?;
+    Ok(())
+}
+
+pub fn reject_proposal(
+    relay_url: String,
+    seeds: Vec<u8>,
+    material: Vec<u8>,
+    proposal_id: String,
+) -> Result<(), ZafeError> {
+    let me = identity(&seeds)?;
+    let m = self::material(&material)?;
+    let id = parse_id(&proposal_id)?;
+    runtime().block_on(node::reject(
+        &RelayClient::new(relay_url),
+        &me,
+        &m,
+        id,
+        &mut OsRng,
+    ))?;
+    Ok(())
+}
+
+// --- Signing ----------------------------------------------------------------------------
+
+/// Answers signing requests for proposals this member approved (each is re-verified first).
+/// Called on every poll. Returns how many were answered.
+pub fn answer_signing_requests(
+    relay_url: String,
+    lightwalletd_url: String,
+    db_dir: String,
+    state_dir: String,
+    seeds: Vec<u8>,
+    material: Vec<u8>,
+) -> Result<u32, ZafeError> {
+    let me = identity(&seeds)?;
+    let m = self::material(&material)?;
+    let net = network(&m.descriptor.network)?;
+    let mut store = nonce_store(&state_dir);
+    // Nothing to answer without stored nonces: skip the relay and wallet round trips.
+    if !PathBuf::from(&state_dir)
+        .join("nonces")
+        .read_dir()
+        .is_ok_and(|mut d| d.next().is_some())
+    {
+        return Ok(0);
+    }
+    let tip = local_tip(&db_dir, &lightwalletd_url, &m)?;
+    let report = runtime().block_on(node::respond(
+        &RelayClient::new(relay_url),
+        &me,
+        &m,
+        &net,
+        tip,
+        &mut store,
+        &mut OsRng,
+    ))?;
+    Ok(report.answered.len() as u32)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SendStage {
+    /// Signing requests are out; the transaction proof is being built meanwhile.
+    Collecting,
+    Sent,
+    /// Not sent; `error` says why. Retrying resumes the same signing round.
+    Failed,
+}
+
+pub struct SendProgress {
+    pub stage: SendStage,
+    pub received: u32,
+    pub needed: u32,
+    pub txid: Option<String>,
+    pub error: Option<ZafeError>,
+}
+
+/// Leader: asks the approvers for signatures (once per proposal on this device), signs its
+/// own part, collects the rest while proving, and broadcasts. On a timeout, call again: it
+/// resumes the same signing round.
+#[allow(clippy::too_many_arguments)]
+pub fn send_proposal(
+    relay_url: String,
+    lightwalletd_url: String,
+    db_dir: String,
+    state_dir: String,
+    seeds: Vec<u8>,
+    material: Vec<u8>,
+    proposal_id: String,
+    sink: StreamSink<SendProgress>,
+) -> Result<(), ZafeError> {
+    let result = send_with_progress(
+        relay_url,
+        lightwalletd_url,
+        db_dir,
+        state_dir,
+        seeds,
+        material,
+        proposal_id,
+        |p| {
+            let _ = sink.add(p);
+        },
+    );
+    // Failures travel as a typed event: a streaming function's own error never reaches the
+    // Dart listener, and `add_error` is decoded as an untyped anyhow string.
+    if let Err(e) = result {
+        let _ = sink.add(SendProgress {
+            stage: SendStage::Failed,
+            received: 0,
+            needed: 0,
+            txid: None,
+            error: Some(e),
+        });
+    }
+    Ok(())
+}
+
+/// `send_proposal` with a plain callback (tests and non-Flutter callers).
+#[flutter_rust_bridge::frb(ignore)]
+#[allow(clippy::too_many_arguments)]
+pub fn send_with_progress(
+    relay_url: String,
+    lightwalletd_url: String,
+    db_dir: String,
+    state_dir: String,
+    seeds: Vec<u8>,
+    material: Vec<u8>,
+    proposal_id: String,
+    mut on_progress: impl FnMut(SendProgress),
+) -> Result<(), ZafeError> {
+    let me = identity(&seeds)?;
+    let m = self::material(&material)?;
+    let net = network(&m.descriptor.network)?;
+    let id = parse_id(&proposal_id)?;
+    let relay = RelayClient::new(relay_url);
+    let tip = local_tip(&db_dir, &lightwalletd_url, &m)?;
+    let req_path = request_file(&state_dir, &id);
+    let io = |e: std::io::Error| ZafeError::new(ZafeErrorKind::Other, e.to_string());
+
+    let request = match fs::read(&req_path) {
+        Ok(bytes) => node::decode_request(&bytes)?,
+        Err(_) => {
+            // Commitment sets already put in a request must never be reused.
+            let used_path = leader_dir(&state_dir).join("used_commitments.bin");
+            let mut used: BTreeSet<[u8; 32]> = fs::read(&used_path)
+                .ok()
+                .and_then(|b| postcard::from_bytes(&b).ok())
+                .unwrap_or_default();
+            let sent = runtime().block_on(node::request_signatures(
+                &relay, &me, &m, &net, tip, id, &used, &mut OsRng,
+            ))?;
+            used.extend(sent.used_commitments);
+            fs::create_dir_all(leader_dir(&state_dir)).map_err(io)?;
+            fs::write(
+                &used_path,
+                postcard::to_allocvec(&used)
+                    .map_err(|e| ZafeError::new(ZafeErrorKind::Other, e.to_string()))?,
+            )
+            .map_err(io)?;
+            fs::write(&req_path, node::encode_request(&sent.request)?).map_err(io)?;
+            sent.request
+        }
+    };
+    on_progress(SendProgress {
+        stage: SendStage::Collecting,
+        received: 0,
+        needed: request.signers.len() as u32,
+        txid: None,
+        error: None,
+    });
+
+    runtime().block_on(async {
+        // Our own shares, if we are one of the chosen signers: signed once (that consumes
+        // the nonces) and kept until the broadcast, so a retry reuses them.
+        let own_path = leader_dir(&state_dir).join(format!("{}.own", hex::encode(id)));
+        let own: Option<Vec<Vec<u8>>> = match fs::read(&own_path) {
+            Ok(bytes) => Some(
+                postcard::from_bytes(&bytes)
+                    .map_err(|e| ZafeError::new(ZafeErrorKind::Other, e.to_string()))?,
+            ),
+            Err(_) => {
+                let mut store = nonce_store(&state_dir);
+                let own =
+                    node::sign_own_shares(&relay, &me, &m, &net, tip, &request, &mut store).await?;
+                if let Some(own) = &own {
+                    let bytes = postcard::to_allocvec(own)
+                        .map_err(|e| ZafeError::new(ZafeErrorKind::Other, e.to_string()))?;
+                    fs::write(&own_path, bytes).map_err(io)?;
+                }
+                own
+            }
+        };
+        let mut client = connect(&lightwalletd_url).await?;
+        let txid = node::finalize(
+            &relay,
+            &me,
+            &m,
+            &request,
+            own.as_deref(),
+            &mut client,
+            COLLECT_TIMEOUT,
+            |p| {
+                on_progress(SendProgress {
+                    stage: SendStage::Collecting,
+                    received: p.received as u32,
+                    needed: p.needed as u32,
+                    txid: None,
+                    error: None,
+                });
+            },
+            &mut OsRng,
+        )
+        .await?;
+        let _ = fs::remove_file(&req_path);
+        let _ = fs::remove_file(&own_path);
+        let mut display = txid;
+        display.reverse();
+        on_progress(SendProgress {
+            stage: SendStage::Sent,
+            received: request.signers.len() as u32,
+            needed: request.signers.len() as u32,
+            txid: Some(hex::encode(display)),
+            error: None,
+        });
+        Ok::<_, ZafeError>(())
+    })
+}

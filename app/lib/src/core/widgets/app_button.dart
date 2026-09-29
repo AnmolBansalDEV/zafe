@@ -474,21 +474,32 @@ class _AppButtonState extends State<AppButton> {
       ],
     );
 
-    final pointer = MouseRegion(
-      cursor: _enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      onEnter: _enabled ? (_) => _setHovered(true) : null,
-      onExit: _enabled ? (_) => _setHovered(false) : null,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: _enabled ? (_) => _setPressed(true) : null,
-        onTapUp: _enabled
-            ? (_) {
-                _setPressed(false);
-                widget.onPressed!.call();
-              }
-            : null,
-        onTapCancel: _enabled ? () => _setPressed(false) : null,
-        child: focusShell,
+    // Zafe: expose a real button with a tap action to accessibility services (the
+    // onTapUp-only detector gave screen readers an unlabeled image).
+    final pointer = MergeSemantics(
+      child: Semantics(
+        button: true,
+        enabled: _enabled,
+        onTap: _enabled ? widget.onPressed : null,
+        child: MouseRegion(
+          cursor: _enabled
+              ? SystemMouseCursors.click
+              : SystemMouseCursors.basic,
+          onEnter: _enabled ? (_) => _setHovered(true) : null,
+          onExit: _enabled ? (_) => _setHovered(false) : null,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: _enabled ? (_) => _setPressed(true) : null,
+            onTapUp: _enabled
+                ? (_) {
+                    _setPressed(false);
+                    widget.onPressed!.call();
+                  }
+                : null,
+            onTapCancel: _enabled ? () => _setPressed(false) : null,
+            child: focusShell,
+          ),
+        ),
       ),
     );
 

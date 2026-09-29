@@ -4,9 +4,10 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
+import 'error.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `identity`, `material`, `network`, `runtime`
+// These functions are ignored because they are not marked as `pub`: `identity`, `material`, `network`, `open_wallet`, `runtime`, `wallet_lock`, `wallet_path`
 
 IdentityInfo generateIdentity() =>
     RustLib.instance.api.crateApiVaultGenerateIdentity();
@@ -65,7 +66,8 @@ Future<void> sealVault({
 );
 
 /// Runs key generation. Blocks until every member finishes (or `timeout_secs`). Returns the
-/// vault material (secret: store it in secure storage).
+/// vault material (secret: store it in secure storage). The creator picks the birthday:
+/// `birthday_height`, or lightwalletd's tip + 1 when `None` (the app passes `None`).
 Future<Uint8List> runKeygen({
   required String relayUrl,
   required String lightwalletdUrl,
@@ -74,6 +76,7 @@ Future<Uint8List> runKeygen({
   required String invite,
   required String confirmedSafetyNumber,
   required int timeoutSecs,
+  int? birthdayHeight,
 }) => RustLib.instance.api.crateApiVaultRunKeygen(
   relayUrl: relayUrl,
   lightwalletdUrl: lightwalletdUrl,
@@ -82,6 +85,7 @@ Future<Uint8List> runKeygen({
   invite: invite,
   confirmedSafetyNumber: confirmedSafetyNumber,
   timeoutSecs: timeoutSecs,
+  birthdayHeight: birthdayHeight,
 );
 
 VaultSummary vaultSummary({required List<int> material}) =>

@@ -123,6 +123,8 @@ pub enum VaultEvent {
         pczt_hash: [u8; 32],
         /// Chain tip the proposer built against (for expiry checks).
         tip_height: u32,
+        /// Proposer's clock, unix seconds (display only; not trusted).
+        created_at: u64,
     },
     Vote {
         proposal: ProposalId,
@@ -167,6 +169,10 @@ pub struct ProposalState {
     pub pczt: Vec<u8>,
     pub pczt_hash: [u8; 32],
     pub tip_height: u32,
+    /// Proposer-claimed creation time, unix seconds (display only).
+    pub created_at: u64,
+    /// Index of the proposal's log entry (orders proposals).
+    pub log_index: u64,
     pub status: ProposalStatus,
     /// Latest approval per member: their serialized commitments.
     pub approvals: BTreeMap<[u8; 32], Vec<Vec<u8>>>,
@@ -263,6 +269,7 @@ impl VaultState {
                 pczt,
                 pczt_hash,
                 tip_height,
+                created_at,
             } => {
                 if self.proposals.contains_key(&id) {
                     return Err(VaultError::DuplicateProposal(index));
@@ -276,6 +283,8 @@ impl VaultState {
                         pczt,
                         pczt_hash,
                         tip_height,
+                        created_at,
+                        log_index: index,
                         status: ProposalStatus::Open,
                         approvals: BTreeMap::new(),
                         rejections: BTreeMap::new(),

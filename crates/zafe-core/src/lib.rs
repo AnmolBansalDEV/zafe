@@ -5,6 +5,7 @@
 pub mod keygen;
 pub mod keys;
 pub mod node;
+pub mod nonce_store;
 pub mod relay_client;
 pub mod session;
 pub mod signing;

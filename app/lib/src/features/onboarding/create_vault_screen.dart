@@ -37,10 +37,20 @@ class _CreateVaultScreenState extends ConsumerState<CreateVaultScreen> {
     try {
       await ref
           .read(vaultProvider.notifier)
-          .createVault(name: _name.text.trim(), threshold: _threshold, members: _members);
+          .createVault(
+            name: _name.text.trim(),
+            threshold: _threshold,
+            members: _members,
+          );
       if (mounted) context.go('/setup');
     } catch (e) {
-      if (mounted) showAppToast(context, 'Couldn\'t create the vault. $e', iconName: AppIcons.warning);
+      if (mounted) {
+        showAppToast(
+          context,
+          'Couldn\'t create the vault. $e',
+          iconName: AppIcons.warning,
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -49,7 +59,10 @@ class _CreateVaultScreenState extends ConsumerState<CreateVaultScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final valid = _name.text.trim().isNotEmpty && _threshold >= 2 && _threshold <= _members;
+    final valid =
+        _name.text.trim().isNotEmpty &&
+        _threshold >= 2 &&
+        _threshold <= _members;
     return ZafeScreen(
       title: 'New vault',
       bottom: AppButton(
@@ -59,7 +72,12 @@ class _CreateVaultScreenState extends ConsumerState<CreateVaultScreen> {
         child: Text(_busy ? 'Creating...' : 'Create vault'),
       ),
       children: [
-        Text('Vault name', style: AppTypography.labelMedium.copyWith(color: colors.text.secondary)),
+        Text(
+          'Vault name',
+          style: AppTypography.labelMedium.copyWith(
+            color: colors.text.secondary,
+          ),
+        ),
         const SizedBox(height: AppSpacing.xs),
         MobileTextField(
           controller: _name,
@@ -138,14 +156,21 @@ class _Stepper extends StatelessWidget {
     );
     return Row(
       children: [
-        Expanded(child: Text(label, style: AppTypography.bodyMedium.copyWith(color: colors.text.accent))),
+        Expanded(
+          child: Text(
+            label,
+            style: AppTypography.bodyMedium.copyWith(color: colors.text.accent),
+          ),
+        ),
         button(AppIcons.cancel, value > min, value - 1),
         SizedBox(
           width: 44,
           child: Text(
             '$value',
             textAlign: TextAlign.center,
-            style: AppTypography.headlineSmall.copyWith(color: colors.text.accent),
+            style: AppTypography.headlineSmall.copyWith(
+              color: colors.text.accent,
+            ),
           ),
         ),
         button(AppIcons.plus, value < max, value + 1),

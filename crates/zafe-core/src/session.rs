@@ -60,6 +60,8 @@ pub enum SessionError {
     UnknownApprover,
     #[error("share set from member does not cover every spend")]
     IncompleteShares,
+    #[error("nonce storage: {0}")]
+    Storage(String),
 }
 
 /// `BLAKE2b-256("Zafe_PCZT_Hash__", serialized unsigned PCZT)`: binds votes and signing
@@ -88,7 +90,12 @@ pub trait NonceStore {
         proposal: &ProposalId,
         pczt_hash: &[u8; 32],
     ) -> Option<Vec<SigningCommitments>>;
-    fn put(&mut self, proposal: ProposalId, pczt_hash: [u8; 32], nonces: Vec<SigningNonces>);
+    fn put(
+        &mut self,
+        proposal: ProposalId,
+        pczt_hash: [u8; 32],
+        nonces: Vec<SigningNonces>,
+    ) -> Result<(), SessionError>;
     fn take(&mut self, proposal: &ProposalId, pczt_hash: &[u8; 32]) -> Option<Vec<SigningNonces>>;
 }
 
@@ -109,8 +116,14 @@ impl NonceStore for MemoryNonceStore {
             .get(&(*proposal, *pczt_hash))
             .map(|nonces| nonces.iter().map(|n| *n.commitments()).collect())
     }
-    fn put(&mut self, proposal: ProposalId, pczt_hash: [u8; 32], nonces: Vec<SigningNonces>) {
+    fn put(
+        &mut self,
+        proposal: ProposalId,
+        pczt_hash: [u8; 32],
+        nonces: Vec<SigningNonces>,
+    ) -> Result<(), SessionError> {
         self.0.insert((proposal, pczt_hash), nonces);
+        Ok(())
     }
     fn take(&mut self, proposal: &ProposalId, pczt_hash: &[u8; 32]) -> Option<Vec<SigningNonces>> {
         self.0.remove(&(*proposal, *pczt_hash))
@@ -155,7 +168,7 @@ impl Member<'_> {
             .iter()
             .map(|_| signing::commit(self.key_package, rng))
             .unzip();
-        store.put(proposal, hash, nonces);
+        store.put(proposal, hash, nonces)?;
         Ok((
             Approval {
                 member: self.identifier,

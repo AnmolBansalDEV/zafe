@@ -33,7 +33,9 @@ class WelcomeScreen extends StatelessWidget {
               const SizedBox(height: AppSpacing.s),
               Text(
                 'A shielded multisig for Zcash. Every payment needs your co-signers to agree.',
-                style: AppTypography.bodyMedium.copyWith(color: colors.text.secondary),
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.text.secondary,
+                ),
               ),
               const Spacer(),
               const _InfoCard(),
@@ -77,11 +79,18 @@ class _InfoCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: AppTypography.labelLarge.copyWith(color: colors.text.homeCard)),
+                Text(
+                  title,
+                  style: AppTypography.labelLarge.copyWith(
+                    color: colors.text.homeCard,
+                  ),
+                ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
                   body,
-                  style: AppTypography.bodySmall.copyWith(color: colors.text.homeCard.withValues(alpha: 0.7)),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.text.homeCard.withValues(alpha: 0.7),
+                  ),
                 ),
               ],
             ),
@@ -98,9 +107,21 @@ class _InfoCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          row(AppIcons.shieldKeyhole, 'Private by default', 'Balances, payments and memos stay shielded.'),
-          row(AppIcons.users, 'Shared control', 'Payments go out only when enough members sign.'),
-          row(AppIcons.key, 'No single key', 'Each member holds one share. The full key never exists.'),
+          row(
+            AppIcons.shieldKeyhole,
+            'Private by default',
+            'Balances, payments and memos stay shielded.',
+          ),
+          row(
+            AppIcons.users,
+            'Shared control',
+            'Payments go out only when enough members sign.',
+          ),
+          row(
+            AppIcons.key,
+            'No single key',
+            'Each member holds one share. The full key never exists.',
+          ),
         ],
       ),
     );

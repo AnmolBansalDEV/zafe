@@ -55,7 +55,9 @@ class _JoinVaultScreenState extends ConsumerState<JoinVaultScreen> {
       await ref.read(vaultProvider.notifier).joinVault(_invite.text);
       if (mounted) context.go('/setup');
     } catch (e) {
-      if (mounted) showAppToast(context, 'Couldn\'t join. $e', iconName: AppIcons.warning);
+      if (mounted) {
+        showAppToast(context, 'Couldn\'t join. $e', iconName: AppIcons.warning);
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -74,7 +76,12 @@ class _JoinVaultScreenState extends ConsumerState<JoinVaultScreen> {
         child: Text(_busy ? 'Joining...' : 'Join vault'),
       ),
       children: [
-        Text('Invite', style: AppTypography.labelMedium.copyWith(color: colors.text.secondary)),
+        Text(
+          'Invite',
+          style: AppTypography.labelMedium.copyWith(
+            color: colors.text.secondary,
+          ),
+        ),
         const SizedBox(height: AppSpacing.xs),
         MobileTextField(
           controller: _invite,
@@ -97,7 +104,9 @@ class _JoinVaultScreenState extends ConsumerState<JoinVaultScreen> {
         else if (_invite.text.trim().isNotEmpty)
           Text(
             'This doesn\'t look like a Zafe invite.',
-            style: AppTypography.bodySmall.copyWith(color: colors.text.destructive),
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.text.destructive,
+            ),
           ),
       ],
     );
