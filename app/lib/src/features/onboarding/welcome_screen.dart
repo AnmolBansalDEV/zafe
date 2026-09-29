@@ -69,6 +69,13 @@ class WelcomeScreen extends ConsumerWidget {
                     leading: const AppIcon(AppIcons.link, size: 20),
                     child: const Text('Join with an invite'),
                   ),
+                  const SizedBox(height: AppSpacing.xs),
+                  AppButton(
+                    expand: true,
+                    variant: AppButtonVariant.ghost,
+                    onPressed: () => context.push('/restore'),
+                    child: const Text('Restore from backup'),
+                  ),
                 ],
               ),
             ),

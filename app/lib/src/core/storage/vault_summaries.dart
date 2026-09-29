@@ -7,9 +7,16 @@ import 'zafe_paths.dart';
 /// balance and how many payments wait for this member. A small file per vault, written by
 /// the app and by background checks (files are shared across isolates, prefs caches aren't).
 class VaultSummaryInfo {
-  const VaultSummaryInfo({this.balanceZat, this.actionable = 0});
+  const VaultSummaryInfo({
+    this.balanceZat,
+    this.actionable = 0,
+    this.backedUp = false,
+  });
   final BigInt? balanceZat;
   final int actionable;
+
+  /// A backup of this device's copy exists (exported here, or restored from one).
+  final bool backedUp;
 }
 
 class VaultSummaries {
@@ -24,28 +31,43 @@ class VaultSummaries {
             ? null
             : BigInt.parse(j['balance'] as String),
         actionable: (j['actionable'] as int?) ?? 0,
+        backedUp: (j['backedUp'] as bool?) ?? false,
       );
     } catch (_) {
       return const VaultSummaryInfo();
     }
   }
 
-  /// Updates the given fields, keeping the others.
+  // Writes are read-modify-write: serialize them (sync and refresh both write).
+  static Future<void> _queue = Future.value();
+
+  /// Updates the given fields, keeping the others. Never throws (the summary is a cache).
   static Future<void> write(
     String vaultId, {
     BigInt? balanceZat,
     int? actionable,
-  }) async {
-    final old = await read(vaultId);
-    final f = await _file(vaultId);
-    await f.parent.create(recursive: true);
-    final tmp = File('${f.path}.tmp');
-    await tmp.writeAsString(
-      jsonEncode({
-        'balance': (balanceZat ?? old.balanceZat)?.toString(),
-        'actionable': actionable ?? old.actionable,
-      }),
-    );
-    await tmp.rename(f.path);
+    bool? backedUp,
+  }) {
+    final next = _queue.then((_) async {
+      try {
+        final old = await read(vaultId);
+        final f = await _file(vaultId);
+        await f.parent.create(recursive: true);
+        // A unique temp name: background checks in another isolate may write too.
+        final tmp = File(
+          '${f.path}.${DateTime.now().microsecondsSinceEpoch}.tmp',
+        );
+        await tmp.writeAsString(
+          jsonEncode({
+            'balance': (balanceZat ?? old.balanceZat)?.toString(),
+            'actionable': actionable ?? old.actionable,
+            'backedUp': backedUp ?? old.backedUp,
+          }),
+        );
+        await tmp.rename(f.path);
+      } catch (_) {}
+    });
+    _queue = next;
+    return next;
   }
 }

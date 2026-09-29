@@ -66,6 +66,12 @@ enum Command {
     Pool,
     /// Send a proposal whose approvals already carry every signature (one tap).
     Send { proposal: String },
+    /// Export this member's seat as an encrypted backup (text form, as the app's "Copy as
+    /// text"). Never includes signing nonces.
+    Backup {
+        #[arg(long)]
+        passphrase: String,
+    },
     /// List proposals.
     Proposals,
     /// Verify a proposal independently and approve it.
@@ -291,6 +297,26 @@ async fn main() -> Result<()> {
             if approved.completed {
                 println!("signatures complete: ready to send");
             }
+        }
+        Command::Backup { passphrase } => {
+            let id = home.identity()?;
+            let s = id.seeds();
+            let contents = zafe_core::backup::Contents {
+                identity_seeds: [s.sig_seed.as_slice(), s.enc_seed.as_slice()].concat(),
+                material: fs::read(home.path("vault.bin"))
+                    .context("vault not created yet; run `zafe vault keygen`")?,
+                invite: fs::read_to_string(home.path("invite.txt"))?,
+                created_at: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)?
+                    .as_secs(),
+            };
+            let bytes = zafe_core::backup::encrypt(
+                &contents,
+                &passphrase,
+                zafe_core::backup::KdfParams::DEFAULT,
+                &mut rng,
+            )?;
+            println!("{}", zafe_core::backup::to_text(&bytes));
         }
         Command::Pool => {
             let material = home.material()?;

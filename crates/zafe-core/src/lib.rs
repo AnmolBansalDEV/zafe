@@ -2,6 +2,7 @@
 //!
 //! See `spec.md` at the repository root.
 
+pub mod backup;
 pub mod keygen;
 pub mod keys;
 pub mod node;

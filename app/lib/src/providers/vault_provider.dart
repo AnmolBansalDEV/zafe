@@ -233,6 +233,24 @@ class VaultNotifier extends Notifier<VaultState> {
     await _reload(activeId: vaultId);
   }
 
+  /// Adds a vault restored from a backup and shows it. This device starts with no signing
+  /// nonces (backups never carry them) and publishes a fresh pool on its first refresh.
+  Future<void> addRestoredVault({
+    required String vaultId,
+    required List<int> identity,
+    required List<int> material,
+    required String invite,
+  }) async {
+    if (state.vaults.any((v) => v.id == vaultId)) {
+      throw StateError('already on this device');
+    }
+    await _store.add(id: vaultId, identity: identity, invite: invite);
+    await _store.writeMaterial(vaultId, material);
+    state = state.copyWith(clearReturnTo: true);
+    await _reload(activeId: vaultId);
+    unawaited(sync());
+  }
+
   Future<rust.MembershipInfo> refreshMembership() async {
     final membership = await rust.vaultMembership(
       relayUrl: kZafeRelayUrl,

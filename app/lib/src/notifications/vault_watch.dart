@@ -161,9 +161,11 @@ Future<void> recordSeen(
 ) async {
   final f = await _seenFile(vaultId);
   await f.parent.create(recursive: true);
-  final tmp = File('${f.path}.tmp');
-  await tmp.writeAsString(jsonEncode(snapshotOf(proposals)));
-  await tmp.rename(f.path);
+  final tmp = File('${f.path}.${DateTime.now().microsecondsSinceEpoch}.tmp');
+  try {
+    await tmp.writeAsString(jsonEncode(snapshotOf(proposals)));
+    await tmp.rename(f.path);
+  } catch (_) {}
 }
 
 /// Notification payloads carry both ids, so a tap can switch to the right vault.

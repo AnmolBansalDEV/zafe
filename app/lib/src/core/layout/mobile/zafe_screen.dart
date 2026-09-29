@@ -44,7 +44,8 @@ class ZafeScreen extends StatelessWidget {
               if (bottom != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: bottom,
+                  // Full width, so `AppButton(expand: true)` spans the screen.
+                  child: SizedBox(width: double.infinity, child: bottom),
                 ),
             ],
           ),

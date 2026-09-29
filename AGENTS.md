@@ -241,6 +241,16 @@ Learned while studying it:
 - Settings (`/settings`, opened from the vault name on home): vault info, signer key,
   hide amounts, theme (`themeModeProvider`, persisted), endpoints (read-only; compile-time
   dart-defines), open-source licenses (fonts + NOTICE registered in `main.dart`).
+- **Backups** (spec §12.2; `zafe_core::backup`, bridge `api/backup.rs`, app `features/backup/`):
+  `ZAFEBAK` v1 = header (Argon2id params, salt, nonce; authenticated as AEAD data) +
+  XChaCha20-Poly1305 of {identity seeds, material, invite}; **never nonces**. Import checks
+  the identity is a vault member and refuses KDF params below 64 MiB / 3 passes (or absurdly
+  high). Text form `zafe-backup-v1:` + base64url. Passphrase: 12+ words or zxcvbn 4
+  ("Suggest" = 12 BIP-39 words). The app prompts right after key generation
+  (`/backup-prompt`) and shows a home reminder until `summary.json` has `backedUp`
+  (set by export, and by restoring). CLI: `zafe backup --passphrase …` prints the text form.
+  Testing tip: this emulator has no shell clipboard; paste into a field (e.g. Settings
+  search) and read it with `agent-device get text @ref` (snapshots truncate long values).
 - **Multiple vaults**: `ZafeSecureStore` keeps each vault's identity, invite and material
   under `zafe_vault_<vaultId>_*`, listed in `zafe_vaults`; the active vault id is in prefs
   (`zafe_active_vault`). Each vault gets a **fresh member identity** (the relay can't link

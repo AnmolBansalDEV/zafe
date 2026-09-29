@@ -107,6 +107,12 @@ class SettingsScreen extends ConsumerWidget {
                       title: 'Security',
                       rows: [
                         row(
+                          icon: AppIcons.lock,
+                          label: 'Back up vault',
+                          chevron: true,
+                          onTap: () => context.push('/export'),
+                        ),
+                        row(
                           icon: AppIcons.key,
                           label: 'Your signer key',
                           value: me == null ? '' : memberLabel(me),

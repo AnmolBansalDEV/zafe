@@ -93,14 +93,16 @@ single-vault layout, add via the switcher, cross-vault notification tap, remove)
       (notification title already carries the vault name)
 - [ ] Revisit the bridge's single global wallet lock (Known issues) for parallel syncs
 
-Export and import
-- [ ] **Export this vault** as an encrypted file (spec §12.2: identity, FROST key package,
+Export and import (done 2026-09-30, verified on the emulator: export with a suggested
+passphrase and share sheet, restore of another member's seat from pasted text, wrong
+passphrase and already-on-this-phone refusals, backup prompt after creating a vault)
+- [x] **Export this vault** as an encrypted file (spec §12.2: identity, FROST key package,
       `sk`, descriptor, log key, `use_qsk`; **never** nonces or pool nonces; Argon2id ≥
       64 MiB + XChaCha20-Poly1305; strong passphrase), via the share sheet or saved file.
       Versioned format with a magic header
-- [ ] **Import a vault** on a new or second device from that file + passphrase, then
+- [x] **Import a vault** on a new or second device from that file + passphrase, then
       resync the log and the wallet from the birthday; publishes a fresh commitment pool
-- [ ] Decide **move vs. copy** semantics: two live devices holding the same member share
+- [x] Decide **move vs. copy** semantics (decided: backups are passive copies; "move" = restore on the new phone, then Remove on the old one, as the export screen says): two live devices holding the same member share
       can both vote and sign (fresh nonces each, so no key leak, but confusing votes).
       Proposal: "move to a new phone" exports, then retires this device's copy
       (deletes material and pool nonces after the import is confirmed); plain backups
@@ -108,7 +110,7 @@ Export and import
 - [ ] **Export history** (CSV, already M2 §11.3) and **viewing-key export** for auditors
       (read-only UFVK; see Vizor viewing-key export in Ideas), plus **import a vault as
       view-only** (auditor mode: balance and history, no signing)
-- [ ] Backup health in the log once exports exist (M2 item below)
+- [~] Backup health: per-device prompt after creation + home reminder done; members attesting backups in the log (so others see vault-wide backup health) still open
 - [ ] Multi-part QR for device-to-device transfer (material is a few KB) as an
       alternative to files, *(idea)*
 
@@ -120,7 +122,7 @@ Export and import
 - [ ] Rules via `RULES` proposals: per-tx / per-period limits, allowlist-only,
       large-payment extra approvals; enforced by apps before voting and signing (§11.1)
 - [ ] CSV export of vault history, generated locally (§11.3)
-- [ ] Encrypted backup (Argon2id + XChaCha20-Poly1305; iCloud/Drive/file) and restore;
+- [x] Encrypted backup (Argon2id + XChaCha20-Poly1305; file via the share sheet, or text) and restore;
       never includes nonces (§12.2–12.3)
 - [ ] Backup health: members attest a verified backup in the log (§12.2)
 - [ ] Repair a lost device's share (frost-core repairable, with verifying-share checks and

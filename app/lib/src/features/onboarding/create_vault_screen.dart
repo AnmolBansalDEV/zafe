@@ -116,9 +116,12 @@ class _CreateVaultScreenState extends ConsumerState<CreateVaultScreen> {
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
-          'Payments need $_threshold of $_members members to sign. If more than '
-          '${_members - _threshold} member${_members - _threshold == 1 ? '' : 's'} lose their keys, '
-          'the funds can\'t be recovered.',
+          _threshold == _members
+              ? 'Payments need every member to sign. If any member loses their key, the funds '
+                    'can\'t be recovered.'
+              : 'Payments need $_threshold of $_members members to sign. If more than '
+                    '${_members - _threshold} member${_members - _threshold == 1 ? '' : 's'} lose '
+                    'their keys, the funds can\'t be recovered.',
           style: AppTypography.bodySmall.copyWith(color: colors.text.secondary),
         ),
         if (_threshold == _members) ...[

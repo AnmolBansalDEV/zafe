@@ -3,6 +3,7 @@
 
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
+import 'api/backup.dart';
 import 'api/error.dart';
 import 'api/proposals.dart';
 import 'api/vault.dart';
@@ -53,10 +54,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ZafeError dco_decode_box_autoadd_zafe_error(dynamic raw);
 
   @protected
+  ExportedBackup dco_decode_exported_backup(dynamic raw);
+
+  @protected
   int dco_decode_i_32(dynamic raw);
 
   @protected
   IdentityInfo dco_decode_identity_info(dynamic raw);
+
+  @protected
+  ImportedVault dco_decode_imported_vault(dynamic raw);
 
   @protected
   InviteInfo dco_decode_invite_info(dynamic raw);
@@ -96,6 +103,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ZafeError? dco_decode_opt_box_autoadd_zafe_error(dynamic raw);
+
+  @protected
+  PassphraseCheck dco_decode_passphrase_check(dynamic raw);
 
   @protected
   PaymentInfo dco_decode_payment_info(dynamic raw);
@@ -175,10 +185,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ZafeError sse_decode_box_autoadd_zafe_error(SseDeserializer deserializer);
 
   @protected
+  ExportedBackup sse_decode_exported_backup(SseDeserializer deserializer);
+
+  @protected
   int sse_decode_i_32(SseDeserializer deserializer);
 
   @protected
   IdentityInfo sse_decode_identity_info(SseDeserializer deserializer);
+
+  @protected
+  ImportedVault sse_decode_imported_vault(SseDeserializer deserializer);
 
   @protected
   InviteInfo sse_decode_invite_info(SseDeserializer deserializer);
@@ -224,6 +240,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ZafeError? sse_decode_opt_box_autoadd_zafe_error(
     SseDeserializer deserializer,
   );
+
+  @protected
+  PassphraseCheck sse_decode_passphrase_check(SseDeserializer deserializer);
 
   @protected
   PaymentInfo sse_decode_payment_info(SseDeserializer deserializer);
@@ -310,10 +329,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_exported_backup(
+    ExportedBackup self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_identity_info(IdentityInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_imported_vault(ImportedVault self, SseSerializer serializer);
 
   @protected
   void sse_encode_invite_info(InviteInfo self, SseSerializer serializer);
@@ -369,6 +397,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_zafe_error(
     ZafeError? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_passphrase_check(
+    PassphraseCheck self,
     SseSerializer serializer,
   );
 

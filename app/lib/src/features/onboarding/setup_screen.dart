@@ -82,7 +82,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
     _poll?.cancel();
     try {
       await ref.read(vaultProvider.notifier).createKeys(safetyNumber);
-      if (mounted) context.go('/home');
+      // Right after creation: the key share now exists only on this phone.
+      if (mounted) context.go('/backup-prompt');
     } catch (e) {
       if (mounted) {
         setState(() => _creatingKeys = false);

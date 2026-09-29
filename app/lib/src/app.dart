@@ -7,6 +7,9 @@ import 'package:go_router/go_router.dart';
 
 import 'core/theme/app_theme_host.dart';
 import 'core/theme/legacy_material_theme.dart';
+import 'features/backup/backup_prompt_screen.dart';
+import 'features/backup/export_screen.dart';
+import 'features/backup/restore_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/onboarding/create_vault_screen.dart';
 import 'features/onboarding/join_vault_screen.dart';
@@ -64,6 +67,8 @@ final _routerProvider = Provider<GoRouter>((ref) {
         '/send',
         '/proposal',
         '/settings',
+        '/export',
+        '/backup-prompt',
       ].any(loc.startsWith);
       if (vault.hasVault && !inVault) return '/home';
       if (!vault.hasVault && inVault) {
@@ -89,6 +94,18 @@ final _routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/receive',
         pageBuilder: (_, _) => page(const ReceiveScreen()),
+      ),
+      GoRoute(
+        path: '/export',
+        pageBuilder: (_, _) => page(const ExportScreen()),
+      ),
+      GoRoute(
+        path: '/backup-prompt',
+        pageBuilder: (_, _) => page(const BackupPromptScreen()),
+      ),
+      GoRoute(
+        path: '/restore',
+        pageBuilder: (_, _) => page(const RestoreScreen()),
       ),
       GoRoute(
         path: '/settings',

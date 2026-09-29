@@ -15,6 +15,7 @@ import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/app_tappable.dart';
 import '../../core/widgets/app_toast.dart';
 import '../../notifications/vault_watch.dart';
+import '../backup/backup_prompt_screen.dart' show backupStatusProvider;
 import '../vaults/vault_switcher_sheet.dart';
 import '../../providers/privacy_mode_provider.dart';
 import '../../providers/proposals_provider.dart';
@@ -163,6 +164,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         ],
                       ),
                     const SizedBox(height: AppSpacing.md),
+                    if (ref.watch(backupStatusProvider).value == false) ...[
+                      const _BackupReminder(),
+                      const SizedBox(height: AppSpacing.md),
+                    ],
                     _Payments(
                       proposals: ref.watch(proposalsProvider),
                       hideAmounts: ref.watch(privacyModeProvider),
@@ -432,6 +437,63 @@ class _Payments extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Until this device's copy of the vault is backed up (spec §12.2 "backup health").
+class _BackupReminder extends StatelessWidget {
+  const _BackupReminder();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return AppTappable(
+      onTap: () => context.push('/export'),
+      semanticsLabel: 'Back up this vault',
+      child: Container(
+        padding: const EdgeInsets.all(AppSpacing.sm),
+        decoration: BoxDecoration(
+          color: colors.background.brandCrimsonSubtle,
+          borderRadius: BorderRadius.circular(AppRadii.large),
+        ),
+        child: Row(
+          children: [
+            AppIcon(
+              AppIcons.warning,
+              size: 20,
+              color: colors.icon.brandCrimson,
+            ),
+            const SizedBox(width: AppSpacing.s),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Back up this vault',
+                    style: AppTypography.labelLarge.copyWith(
+                      color: colors.text.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                    'Your key share lives only on this phone.',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: colors.text.secondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            AppIcon(
+              AppIcons.chevronForward,
+              size: 20,
+              color: colors.icon.accent,
+            ),
+          ],
+        ),
       ),
     );
   }
