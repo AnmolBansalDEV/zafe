@@ -177,6 +177,10 @@ All crates come from crates.io. **No git forks.**
 - **Compatibility:** `orchard` 0.15.5 itself depends on `reddsa` 0.5 and `pasta_curves` 0.5, the same as `reddsa` 0.5.2. Turning on `frost` doesn't add a second copy of the curve crate, so RedPallas keys, signatures and `α` pass between orchard/pczt and FROST without byte conversions (bytes are still used across the FFI and messaging boundaries).
 - **Known upgrade later:** when the redpallas ciphersuite ships from the `frost` repository (probably with the `pasta_curves` 0.6 / `group` 0.14 move that `orchard` `main` has started), switch in one step together with `orchard`. Key packages are serialized with the `frost-core` 3.x encoding, so check that the move preserves serialization, or plan a migration of stored packages.
 
+**Messaging crates (zafe-proto), found during implementation:** `ed25519-dalek` 2.2, `hpke` 0.12.0 (X25519-HKDF-SHA256, ChaCha20-Poly1305), `chacha20poly1305` 0.10 (XChaCha20-Poly1305 for the vault log). The newest generation (`ed25519-dalek` 3, `hpke` 0.14) needs stable `sha2` 0.11, which conflicts with `bip32`'s pin `sha2 =0.11.0-pre.4` pulled in by `zcash_client_backend` 0.24. The chosen generation also shares `rand_core` 0.6 with the Zcash stack. Revisit when librustzcash moves to stable `sha2` 0.11.
+
+**Feature gotchas:** `zcash_client_backend`'s `pczt` feature enables `transparent-inputs`, so `zcash_client_sqlite` must enable `transparent-inputs` too, and `serde` for PCZT creation. Otherwise sqlite fails to compile. `zcash-devtool` documents the same constraint.
+
 **Supply chain:** use `cargo vet` or `cargo deny` with this pinned set. Keep `Cargo.lock` checked in for the app and CLI. Security-critical crates (`reddsa`, `frost-*`, `orchard`, `pczt`) are reviewed when they change versions.
 
 ---
@@ -383,6 +387,9 @@ ZIP 2005 requires the participants to *privately agree* on `sk`. Zafe uses a con
 ## 8. Balance and history
 
 - Each device syncs independently from lightwalletd using `zcash_client_backend` (Spend-before-Sync) into a local `zcash_client_sqlite` database.
+- **Account type:** the vault UFVK is imported with `AccountPurpose::Spending { derivation: None }`, as Zodl and Vizor do for Keystone accounts. A `ViewOnly` account does not track note witnesses, so it could never build a spend. No spending key is stored; spend authorization always comes from FROST.
+- **Birthday height ≥ 2:** sync downloads the chain state at (scan range start − 1), and lightwalletd reads height 0 as "unspecified". This only matters on regtest.
+- **Proposals:** built with `propose_transfer` and `create_pczt_from_proposal`, using change to the Ironwood pool and `OvkPolicy::Sender` (the vault's external OVK for payments, internal for change), which §9.3 verification requires.
 - Balance, notes, and incoming and outgoing history (with memos) come from the local database, never from the relay.
 - The history UI merges chain data with vault log data: who proposed a payment, who approved it, labels.
 - lightwalletd sees the device IP and broadcast transactions, but not which notes belong to the vault. Zcash community guidance for Ironwood-era light clients recommends network-layer privacy (Tor or Nym), randomizing the start height, and randomizing broadcast delays. These are planned for M3, with Tor first.
@@ -712,6 +719,7 @@ zafe/
 ## 16. Milestones
 
 **M0: Core protocol (CLI, testnet)**
+*Status 2026-09-29:* done and tested are key derivation with vectors, keygen, member verification, signing sessions, protocol and envelopes, vault log, relay, the wallet, and **an in-process end-to-end spend on a live Ironwood regtest node** (`crates/zafe-core/tests/regtest_e2e.rs`, `infra/regtest/`). Remaining: vault state and events, the relay client, and `zafe-cli` running three members over the relay.
 DKG + safety number + `sk` agreement + UFVK/address → sync → PCZT → FROST signing for all spends → broadcast. Three `zafe-cli` members running over a local relay. Resolve every [VERIFY] item. Cross-check signatures and transactions against `zcash-sign` / `zcash-devtool`.
 
 **M1: App v1 (testnet)**
