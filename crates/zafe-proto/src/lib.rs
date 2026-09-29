@@ -3,9 +3,11 @@
 
 pub mod envelope;
 pub mod identity;
+pub mod log;
 
 pub use envelope::{Envelope, Header, Kind, MailboxId, Recipient, ReplayGuard};
 pub use identity::{safety_number, Identity, IdentityPublic, IdentitySeeds};
+pub use log::{Chain, ChainError, LogEntry, LogKey};
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum ProtoError {
