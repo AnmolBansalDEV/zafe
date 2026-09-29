@@ -7,6 +7,9 @@ an upstream status change). `CLAUDE.md` only contains `@AGENTS.md`.
 Zafe is a Safe-style **shielded multisig for Zcash** (Ironwood pool, NU6.3) using
 re-randomized FROST. Product spec: `spec.md`. Original review: `spec-review.md`. Open
 questions to the Zcash Foundation / others: `upstream-asks.md`.
+**Tracker: `docs/tracker.md`** lists what's left, deferred items and ideas. Read it at the
+start of a task; when you defer something, discover a gap or finish an item, update it in
+the same change.
 
 ## Commands
 
