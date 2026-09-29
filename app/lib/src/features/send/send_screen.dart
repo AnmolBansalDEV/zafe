@@ -44,6 +44,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   final _amount = TextEditingController();
   final _amountFocus = FocusNode();
   String _memo = '';
+  bool _autoSend = true;
   rust.AddressCheck? _check;
   bool _busy = false;
 
@@ -104,6 +105,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
             address: _address.text.trim(),
             amountZat: _amountZat!,
             memo: _memo,
+            autoSend: _autoSend,
           );
       if (!mounted) return;
       context.go('/home');
@@ -494,13 +496,48 @@ class _SendScreenState extends ConsumerState<SendScreen> {
                   ),
                 ),
               ),
+              const DetailDivider(),
+              MergeSemantics(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Send when approved',
+                            style: AppTypography.labelLarge.copyWith(
+                              color: colors.text.accent,
+                            ),
+                          ),
+                          const SizedBox(height: AppSpacing.xxs),
+                          Text(
+                            _autoSend
+                                ? 'The last signer to approve sends it right away.'
+                                : 'A signer sends it when you choose.',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: colors.text.secondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch.adaptive(
+                      value: _autoSend,
+                      onChanged: _busy
+                          ? null
+                          : (v) => setState(() => _autoSend = v),
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
-          'Nothing is sent yet. The other signers check this payment on their own devices; '
-          'it goes out once ${summary.threshold} of you approve.',
+          'Nothing is sent yet. Each signer checks this payment on their own device and '
+          'approves with one tap; ${summary.threshold} approvals complete it.',
           style: AppTypography.bodySmall.copyWith(color: colors.text.secondary),
         ),
         const SizedBox(height: AppSpacing.lg),

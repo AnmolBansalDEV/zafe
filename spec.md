@@ -483,7 +483,7 @@ The approval screen shows every recipient, amount, memo, fee, the change amount,
 - Secret nonces are held in secure storage marked **this-device-only and excluded from backups** (iOS `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`; Android Keystore-wrapped files in a no-backup directory). Each nonce is keyed by `(proposalId, pcztHash, spendIndex)`.
 - **Nonce rule:** a nonce produces at most one signature share. It is deleted *before* the share is sent. A member never produces two shares with the same nonce, under any circumstances.
 
-This makes approval asynchronous. Members approve whenever they open the notification, and the signing round needs them again only for round 2.
+This makes approval asynchronous. Members approve whenever they open the notification, and the signing round needs them again only for round 2. **One-tap signing (§9.5.2) removes that second step** whenever members have pre-published commitments: approving signs.
 
 ### 9.5 Signing round 2
 
@@ -502,7 +502,7 @@ This makes approval asynchronous. Members approve whenever they open the notific
 **Why this is necessary:** `α` determines `rk = ak + [α]G`. `rk` is part of the transaction's effecting data, so it feeds the sighash, which is the FROST message. It is also a secret input to the Halo 2 proof. So `α` has to be fixed before the message exists, and before round 1. ZIP 312's `randomizer_generate(msg, commitments)` (hash fresh randomness with the message and the commitments after round 1) can't be applied as written, because the message already depends on `α`.
 
 **Why it is secure:**
-- **Unforgeability:** the Re-Randomized FROST paper (Gouvêa & Komlo, ePrint 2024/436) proves unforgeability in a game where *"signatures are allowed to be generated under an adversarially-chosen randomizer"*. The adversary supplies `α` in each round-2 signing query. A randomizer chosen by the proposer, even a malicious one, and fixed before round 1 is covered by that proof. It can't be used to forge.
+- **Unforgeability:** the Re-Randomized FROST paper (Gouvêa & Komlo, ePrint 2024/436) proves unforgeability in a game where *"signatures are allowed to be generated under an adversarially-chosen randomizer"*. The adversary supplies `α` in each round-2 signing query, **after** seeing the honest parties' round-1 commitments (Fig. 4: `OSign` returns commitments, then `OSign'` takes the adversary's message, signer set and `α`). The extraction treats `α` only as a public value (*"the above approach would hold even if α0 ≠ α1, due to the fact that this value is public"*). So a randomizer chosen by the proposer, even a malicious one, is covered whether it is fixed before round 1 (interactive signing) or after pre-published commitments (one-tap, §9.5.2). It can't be used to forge.
 - **Privacy / unlinkability:** this depends on `α` being uniformly random. The paper and ZIP 312 both put the coordinator (the transaction builder) in charge of the transaction's privacy: *"the coordinator is trusted with the privacy of the signature … but they still can't forge signatures."* In Zafe the proposer builds the PCZT and already sees everything, and all members are trusted with privacy anyway (§2.3). So a proposer who biases `α` only harms privacy they already control.
 - **What hashing in the commitments is for:** the paper and the `frost-rerandomized` docs describe binding the randomizer to the message and commitments as a hedge. It keeps the randomizer unique and uniform "even in case of random number generator failure". It isn't needed for unforgeability. Zafe relies on the PCZT builder's CSPRNG for `α` (the `orchard` builder samples it).
 
@@ -514,6 +514,21 @@ This makes approval asynchronous. Members approve whenever they open the notific
 1. **Members check the randomizer.** In frost-client, participants receive the message and randomizer from the coordinator and sign without seeing the PCZT. In Zafe every member recomputes the sighash and reads `α` from the PCZT itself, and refuses on any mismatch (§9.3). A wrong `α` can't forge, but it would waste the round or break unlinkability. A wrong sighash is the actual attack.
 2. **One session covers many spends.** frost-client handles one message and one randomizer per session (`signing_package.first()`, `randomizer[0]`). Zafe sends one signing package and one randomizer per spend in a single round-2 message, with separate nonces for each spend.
 3. **The randomizer travels over HPKE.** ZIP 312 requires a confidential channel for it. In Zafe it's inside the PCZT that every member already holds, and it's never sent unencrypted through the relay.
+
+#### 9.5.2 One-tap signing (preprocessed commitments)
+
+Implemented 2026-09-29. Approving a payment signs it; the payment can then be sent by any single member.
+
+1. **Pools.** Each member's app publishes `COMMITMENTS` log events: batches of fresh FROST round-1 commitments (FROST's preprocessing round, done ahead of time). The secret nonces are stored on the device **before** the event is appended, under the same rules as §9.4. The app tops the pool up to `pool_target = clamp(8 · C(n−1, t−1), 8, 256)` when it drops below half.
+2. **Deterministic assignment.** When a `PROPOSAL` event is replayed, every member computes the same assignment from the log: for each signer group (all t-subsets of members, descriptor order), each spend (the proposal declares `signingSpends`, which members check against the PCZT) and each group member, the member's next unused pool commitment. A commitment is assigned at most once, ever. If the vault has more than 64 groups (e.g. 5-of-9) or any pool is short, the proposal falls back to interactive signing (§9.4–9.5).
+3. **Approve = sign.** The approving member runs the §9.3 checks, then for every group containing it and every spend: builds the signing package from the assigned commitments with its locally computed sighash, checks the commitment is its own and its nonce is present **before consuming any nonce**, takes (deletes) the nonce, and signs with the spend's `α`. The `VOTE` carries the shares per group (`C(n−1, t−1)` groups: 2 for 2-of-3, 6 for 3-of-5, 20 for 4-of-7). **A vote with shares is final**: later votes by that member on that proposal are ignored, because the shares are out.
+4. **Ready.** The first group (in group order) whose members have all posted shares is the ready group. Anyone can aggregate it from the log, verifying every share (cheater identification), prove, broadcast and log `TX_BROADCAST`. No request round and no other member online.
+5. **Auto-send.** The proposer chooses `autoSend` per proposal (default on): the member whose vote completed the ready group sends immediately (from the log order everyone agrees who that is). Otherwise any member sends when they choose. Two members sending the same proposal broadcast the same transaction (same txid; v6 txids exclude authorizing data).
+6. **Cleanup.** When a proposal closes (sent, rejected, cancelled), each device deletes the nonces of its commitments assigned to that proposal.
+
+**Security.** The unforgeability argument is the one in §9.5.1: the Re-Randomized FROST game lets the adversary choose the message, the signer set and `α` after the honest commitments are public, building on the preprocessing analysis of FROST (Bellare et al., CRYPTO 2022). The requirements are the usual ones, enforced in code: each commitment gets at most one round-2 response; the package (sighash, `α`, group) is fixed before the share is produced; the member verifies the transaction itself. Upstream confirmation is requested (U5, `upstream-asks.md` Q7).
+
+**Consequences to show in the UI.** Approving can't be withdrawn. A cancelled proposal whose group is complete can still be sent by a member until its expiry height; invalidating it for certain requires spending its notes (tracked in `docs/tracker.md`).
 
 ### 9.6 Proposal status
 
@@ -775,5 +790,6 @@ Self-hostable relay packaging and paid hosted tiers, dapp SDK (proposal requests
 | U2 | **Upstream:** a non-deprecated external-randomizer signing API in `frost-rerandomized` (frost#1094) | Not blocking (deprecation warning only) |
 | U3 | **Upstream:** a home for the redpallas ciphersuite (frost#963) and security-fix policy for `reddsa` 0.5.x in the meantime | Not blocking now; affects future upgrades |
 | U4 | **Upstream:** COCKTAIL-DKG Pallas implementation and the ZIP 312 key-generation spec (zips#895, frost#1033) | Not blocking (§7.5) |
+| U5 | **Upstream:** ZF confirmation that one-tap signing (§9.5.2: pre-published commitments, `α` fixed by the PCZT after them) is covered by the Re-Randomized FROST analysis | Mainnet (M2); testnet use now |
 
 Questions for ZF are drafted in `upstream-asks.md`.

@@ -37,9 +37,6 @@ class ProposalScreen extends ConsumerStatefulWidget {
 
 class _ProposalScreenState extends ConsumerState<ProposalScreen> {
   bool _voting = false;
-  StreamSubscription<rust.SendProgress>? _send;
-  rust.SendProgress? _progress;
-  String? _sendError;
   Timer? _poll;
 
   @override
@@ -47,14 +44,16 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
     super.initState();
     Future.microtask(() => ref.read(proposalsProvider.notifier).refresh());
     _poll = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (_send == null) ref.read(proposalsProvider.notifier).refresh();
+      final send = ref.read(proposalsProvider).sends[widget.id];
+      if (!(send?.running ?? false)) {
+        ref.read(proposalsProvider.notifier).refresh();
+      }
     });
   }
 
   @override
   void dispose() {
     _poll?.cancel();
-    _send?.cancel();
     super.dispose();
   }
 
@@ -62,10 +61,22 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
     setState(() => _voting = true);
     final notifier = ref.read(proposalsProvider.notifier);
     try {
-      approve
-          ? await notifier.approve(widget.id)
-          : await notifier.reject(widget.id);
-      if (mounted) showAppToast(context, approve ? 'Approved' : 'Rejected');
+      if (approve) {
+        final r = await notifier.approve(widget.id);
+        if (mounted) {
+          showAppToast(
+            context,
+            r.completed
+                ? (r.autoSend
+                      ? 'Approved. Sending now'
+                      : 'Approved. Ready to send')
+                : (r.signed ? 'Approved and signed' : 'Approved'),
+          );
+        }
+      } else {
+        await notifier.reject(widget.id);
+        if (mounted) showAppToast(context, 'Rejected');
+      }
     } catch (e) {
       debugPrint('vote failed: ${describeError(e)}');
       if (mounted) {
@@ -76,36 +87,8 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
     }
   }
 
-  void _startSend() {
-    setState(() {
-      _sendError = null;
-      _progress = null;
-    });
-    _send = ref
-        .read(proposalsProvider.notifier)
-        .send(widget.id)
-        .listen(
-          (p) {
-            final error = p.error;
-            if (p.stage == rust.SendStage.failed && error != null) {
-              _fail(error);
-            } else {
-              setState(() => _progress = p);
-            }
-          },
-          onError: (Object e) => _fail(e),
-          onDone: () => setState(() => _send = null),
-        );
-  }
-
-  void _fail(Object e) {
-    debugPrint('send failed: ${describeError(e)}');
-    setState(() {
-      _sendError = zafeErrorMessage(e, fallback: 'Send failed. Try again.');
-      _send = null;
-      _progress = null;
-    });
-  }
+  void _startSend() =>
+      ref.read(proposalsProvider.notifier).startSend(widget.id);
 
   @override
   Widget build(BuildContext context) {
@@ -136,10 +119,12 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
 
     final payment = p.payments.first;
     final amount = ZecAmount.fromZatoshi(p.totalZat).receipt;
-    final sending = _send != null;
+    final send = proposals.sends[p.id];
+    final progress = send?.progress;
+    final sending = send?.running ?? false;
     final sent =
         p.stage == rust.ProposalStage.sent ||
-        _progress?.stage == rust.SendStage.sent;
+        progress?.stage == rust.SendStage.sent;
     final showReview =
         p.stage == rust.ProposalStage.open ||
         p.stage == rust.ProposalStage.approved;
@@ -243,9 +228,9 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
                   const DetailDivider(),
                   _ReviewRows(id: p.id),
                 ],
-                if (p.txid != null || _progress?.txid != null) ...[
+                if (p.txid != null || progress?.txid != null) ...[
                   const DetailDivider(),
-                  _TxIdRow(txid: (p.txid ?? _progress!.txid)!),
+                  _TxIdRow(txid: (p.txid ?? progress!.txid)!),
                 ],
               ],
             ),
@@ -253,7 +238,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
           const SizedBox(height: AppSpacing.md),
           _Signers(proposal: p, members: vault.summary!.members, me: me),
           const SizedBox(height: AppSpacing.lg),
-          ..._actions(p, sent: sent, sending: sending),
+          ..._actions(p, sent: sent, send: send),
         ],
       ),
     );
@@ -262,13 +247,14 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
   List<Widget> _actions(
     rust.ProposalInfo p, {
     required bool sent,
-    required bool sending,
+    required SendState? send,
   }) {
     final colors = context.colors;
     if (sent) return const [];
 
-    if (sending || _sendError != null) {
-      final progress = _progress;
+    final sending = send?.running ?? false;
+    if (send != null) {
+      final progress = send.progress;
       return [
         MobileSurfaceCard(
           cornerRadius: AppRadii.large,
@@ -289,7 +275,9 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
                   Expanded(
                     child: Text(
                       sending
-                          ? progress == null
+                          ? p.ready
+                                ? 'Sending...'
+                                : progress == null
                                 ? 'Asking signers for signatures...'
                                 : 'Signatures ${progress.received} of ${progress.needed}'
                           : 'Not sent yet',
@@ -304,8 +292,10 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
               const SizedBox(height: AppSpacing.xs),
               Text(
                 sending
-                    ? 'The private transaction proof is built on this phone meanwhile. Keep Zafe open.'
-                    : _sendError!,
+                    ? p.ready
+                          ? 'Every signature is in. Building the private transaction proof on this phone; keep Zafe open.'
+                          : 'The private transaction proof is built on this phone meanwhile. Keep Zafe open.'
+                    : send.error!,
                 style: AppTypography.bodySmall.copyWith(
                   color: sending
                       ? colors.text.secondary
@@ -331,9 +321,10 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
       case rust.ProposalStage.open:
         if (p.myVote != rust.MyVote.none) {
           final missing = p.threshold - p.approvals.length;
+          final signed = p.oneTap && p.myVote == rust.MyVote.approved;
           return [
             Text(
-              'You ${p.myVote == rust.MyVote.approved ? 'approved' : 'rejected'} this payment. '
+              'You ${p.myVote == rust.MyVote.approved ? (signed ? 'approved and signed' : 'approved') : 'rejected'} this payment. '
               'Waiting for $missing more approval${missing == 1 ? '' : 's'}.',
               textAlign: TextAlign.center,
               style: AppTypography.bodySmall.copyWith(
@@ -349,14 +340,49 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
             expand: true,
             leading: _voting ? null : const AppIcon(AppIcons.check, size: 20),
             onPressed: verified && !_voting ? () => _vote(true) : null,
-            child: Text(_voting ? 'Checking and approving...' : 'Approve'),
+            child: Text(
+              _voting
+                  ? (p.oneTap
+                        ? 'Checking and signing...'
+                        : 'Checking and approving...')
+                  : (p.oneTap ? 'Approve and sign' : 'Approve'),
+            ),
           ),
+          if (p.oneTap) ...[
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Approving signs the payment on this device. It can\'t be withdrawn afterwards.',
+              textAlign: TextAlign.center,
+              style: AppTypography.bodySmall.copyWith(
+                color: colors.text.secondary,
+              ),
+            ),
+          ],
           const SizedBox(height: AppSpacing.s),
           AppButton(
             expand: true,
             variant: AppButtonVariant.ghost,
             onPressed: _voting ? null : () => _vote(false),
             child: const Text('Reject'),
+          ),
+        ];
+      case rust.ProposalStage.approved when p.ready:
+        return [
+          AppButton(
+            expand: true,
+            leading: const AppIcon(AppIcons.plane, size: 20),
+            onPressed: _startSend,
+            child: const Text('Send now'),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            p.autoSend
+                ? 'Every signature is in. It is sent automatically by the signer who approved last; you can also send it yourself.'
+                : 'Every signature is in. Any signer can send it now; no one else needs to be online.',
+            textAlign: TextAlign.center,
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.text.secondary,
+            ),
           ),
         ];
       case rust.ProposalStage.approved:
@@ -558,6 +584,7 @@ class _Signers extends StatelessWidget {
                   _VoteTag(
                     approved: proposal.approvals.contains(m),
                     rejected: proposal.rejections.contains(m),
+                    stage: proposal.stage,
                   ),
                 ],
               ),
@@ -569,23 +596,43 @@ class _Signers extends StatelessWidget {
 }
 
 class _VoteTag extends StatelessWidget {
-  const _VoteTag({required this.approved, required this.rejected});
+  const _VoteTag({
+    required this.approved,
+    required this.rejected,
+    required this.stage,
+  });
   final bool approved;
   final bool rejected;
+  final rust.ProposalStage stage;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    // A member who hasn't voted is only "waiting" while their vote can still matter.
     final (icon, label, color) = approved
         ? (AppIcons.checkCircle, 'Approved', colors.text.positiveStrong)
         : rejected
         ? (AppIcons.cross, 'Rejected', colors.text.destructive)
-        : (AppIcons.time, 'Waiting', colors.text.muted);
+        : switch (stage) {
+            rust.ProposalStage.open => (
+              AppIcons.time,
+              'Waiting',
+              colors.text.muted,
+            ),
+            rust.ProposalStage.approved => (
+              null,
+              'Not needed',
+              colors.text.muted,
+            ),
+            _ => (null, 'Didn\'t vote', colors.text.muted),
+          };
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        AppIcon(icon, size: 16, color: color),
-        const SizedBox(width: AppSpacing.xxs),
+        if (icon != null) ...[
+          AppIcon(icon, size: 16, color: color),
+          const SizedBox(width: AppSpacing.xxs),
+        ],
         Text(label, style: AppTypography.labelMedium.copyWith(color: color)),
       ],
     );

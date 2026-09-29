@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'error.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `info`, `leader_dir`, `local_tip`, `memo_bytes`, `memo_text`, `nonce_store`, `parse_id`, `request_file`
+// These functions are ignored because they are not marked as `pub`: `info`, `leader_dir`, `local_tip`, `memo_bytes`, `memo_text`, `nonce_store`, `parse_id`, `pool_store`, `request_file`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `send_with_progress`
 
@@ -28,7 +28,9 @@ BigInt? parseZec({required String text}) =>
 int memoLength({required String memo}) =>
     RustLib.instance.api.crateApiProposalsMemoLength(memo: memo);
 
-/// Every proposal in the vault log, newest first.
+/// Every proposal in the vault log, newest first. Also keeps this device ready for
+/// one-tap signing: tops up its pre-published commitments when they run low, and deletes
+/// nonces of proposals that closed.
 Future<List<ProposalInfo>> listProposals({
   required String relayUrl,
   required String stateDir,
@@ -50,6 +52,7 @@ Future<String> proposePayment({
   required List<int> seeds,
   required List<int> material,
   required List<PaymentInput> payments,
+  required bool autoSend,
 }) => RustLib.instance.api.crateApiProposalsProposePayment(
   relayUrl: relayUrl,
   lightwalletdUrl: lightwalletdUrl,
@@ -57,6 +60,7 @@ Future<String> proposePayment({
   seeds: seeds,
   material: material,
   payments: payments,
+  autoSend: autoSend,
 );
 
 Future<ReviewInfo> reviewProposal({
@@ -75,8 +79,9 @@ Future<ReviewInfo> reviewProposal({
   proposalId: proposalId,
 );
 
-/// Verifies the proposal on this device and, only if it passes, approves it.
-Future<void> approveProposal({
+/// Verifies the proposal on this device and, only if it passes, approves it. For one-tap
+/// proposals the approval also signs; see `ApproveResult`.
+Future<ApproveResult> approveProposal({
   required String relayUrl,
   required String lightwalletdUrl,
   required String dbDir,
@@ -165,6 +170,35 @@ class AddressCheck {
           reason == other.reason;
 }
 
+class ApproveResult {
+  /// The approval carried this member's signatures (one tap).
+  final bool signed;
+
+  /// This approval completed the signatures: the proposal can be sent now.
+  final bool completed;
+
+  /// The proposer asked for the completing member to send right away.
+  final bool autoSend;
+
+  const ApproveResult({
+    required this.signed,
+    required this.completed,
+    required this.autoSend,
+  });
+
+  @override
+  int get hashCode => signed.hashCode ^ completed.hashCode ^ autoSend.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ApproveResult &&
+          runtimeType == other.runtimeType &&
+          signed == other.signed &&
+          completed == other.completed &&
+          autoSend == other.autoSend;
+}
+
 enum MyVote { none, approved, rejected }
 
 class PaymentInfo {
@@ -235,6 +269,18 @@ class ProposalInfo {
   /// This device already sent a signing request for it (it can resume collecting).
   final bool signingStarted;
 
+  /// Signed at approval time (one tap): approvals carry the signatures.
+  final bool oneTap;
+
+  /// Some signer group has every signature: any member can send it now, alone.
+  final bool ready;
+
+  /// This member's approval completed the signatures (it sends when `auto_send`).
+  final bool completedByMe;
+
+  /// The proposer asked for it to be sent as soon as the signatures are complete.
+  final bool autoSend;
+
   const ProposalInfo({
     required this.id,
     required this.author,
@@ -250,6 +296,10 @@ class ProposalInfo {
     required this.createdAt,
     this.txid,
     required this.signingStarted,
+    required this.oneTap,
+    required this.ready,
+    required this.completedByMe,
+    required this.autoSend,
   });
 
   @override
@@ -267,7 +317,11 @@ class ProposalInfo {
       rejectionThreshold.hashCode ^
       createdAt.hashCode ^
       txid.hashCode ^
-      signingStarted.hashCode;
+      signingStarted.hashCode ^
+      oneTap.hashCode ^
+      ready.hashCode ^
+      completedByMe.hashCode ^
+      autoSend.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -287,7 +341,11 @@ class ProposalInfo {
           rejectionThreshold == other.rejectionThreshold &&
           createdAt == other.createdAt &&
           txid == other.txid &&
-          signingStarted == other.signingStarted;
+          signingStarted == other.signingStarted &&
+          oneTap == other.oneTap &&
+          ready == other.ready &&
+          completedByMe == other.completedByMe &&
+          autoSend == other.autoSend;
 }
 
 enum ProposalStage {

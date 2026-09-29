@@ -15,7 +15,9 @@ class ZafeSecureStore {
   static const _materialKey = 'zafe_vault_material';
 
   final FlutterSecureStorage _storage = const FlutterSecureStorage(
-    iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock_this_device),
+    iOptions: IOSOptions(
+      accessibility: KeychainAccessibility.first_unlock_this_device,
+    ),
   );
 
   Future<Uint8List?> _readBytes(String key) async {
@@ -27,13 +29,16 @@ class ZafeSecureStore {
       _storage.write(key: key, value: base64Encode(bytes));
 
   Future<Uint8List?> readIdentity() => _readBytes(_identityKey);
-  Future<void> writeIdentity(List<int> seeds) => _writeBytes(_identityKey, seeds);
+  Future<void> writeIdentity(List<int> seeds) =>
+      _writeBytes(_identityKey, seeds);
 
   Future<String?> readInvite() => _storage.read(key: _inviteKey);
-  Future<void> writeInvite(String invite) => _storage.write(key: _inviteKey, value: invite);
+  Future<void> writeInvite(String invite) =>
+      _storage.write(key: _inviteKey, value: invite);
 
   Future<Uint8List?> readMaterial() => _readBytes(_materialKey);
-  Future<void> writeMaterial(List<int> material) => _writeBytes(_materialKey, material);
+  Future<void> writeMaterial(List<int> material) =>
+      _writeBytes(_materialKey, material);
 
   /// Removes everything (used by "Reset this device").
   Future<void> deleteAll() async {

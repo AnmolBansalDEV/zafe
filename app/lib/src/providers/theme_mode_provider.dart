@@ -6,8 +6,10 @@ import 'vault_provider.dart';
 
 const kThemeModeKey = 'zafe_theme_mode';
 
-ThemeMode themeModeFromName(String? name) =>
-    ThemeMode.values.firstWhere((m) => m.name == name, orElse: () => ThemeMode.system);
+ThemeMode themeModeFromName(String? name) => ThemeMode.values.firstWhere(
+  (m) => m.name == name,
+  orElse: () => ThemeMode.system,
+);
 
 /// Light/dark/system (Vizor's theme setting). Plain prefs, read in the bootstrap.
 class ThemeModeNotifier extends Notifier<ThemeMode> {
@@ -21,4 +23,6 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
   }
 }
 
-final themeModeProvider = NotifierProvider<ThemeModeNotifier, ThemeMode>(ThemeModeNotifier.new);
+final themeModeProvider = NotifierProvider<ThemeModeNotifier, ThemeMode>(
+  ThemeModeNotifier.new,
+);

@@ -108,6 +108,8 @@ fn proposal(id: u8) -> VaultEvent {
         pczt_hash: [id; 32],
         tip_height: 100,
         created_at: 1_700_000_000,
+        signing_spends: 1,
+        auto_send: false,
     }
 }
 
@@ -117,6 +119,7 @@ fn vote(id: u8, approve: bool) -> VaultEvent {
         pczt_hash: [id; 32],
         approve,
         commitments: vec![],
+        shares: vec![],
     }
 }
 
@@ -208,6 +211,7 @@ fn invalid_entries_are_ignored_not_fatal() {
                 pczt_hash: [0xEE; 32],
                 approve: true,
                 commitments: vec![],
+                shares: vec![],
             },
             VaultError::PcztMismatch(2),
         ),
@@ -269,4 +273,145 @@ fn broadcast_racing_a_cancel_does_not_brick_the_log() {
         },
     );
     assert_eq!(err, Err(VaultError::ProposalClosed(6)));
+}
+
+// --- One-tap signing: commitment pools and share votes ---------------------------------
+
+fn commitments(rng: &mut StdRng, n: usize) -> VaultEvent {
+    use reddsa::frost::redpallas::{keys::SigningShare, round1};
+    // Any valid signing share will do: replay only checks that commitments decode.
+    let mut scalar = [0u8; 32];
+    scalar[0] = 7;
+    let share = SigningShare::deserialize(&scalar).unwrap();
+    VaultEvent::Commitments {
+        batch: (0..n)
+            .map(|_| round1::commit(&share, rng).1.serialize().unwrap())
+            .collect(),
+    }
+}
+
+fn share_vote(id: u8, groups: &[u16]) -> VaultEvent {
+    VaultEvent::Vote {
+        proposal: [id; 16],
+        pczt_hash: [id; 32],
+        approve: true,
+        commitments: vec![],
+        shares: groups
+            .iter()
+            .map(|g| zafe_core::vault::GroupShares {
+                group: *g,
+                shares: vec![vec![0xAB; 32]],
+            })
+            .collect(),
+    }
+}
+
+/// A 2-of-3 vault whose three members each published `per_member` commitments.
+fn pooled_log(per_member: usize) -> Log {
+    let mut log = Log::new();
+    log.push(0, &log.created(&[0, 1, 2]));
+    let mut rng = StdRng::seed_from_u64(99);
+    for m in 0..3 {
+        log.push(m, &commitments(&mut rng, per_member));
+    }
+    log
+}
+
+#[test]
+fn proposals_get_disjoint_commitments_in_log_order() {
+    let mut log = pooled_log(4);
+    log.push(0, &proposal(1));
+    log.push(1, &proposal(2));
+    let s = log.replay().unwrap();
+    let (p1, p2) = (
+        s.proposals[&[1; 16]].preprocessed.as_ref().unwrap(),
+        s.proposals[&[2; 16]].preprocessed.as_ref().unwrap(),
+    );
+    // 2-of-3: three groups, each with one commitment per member per spend.
+    assert_eq!(p1.subsets.len(), 3);
+    let all: Vec<&Vec<u8>> = [p1, p2]
+        .iter()
+        .flat_map(|p| p.commitments.iter().flatten().flatten())
+        .collect();
+    let unique: std::collections::BTreeSet<_> = all.iter().collect();
+    assert_eq!(all.len(), 12);
+    assert_eq!(unique.len(), 12, "a commitment is never assigned twice");
+    // Each member used 2 per proposal: 4 published, 0 left.
+    for m in 0..3 {
+        assert_eq!(s.pools[&log.ids[m].public().sig_pk].available(), 0);
+    }
+    // Replay is deterministic.
+    let again = log.replay().unwrap();
+    assert_eq!(
+        again.proposals[&[2; 16]].preprocessed,
+        s.proposals[&[2; 16]].preprocessed
+    );
+}
+
+#[test]
+fn short_pools_fall_back_to_interactive() {
+    let mut log = pooled_log(1); // each member needs 2 per proposal
+    log.push(0, &proposal(1));
+    let s = log.replay().unwrap();
+    assert!(s.proposals[&[1; 16]].preprocessed.is_none());
+    for m in 0..3 {
+        assert_eq!(s.pools[&log.ids[m].public().sig_pk].available(), 1);
+    }
+}
+
+#[test]
+fn share_votes_complete_a_group_and_are_final() {
+    let mut log = pooled_log(2);
+    log.push(0, &proposal(1));
+    // Groups: 0 = {m0,m1}, 1 = {m0,m2}, 2 = {m1,m2} (descriptor order).
+    log.push(0, &share_vote(1, &[0, 1]));
+    let s = log.replay().unwrap();
+    assert_eq!(s.proposals[&[1; 16]].ready_group, None);
+    log.push(2, &share_vote(1, &[1, 2]));
+    let s = log.replay().unwrap();
+    let p = &s.proposals[&[1; 16]];
+    assert_eq!(p.status, ProposalStatus::Approved);
+    assert_eq!(p.ready_group, Some(1));
+    assert_eq!(p.completed_by, Some(log.ids[2].public().sig_pk));
+    // Member 2 can no longer withdraw: the shares are out.
+    log.push(2, &vote(1, false));
+    let s = log.replay().unwrap();
+    assert!(s
+        .ignored
+        .iter()
+        .any(|(_, e)| matches!(e, VaultError::VoteFinal(_))));
+    assert_eq!(s.proposals[&[1; 16]].status, ProposalStatus::Approved);
+}
+
+#[test]
+fn invalid_share_votes_are_ignored() {
+    let mut log = pooled_log(2);
+    log.push(0, &proposal(1));
+    log.push(0, &share_vote(1, &[2])); // member 0 is not in group 2 = {m1,m2}
+    log.push(0, &share_vote(1, &[0, 0])); // the same group twice
+    log.push(0, &share_vote(1, &[7])); // no such group
+    let s = log.replay().unwrap();
+    assert_eq!(
+        s.ignored
+            .iter()
+            .filter(|(_, e)| matches!(e, VaultError::BadShares(_)))
+            .count(),
+        3
+    );
+    assert!(s.proposals[&[1; 16]].shares.is_empty());
+}
+
+#[test]
+fn garbage_commitments_are_rejected() {
+    let mut log = Log::new();
+    log.push(0, &log.created(&[0, 1, 2]));
+    log.push(
+        1,
+        &VaultEvent::Commitments {
+            batch: vec![vec![1, 2, 3]],
+        },
+    );
+    let s = log.replay().unwrap();
+    assert!(matches!(s.ignored[0].1, VaultError::BadCommitments(_)));
+    assert!(s.pools.is_empty() || s.pools.values().all(|p| p.commitments.is_empty()));
 }

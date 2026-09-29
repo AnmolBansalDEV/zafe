@@ -6,7 +6,7 @@ finished ones, tick them and add the commit. Spec references are to `spec.md`.
 
 Legend: `[ ]` open · `[x]` done · **(you)** needs the user · *(idea)* not yet decided
 
-Last updated: 2026-09-29 (after `c508aff`, M1 slice 2)
+Last updated: 2026-09-29 (one-tap approvals)
 
 ---
 
@@ -17,9 +17,12 @@ Last updated: 2026-09-29 (after `c508aff`, M1 slice 2)
    approvals and signing must finish within about 50 minutes. Async multisig needs a long
    expiry (days; configurable per vault, D2). Anchors can go stale safely (V6: witnesses
    can be refreshed after signing, before proving). Blocks any real async use.
-1. [ ] **Auto-submit when the threshold is reached.** The member whose approval completes
+1. [x] **One-tap approvals + auto-submit** (spec §9.5.2): approving signs; the member who
+   completes the signatures sends automatically (per-proposal setting), or anyone taps
+   "Send now". Tested in `one_tap.rs`, `vault.rs`, `bridge_e2e` and on the emulator.
+   Follow-ups below. ~~**Auto-submit when the threshold is reached.** The member whose approval completes
    the threshold (known from log order, so exactly one per proposal) starts "collect
-   signatures & send" automatically. The manual button stays as the fallback. ~1 day.
+   signatures & send" automatically. The manual button stays as the fallback. ~1 day.~~
 2. [ ] **Push notifications** so co-signers sign without opening the app: relay `Notifier`
    → APNs/FCM, and round 2 in the iOS Notification Service Extension / Android FCM handler
    (spec V8: 12 ms, 6.8 MB fits). Needs Keychain access-group sharing on iOS.
@@ -91,6 +94,20 @@ Open
 - [ ] Hardware members (Keystone/Ledger) if they gain FROST support
 - [ ] Payment disclosures (ZIP 311-style proofs for auditors)
 
+## One-tap follow-ups
+
+- [ ] **Cancel after completion**: a cancelled proposal whose signer group is complete can
+      still be sent until expiry. Offer "invalidate now" (spend its notes to self) and
+      explain it in the cancel UI
+- [ ] Delete pool nonces of **expired** proposals (today only sent/rejected/cancelled)
+- [ ] Surface "one-tap unavailable" when a proposal fell back to interactive (short pools,
+      or C(n, t) > 64), and pre-warm pools right after keygen
+- [ ] A member whose device lost its pool nonces approves interactively (fallback works);
+      show that their approval still needs a signing round
+- [ ] Push notifications now matter less (approvals are final at tap), but still needed
+      so members learn about new proposals
+- [ ] CLI: `approve` doesn't auto-send (by design for scripts); document `zafe send`
+
 ## Upstream and waiting on others
 
 - [ ] **(you)** Send the ZF questions in `upstream-asks.md` (Q1 is the mainnet gate U1)
@@ -99,6 +116,7 @@ Open
 - [ ] U2: non-deprecated external-randomizer API in frost-rerandomized (frost#1094)
 - [ ] U3: redpallas ciphersuite home + reddsa 0.5.x security-fix policy (frost#963)
 - [ ] U4: COCKTAIL-DKG Pallas + ZIP 312 keygen spec (zips#895, frost#1033)
+- [ ] U5: ZF confirms one-tap signing (pre-published commitments, PCZT-fixed alpha) is within the Re-Randomized FROST model — `upstream-asks.md` Q7 **(you: send with Q1)**
 - [ ] thus-spoke-zakura PR #119 (Ironwood fix, targets `dev`): follow up until merged
 - [ ] Zakura's faster prover once it supports Ironwood (V7)
 

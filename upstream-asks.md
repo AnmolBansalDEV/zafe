@@ -73,6 +73,16 @@ Until then, Zafe uses the `frost-core` 3.0 DKG with a relay that can't read mess
 
 ---
 
+## Q7 (blocks mainnet for one-tap signing): pre-published commitments with a PCZT-fixed randomizer
+
+Zafe signs at approval time: members pre-publish FROST round-1 commitments, the proposal (a PCZT, whose `alpha` the builder already fixed) is created afterwards, and the log assigns each commitment to exactly one (signer group, spend). An approving member signs every group it belongs to immediately with `frost_rerandomized::sign(package, nonces, key_package, Randomizer::from_scalar(alpha))`, deleting each nonce first. Any complete group is aggregated later by any member.
+
+Our reading of Re-Randomized FROST (ePrint 2024/436, Fig. 4 and the proof) is that this is covered: the adversary picks message, signer set and randomizer in `OSign'` after seeing honest commitments, and extraction only needs `alpha` to be public. Each commitment gets at most one round-2 response, and the package is fixed before signing.
+
+**Asks:** (1) do you agree this preprocessing use is within the paper's model, including many concurrent packages sharing the same message (one per signer group, each with distinct commitments)? (2) Would you keep an external-randomizer signing API for this (same as Q2)? (3) Anything you'd want added, e.g. binding the commitment batch into the signing package context?
+
+---
+
 ## Short Discord message (paste-ready)
 
 > Hi FROST team, we're building Zafe, a mobile shielded multisig on Ironwood using re-randomized FROST (frost-core 3.0 / reddsa 0.5.2 / pczt 0.9.3). Following up on frost#1094: we want to use ZIP 2005 `use_qsk = true` keys, so we derive nk / qsk / qk / rivk_ext from an agreed `sk` per § 4.2.3 and build the FVK with `FullViewingKey::from_bytes(ak||nk||rivk_ext)`. Can you confirm those vaults stay quantum-recoverable whatever `sk`-agreement method zips#895 settles on, and whether use_qsk test vectors are planned (we can contribute)? That's our mainnet gate. Smaller questions (external-randomizer `sign()` deprecation, reddsa 0.5.x support until the ciphersuite moves, interim DKG approach) are in a comment on #1094. Thanks!

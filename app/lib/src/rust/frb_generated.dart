@@ -88,7 +88,7 @@ abstract class RustLibApi extends BaseApi {
     required List<int> material,
   });
 
-  Future<void> crateApiProposalsApproveProposal({
+  Future<ApproveResult> crateApiProposalsApproveProposal({
     required String relayUrl,
     required String lightwalletdUrl,
     required String dbDir,
@@ -143,6 +143,7 @@ abstract class RustLibApi extends BaseApi {
     required List<int> seeds,
     required List<int> material,
     required List<PaymentInput> payments,
+    required bool autoSend,
   });
 
   Future<void> crateApiProposalsRejectProposal({
@@ -269,7 +270,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiProposalsApproveProposal({
+  Future<ApproveResult> crateApiProposalsApproveProposal({
     required String relayUrl,
     required String lightwalletdUrl,
     required String dbDir,
@@ -297,7 +298,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
+          decodeSuccessData: sse_decode_approve_result,
           decodeErrorData: sse_decode_zafe_error,
         ),
         constMeta: kCrateApiProposalsApproveProposalConstMeta,
@@ -626,6 +627,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required List<int> seeds,
     required List<int> material,
     required List<PaymentInput> payments,
+    required bool autoSend,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -637,6 +639,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_list_prim_u_8_loose(seeds, serializer);
           sse_encode_list_prim_u_8_loose(material, serializer);
           sse_encode_list_payment_input(payments, serializer);
+          sse_encode_bool(autoSend, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -656,6 +659,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           seeds,
           material,
           payments,
+          autoSend,
         ],
         apiImpl: this,
       ),
@@ -672,6 +676,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "seeds",
           "material",
           "payments",
+          "autoSend",
         ],
       );
 
@@ -1068,6 +1073,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ApproveResult dco_decode_approve_result(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return ApproveResult(
+      signed: dco_decode_bool(arr[0]),
+      completed: dco_decode_bool(arr[1]),
+      autoSend: dco_decode_bool(arr[2]),
+    );
+  }
+
+  @protected
   Balance dco_decode_balance(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -1246,8 +1264,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ProposalInfo dco_decode_proposal_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 14)
-      throw Exception('unexpected arr length: expect 14 but see ${arr.length}');
+    if (arr.length != 18)
+      throw Exception('unexpected arr length: expect 18 but see ${arr.length}');
     return ProposalInfo(
       id: dco_decode_String(arr[0]),
       author: dco_decode_String(arr[1]),
@@ -1263,6 +1281,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       createdAt: dco_decode_u_64(arr[11]),
       txid: dco_decode_opt_String(arr[12]),
       signingStarted: dco_decode_bool(arr[13]),
+      oneTap: dco_decode_bool(arr[14]),
+      ready: dco_decode_bool(arr[15]),
+      completedByMe: dco_decode_bool(arr[16]),
+      autoSend: dco_decode_bool(arr[17]),
     );
   }
 
@@ -1403,6 +1425,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_valid = sse_decode_bool(deserializer);
     var var_reason = sse_decode_String(deserializer);
     return AddressCheck(valid: var_valid, reason: var_reason);
+  }
+
+  @protected
+  ApproveResult sse_decode_approve_result(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_signed = sse_decode_bool(deserializer);
+    var var_completed = sse_decode_bool(deserializer);
+    var var_autoSend = sse_decode_bool(deserializer);
+    return ApproveResult(
+      signed: var_signed,
+      completed: var_completed,
+      autoSend: var_autoSend,
+    );
   }
 
   @protected
@@ -1648,6 +1683,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_createdAt = sse_decode_u_64(deserializer);
     var var_txid = sse_decode_opt_String(deserializer);
     var var_signingStarted = sse_decode_bool(deserializer);
+    var var_oneTap = sse_decode_bool(deserializer);
+    var var_ready = sse_decode_bool(deserializer);
+    var var_completedByMe = sse_decode_bool(deserializer);
+    var var_autoSend = sse_decode_bool(deserializer);
     return ProposalInfo(
       id: var_id,
       author: var_author,
@@ -1663,6 +1702,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       createdAt: var_createdAt,
       txid: var_txid,
       signingStarted: var_signingStarted,
+      oneTap: var_oneTap,
+      ready: var_ready,
+      completedByMe: var_completedByMe,
+      autoSend: var_autoSend,
     );
   }
 
@@ -1820,6 +1863,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_bool(self.valid, serializer);
     sse_encode_String(self.reason, serializer);
+  }
+
+  @protected
+  void sse_encode_approve_result(ApproveResult self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.signed, serializer);
+    sse_encode_bool(self.completed, serializer);
+    sse_encode_bool(self.autoSend, serializer);
   }
 
   @protected
@@ -2040,6 +2091,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_64(self.createdAt, serializer);
     sse_encode_opt_String(self.txid, serializer);
     sse_encode_bool(self.signingStarted, serializer);
+    sse_encode_bool(self.oneTap, serializer);
+    sse_encode_bool(self.ready, serializer);
+    sse_encode_bool(self.completedByMe, serializer);
+    sse_encode_bool(self.autoSend, serializer);
   }
 
   @protected

@@ -9,7 +9,7 @@ use std::{fs, path::PathBuf};
 
 use reddsa::frost::redpallas::round1::{SigningCommitments, SigningNonces};
 
-use crate::session::{NonceStore, ProposalId, SessionError};
+use crate::session::{NonceStore, PoolStore, ProposalId, SessionError};
 
 pub struct FileNonceStore(PathBuf);
 
@@ -78,5 +78,63 @@ impl NonceStore for FileNonceStore {
         let nonces = self.read(proposal, hash)?;
         fs::remove_file(self.file(proposal, hash)).ok()?; // delete before use: never reusable
         Some(nonces)
+    }
+}
+
+/// File-backed [`PoolStore`]: one file per pre-published commitment, named by the hash of
+/// the commitment. Same storage rules as [`FileNonceStore`].
+pub struct FilePoolStore(PathBuf);
+
+impl FilePoolStore {
+    pub fn new(dir: impl Into<PathBuf>) -> Self {
+        Self(dir.into())
+    }
+
+    fn file(&self, commitment: &[u8]) -> PathBuf {
+        let hash = blake2b_simd::Params::new()
+            .hash_length(32)
+            .personal(b"Zafe_PoolNonce__")
+            .hash(commitment);
+        self.0.join(format!("{}.bin", hash.to_hex()))
+    }
+
+    /// Number of stored nonces (pre-published, not yet used or forgotten).
+    pub fn len(&self) -> usize {
+        fs::read_dir(&self.0).map_or(0, |d| {
+            d.filter_map(Result::ok)
+                .filter(|e| e.path().extension().is_some_and(|x| x == "bin"))
+                .count()
+        })
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl PoolStore for FilePoolStore {
+    fn put(&mut self, commitment: &[u8], nonces: SigningNonces) -> Result<(), SessionError> {
+        let storage = |e: &dyn std::fmt::Debug| SessionError::Storage(format!("{e:?}"));
+        let bytes = nonces.serialize().map_err(|e| storage(&e))?;
+        fs::create_dir_all(&self.0).map_err(|e| storage(&e))?;
+        let path = self.file(commitment);
+        let tmp = path.with_extension("tmp");
+        fs::write(&tmp, bytes).map_err(|e| storage(&e))?;
+        fs::rename(&tmp, &path).map_err(|e| storage(&e))
+    }
+
+    fn contains(&self, commitment: &[u8]) -> bool {
+        self.file(commitment).exists()
+    }
+
+    fn take(&mut self, commitment: &[u8]) -> Option<SigningNonces> {
+        let path = self.file(commitment);
+        let bytes = fs::read(&path).ok()?;
+        fs::remove_file(&path).ok()?; // delete before use: never reusable
+        SigningNonces::deserialize(&bytes).ok()
+    }
+
+    fn forget(&mut self, commitment: &[u8]) {
+        let _ = fs::remove_file(self.file(commitment));
     }
 }

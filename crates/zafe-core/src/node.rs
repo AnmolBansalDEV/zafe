@@ -769,10 +769,11 @@ use zafe_proto::ReplayGuard;
 
 use crate::{
     session::{
-        aggregate_request, pczt_hash, Leader, Member, NonceStore, ProposalId, SigningRequest,
+        aggregate_request, pczt_hash, Leader, Member, NonceStore, PoolStore, ProposalId,
+        SigningRequest,
     },
     tx,
-    vault::{ProposalStatus, ProposedPayment},
+    vault::{GroupShares, ProposalStatus, ProposedPayment},
     verify::{verify_pczt, Expectations, Payment, VerifiedTx},
     wallet::{Client, PaymentRequest, VaultWallet},
 };
@@ -884,6 +885,7 @@ pub async fn propose<P: Parameters + Clone + Send + Sync + 'static, R: RngCore +
     material: &VaultMaterial,
     wallet: &mut VaultWallet<P>,
     payments: &[PaymentRequest],
+    auto_send: bool,
     rng: &mut R,
 ) -> Result<ProposalId, NodeError> {
     let pczt = wallet
@@ -893,6 +895,9 @@ pub async fn propose<P: Parameters + Clone + Send + Sync + 'static, R: RngCore +
         .chain_height()
         .map_err(proto)?
         .ok_or_else(|| NodeError::NotReady("wallet not synced".into()))?;
+    let signing_spends = tx::spends_to_sign(&pczt, material.vault_keys()?.fvk())
+        .map_err(proto)?
+        .len() as u16;
     let mut id = [0u8; 16];
     rng.fill_bytes(&mut id);
     let event = VaultEvent::Proposal {
@@ -916,6 +921,8 @@ pub async fn propose<P: Parameters + Clone + Send + Sync + 'static, R: RngCore +
         created_at: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs()),
+        signing_spends,
+        auto_send,
     };
     let (mut chain, mut state) = load_state(relay, me, material).await?;
     append_event(relay, me, material, &mut chain, &mut state, &event, rng).await?;
@@ -963,8 +970,23 @@ pub fn review<P: Parameters>(
     .map_err(|e| NodeError::Verification(e.to_string()))
 }
 
-/// Verifies a proposal independently and, if it passes, votes Approve with fresh round-1
-/// commitments. Returns what was verified (for display).
+/// What an approval did.
+#[derive(Debug)]
+pub struct Approved {
+    pub verified: VerifiedTx,
+    /// Signed at approval time (one-tap); otherwise commitments were published and
+    /// signing happens in a later interactive round.
+    pub signed: bool,
+    /// This approval completed a signer group: the proposal can be sent now.
+    pub completed: bool,
+    /// The proposer asked for the completing member to send right away.
+    pub auto_send: bool,
+}
+
+/// Verifies a proposal independently and, if it passes, votes Approve. For a preprocessed
+/// proposal whose nonces this device holds, the vote carries this member's signature
+/// shares for every signer group it is in (one tap: nothing more is needed from this
+/// member). Otherwise it carries fresh round-1 commitments for interactive signing.
 #[allow(clippy::too_many_arguments)]
 pub async fn approve<P: Parameters, R: RngCore + CryptoRng>(
     relay: &RelayClient,
@@ -974,8 +996,9 @@ pub async fn approve<P: Parameters, R: RngCore + CryptoRng>(
     tip_height: u32,
     proposal: ProposalId,
     store: &mut impl NonceStore,
+    pool: &mut impl PoolStore,
     rng: &mut R,
-) -> Result<VerifiedTx, NodeError> {
+) -> Result<Approved, NodeError> {
     let (mut chain, mut state) = load_state(relay, me, material).await?;
     let (pczt, payments) = proposal_pczt(&state, &proposal)?;
     let expected = expectations(
@@ -991,28 +1014,316 @@ pub async fn approve<P: Parameters, R: RngCore + CryptoRng>(
         key_package: &key_package,
         vault_fvk: keys.fvk(),
     };
-    let (approval, verified) = member
-        .approve(proposal, &pczt, &expected, store, rng)
-        .map_err(|e| match e {
-            crate::session::SessionError::Verify(v) => NodeError::Verification(v.to_string()),
-            crate::session::SessionError::AlreadyApproved => {
-                NodeError::NotReady("you already approved this proposal".into())
+    let my_pk = me.public().sig_pk;
+    let p = &state.proposals[&proposal];
+    let (pczt_hash, auto_send, signing_spends) = (p.pczt_hash, p.auto_send, p.signing_spends);
+
+    // One-tap path: every commitment assigned to us must still have its nonce here.
+    let one_tap = match &p.preprocessed {
+        Some(pre) => {
+            let mut groups = Vec::new();
+            for g in pre.groups_of(&my_pk) {
+                let ids = pre.subsets[g]
+                    .iter()
+                    .map(|pk| frost_id_of(material, pk))
+                    .collect::<Result<Vec<_>, _>>()?;
+                groups.push((g, ids, pre.commitments[g].clone()));
             }
-            e => proto(e),
-        })?;
-    let commitments = approval
-        .commitments
-        .iter()
-        .map(|c| c.serialize().map_err(proto))
-        .collect::<Result<Vec<_>, _>>()?;
-    let event = VaultEvent::Vote {
-        proposal,
-        pczt_hash: approval.pczt_hash,
-        approve: true,
-        commitments,
+            let all_here = groups.iter().all(|(g, _, _)| {
+                (0..usize::from(signing_spends)).all(|j| {
+                    pre.commitment(*g, j, &my_pk)
+                        .is_some_and(|c| pool.contains(c))
+                })
+            });
+            (all_here && !groups.is_empty()).then_some(groups)
+        }
+        None => None,
+    };
+
+    let (event, verified, signed) = if let Some(groups) = one_tap {
+        let (verified, shares) = member
+            .sign_groups(&pczt, &expected, &groups, pool)
+            .map_err(approve_error)?;
+        check_signing_spends(&verified, signing_spends)?;
+        let shares = shares
+            .into_iter()
+            .map(|(g, s)| GroupShares {
+                group: g as u16,
+                shares: s.iter().map(|x| x.serialize()).collect(),
+            })
+            .collect();
+        let event = VaultEvent::Vote {
+            proposal,
+            pczt_hash,
+            approve: true,
+            commitments: vec![],
+            shares,
+        };
+        (event, verified, true)
+    } else {
+        let (approval, verified) = member
+            .approve(proposal, &pczt, &expected, store, rng)
+            .map_err(approve_error)?;
+        check_signing_spends(&verified, signing_spends)?;
+        let commitments = approval
+            .commitments
+            .iter()
+            .map(|c| c.serialize().map_err(proto))
+            .collect::<Result<Vec<_>, _>>()?;
+        let event = VaultEvent::Vote {
+            proposal,
+            pczt_hash,
+            approve: true,
+            commitments,
+            shares: vec![],
+        };
+        (event, verified, false)
     };
     append_event(relay, me, material, &mut chain, &mut state, &event, rng).await?;
-    Ok(verified)
+    let p = &state.proposals[&proposal];
+    Ok(Approved {
+        verified,
+        signed,
+        completed: p.completed_by == Some(my_pk),
+        auto_send,
+    })
+}
+
+fn approve_error(e: crate::session::SessionError) -> NodeError {
+    match e {
+        crate::session::SessionError::Verify(v) => NodeError::Verification(v.to_string()),
+        crate::session::SessionError::AlreadyApproved => {
+            NodeError::NotReady("you already approved this proposal".into())
+        }
+        e => proto(e),
+    }
+}
+
+/// The proposer declares how many spends need signatures (it sizes the preprocessed
+/// groups); a mismatch with the PCZT means the proposal is malformed.
+fn check_signing_spends(verified: &VerifiedTx, declared: u16) -> Result<(), NodeError> {
+    if verified.spends_to_sign.len() != usize::from(declared) {
+        return Err(NodeError::Verification(format!(
+            "proposal declares {declared} spend(s) to sign, the transaction has {}",
+            verified.spends_to_sign.len()
+        )));
+    }
+    Ok(())
+}
+
+fn frost_id_of(material: &VaultMaterial, sig_pk: &[u8; 32]) -> Result<Identifier, NodeError> {
+    let info = material
+        .descriptor
+        .member(sig_pk)
+        .ok_or_else(|| NodeError::Protocol("unknown member".into()))?;
+    Identifier::deserialize(&info.frost_id).map_err(proto)
+}
+
+// --- One-tap signing: nonce pools and sending ---------------------------------------------
+
+/// Commitments this member keeps available for one-tap signing: enough for a few
+/// proposals (each takes C(n-1, t-1) per spend). At least 8.
+pub fn pool_target(descriptor: &crate::vault::VaultDescriptor) -> usize {
+    let n = descriptor.members.len();
+    let t = usize::from(descriptor.threshold);
+    let per_proposal = binomial(n.saturating_sub(1), t.saturating_sub(1));
+    (4 * 2 * per_proposal).clamp(8, crate::vault::MAX_COMMITMENT_BATCH)
+}
+
+fn binomial(n: usize, k: usize) -> usize {
+    if k > n {
+        return 0;
+    }
+    (0..k).fold(1usize, |acc, i| acc.saturating_mul(n - i) / (i + 1))
+}
+
+/// Publishes fresh commitments when this member's pool is below half its target. Nonces
+/// are stored before the commitments are logged. Returns how many were published.
+pub async fn top_up_pool<R: RngCore + CryptoRng>(
+    relay: &RelayClient,
+    me: &Identity,
+    material: &VaultMaterial,
+    pool: &mut impl PoolStore,
+    rng: &mut R,
+) -> Result<usize, NodeError> {
+    let (mut chain, mut state) = load_state(relay, me, material).await?;
+    let available = state
+        .pools
+        .get(&me.public().sig_pk)
+        .map_or(0, crate::vault::Pool::available);
+    let target = pool_target(&material.descriptor);
+    if available * 2 >= target {
+        return Ok(0);
+    }
+    let batch = crate::session::new_pool_commitments(
+        &material.key_package()?,
+        target - available,
+        pool,
+        rng,
+    )
+    .map_err(proto)?;
+    let count = batch.len();
+    append_event(
+        relay,
+        me,
+        material,
+        &mut chain,
+        &mut state,
+        &VaultEvent::Commitments { batch },
+        rng,
+    )
+    .await?;
+    Ok(count)
+}
+
+/// Deletes this device's nonces for commitments assigned to proposals that are closed
+/// (sent, rejected, cancelled): they can never be used. Returns how many were deleted.
+pub fn forget_closed(state: &VaultState, me: &[u8; 32], pool: &mut impl PoolStore) -> usize {
+    let mut n = 0;
+    for p in state.proposals.values() {
+        let closed = matches!(
+            p.status,
+            ProposalStatus::Broadcast | ProposalStatus::Rejected | ProposalStatus::Cancelled
+        );
+        let Some(pre) = p.preprocessed.as_ref().filter(|_| closed) else {
+            continue;
+        };
+        for g in pre.groups_of(me) {
+            for j in 0..usize::from(p.signing_spends) {
+                if let Some(c) = pre.commitment(g, j, me) {
+                    if pool.contains(c) {
+                        pool.forget(c);
+                        n += 1;
+                    }
+                }
+            }
+        }
+    }
+    n
+}
+
+/// Whether a proposal has a complete signer group (one-tap) and can be sent by anyone.
+pub fn is_ready(state: &VaultState, proposal: &ProposalId) -> bool {
+    state
+        .proposals
+        .get(proposal)
+        .is_some_and(|p| p.ready_group.is_some() && p.status == ProposalStatus::Approved)
+}
+
+/// Sends a one-tap proposal: aggregates the complete signer group's shares from the log
+/// (verifying each), proves, broadcasts, and logs the broadcast. Needs no other member.
+#[allow(clippy::too_many_arguments)]
+pub async fn send_ready<P: Parameters, R: RngCore + CryptoRng>(
+    relay: &RelayClient,
+    me: &Identity,
+    material: &VaultMaterial,
+    network: &P,
+    tip_height: u32,
+    proposal: ProposalId,
+    lightwalletd: &mut Client,
+    rng: &mut R,
+) -> Result<[u8; 32], NodeError> {
+    let (mut chain, mut state) = load_state(relay, me, material).await?;
+    let p = state
+        .proposals
+        .get(&proposal)
+        .ok_or_else(|| NodeError::Protocol("unknown proposal".into()))?;
+    let (Some(group), Some(pre)) = (p.ready_group, p.preprocessed.as_ref()) else {
+        return Err(NodeError::NotReady(
+            "no signer group is complete yet".into(),
+        ));
+    };
+    let group = usize::from(group);
+    let (pczt, payments) = proposal_pczt(&state, &proposal)?;
+    // The sender verifies the transaction like any signer before broadcasting it.
+    let keys = material.vault_keys()?;
+    let verified = verify_pczt(
+        &pczt,
+        keys.fvk(),
+        &expectations(
+            network,
+            &payments,
+            tip_height,
+            material.descriptor.proposal_expiry_blocks,
+        )?,
+    )
+    .map_err(|e| NodeError::Verification(e.to_string()))?;
+    let ids = pre.subsets[group]
+        .iter()
+        .map(|pk| frost_id_of(material, pk))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut shares = BTreeMap::new();
+    for (pk, id) in pre.subsets[group].iter().zip(&ids) {
+        let gs = p.shares[pk]
+            .iter()
+            .find(|s| usize::from(s.group) == group)
+            .ok_or_else(|| NodeError::Protocol("group shares missing".into()))?;
+        let parsed = gs
+            .shares
+            .iter()
+            .map(|b| SignatureShare::deserialize(b).map_err(proto))
+            .collect::<Result<Vec<_>, _>>()?;
+        shares.insert(*id, parsed);
+    }
+    let signatures = crate::session::aggregate_group(
+        &ids,
+        &pre.commitments[group],
+        &shares,
+        &verified,
+        &material.public_key_package()?,
+    )
+    .map_err(proto)?;
+
+    let to_prove = pczt.clone();
+    let proved = tokio::task::spawn_blocking(move || {
+        Prover::new(to_prove)
+            .create_ironwood_proof(proving_key())
+            .map(|p| p.finish())
+            .map_err(proto)
+    })
+    .await
+    .map_err(|e| NodeError::Protocol(format!("proving task: {e}")))??;
+    let signed = tx::apply_signatures(proved, &signatures).map_err(proto)?;
+    let txid = broadcast(signed, lightwalletd).await?;
+    let event = VaultEvent::Broadcast { proposal, txid };
+    if let Err(e) = append_event(relay, me, material, &mut chain, &mut state, &event, rng).await {
+        // Another member may have sent it first; the transaction is the same either way.
+        if !matches!(
+            state.proposals.get(&proposal).map(|p| p.status),
+            Some(ProposalStatus::Broadcast)
+        ) {
+            return Err(NodeError::Protocol(format!(
+                "broadcast {} but could not log it: {e}",
+                hex::encode(txid)
+            )));
+        }
+    }
+    Ok(txid)
+}
+
+/// Extracts (fully verifying) and broadcasts a signed, proved PCZT. Returns the txid.
+async fn broadcast(signed: Pczt, lightwalletd: &mut Client) -> Result<[u8; 32], NodeError> {
+    let transaction = TransactionExtractor::new(signed)
+        .with_orchard(verifying_key())
+        .extract()
+        .map_err(proto)?;
+    let mut raw = Vec::new();
+    transaction.write(&mut raw).map_err(proto)?;
+    let reply = lightwalletd
+        .send_transaction(zcash_client_backend::proto::service::RawTransaction {
+            data: raw,
+            height: 0,
+        })
+        .await
+        .map_err(|e| NodeError::Protocol(e.to_string()))?
+        .into_inner();
+    if reply.error_code != 0 {
+        return Err(NodeError::Protocol(format!(
+            "broadcast rejected: {}",
+            reply.error_message
+        )));
+    }
+    Ok(*transaction.txid().as_ref())
 }
 
 /// Votes Reject.
@@ -1034,6 +1345,7 @@ pub async fn reject<R: RngCore + CryptoRng>(
         pczt_hash,
         approve: false,
         commitments: vec![],
+        shares: vec![],
     };
     append_event(relay, me, material, &mut chain, &mut state, &event, rng).await?;
     Ok(())
@@ -1447,27 +1759,7 @@ pub async fn finalize<R: RngCore + CryptoRng>(
         .await
         .map_err(|e| NodeError::Protocol(format!("proving task: {e}")))??;
     let signed = tx::apply_signatures(proved, &signatures).map_err(proto)?;
-    let transaction = TransactionExtractor::new(signed)
-        .with_orchard(verifying_key())
-        .extract()
-        .map_err(proto)?;
-    let mut raw = Vec::new();
-    transaction.write(&mut raw).map_err(proto)?;
-    let reply = lightwalletd
-        .send_transaction(zcash_client_backend::proto::service::RawTransaction {
-            data: raw,
-            height: 0,
-        })
-        .await
-        .map_err(|e| NodeError::Protocol(e.to_string()))?
-        .into_inner();
-    if reply.error_code != 0 {
-        return Err(NodeError::Protocol(format!(
-            "broadcast rejected: {}",
-            reply.error_message
-        )));
-    }
-    let txid: [u8; 32] = *transaction.txid().as_ref();
+    let txid = broadcast(signed, lightwalletd).await?;
     // The transaction is on its way regardless; if the log entry is no longer valid (e.g.
     // the author cancelled meanwhile), report the txid anyway.
     let event = VaultEvent::Broadcast {

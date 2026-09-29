@@ -11,6 +11,17 @@
 //!
 //! If a chosen member never answers, the leader picks another set of approvers whose
 //! commitments are still unused and sends a new request.
+//!
+//! **One-tap signing** (preprocessing): members pre-publish commitments to the vault log
+//! (`PoolStore` keeps the secret nonces). A new proposal fixes, from the log, the
+//! commitments of every signer group (t-subset), so an approving member can produce its
+//! shares immediately (`Member::sign_groups`), and any complete group can be aggregated
+//! without a request round. Security: Re-Randomized FROST (ePrint 2024/436) proves
+//! unforgeability with the message, signer set and randomizer chosen by the adversary
+//! after honest round-1 commitments (its game, Fig. 4), building on the preprocessing
+//! analysis of FROST (Bellare et al. 2022). What must hold: each commitment gets at most
+//! one round-2 response (nonces are taken, i.e. deleted, before signing) and the package
+//! (sighash, `alpha`, group) is fixed before a share is produced.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -97,6 +108,80 @@ pub trait NonceStore {
         nonces: Vec<SigningNonces>,
     ) -> Result<(), SessionError>;
     fn take(&mut self, proposal: &ProposalId, pczt_hash: &[u8; 32]) -> Option<Vec<SigningNonces>>;
+}
+
+/// Secret nonces for pre-published commitments, keyed by the serialized commitment.
+///
+/// Same rules as [`NonceStore`]: this-device-only, excluded from backups, and `take`
+/// deletes before returning.
+pub trait PoolStore {
+    fn put(&mut self, commitment: &[u8], nonces: SigningNonces) -> Result<(), SessionError>;
+    fn contains(&self, commitment: &[u8]) -> bool;
+    fn take(&mut self, commitment: &[u8]) -> Option<SigningNonces>;
+    /// Deletes a nonce that will never be used (its proposal closed).
+    fn forget(&mut self, commitment: &[u8]);
+}
+
+/// In-memory pool store (tests).
+#[derive(Default)]
+pub struct MemoryPoolStore(BTreeMap<Vec<u8>, SigningNonces>);
+
+impl PoolStore for MemoryPoolStore {
+    fn put(&mut self, commitment: &[u8], nonces: SigningNonces) -> Result<(), SessionError> {
+        self.0.insert(commitment.to_vec(), nonces);
+        Ok(())
+    }
+    fn contains(&self, commitment: &[u8]) -> bool {
+        self.0.contains_key(commitment)
+    }
+    fn take(&mut self, commitment: &[u8]) -> Option<SigningNonces> {
+        self.0.remove(commitment)
+    }
+    fn forget(&mut self, commitment: &[u8]) {
+        self.0.remove(commitment);
+    }
+}
+
+/// Generates `count` fresh nonce pairs, stores the secret nonces in `pool`, and returns
+/// the serialized commitments to publish. Nonces are stored *before* publication, so a
+/// published commitment never lacks its nonce on this device.
+pub fn new_pool_commitments<R: RngCore + CryptoRng>(
+    key_package: &KeyPackage,
+    count: usize,
+    pool: &mut impl PoolStore,
+    rng: &mut R,
+) -> Result<Vec<Vec<u8>>, SessionError> {
+    let mut out = Vec::with_capacity(count);
+    for _ in 0..count {
+        let (nonces, commitments) = signing::commit(key_package, rng);
+        let bytes = commitments
+            .serialize()
+            .map_err(|e| SessionError::Encoding(format!("{e:?}")))?;
+        pool.put(&bytes, nonces)?;
+        out.push(bytes);
+    }
+    Ok(out)
+}
+
+/// The signing package for one spend of one signer group of a preprocessed proposal.
+pub fn group_package(
+    commitments: &[Vec<u8>],
+    group: &[Identifier],
+    sighash: &[u8; 32],
+) -> Result<SigningPackage, SessionError> {
+    let map = group
+        .iter()
+        .zip(commitments)
+        .map(|(id, c)| {
+            SigningCommitments::deserialize(c)
+                .map(|c| (*id, c))
+                .map_err(|e| SessionError::Encoding(format!("{e:?}")))
+        })
+        .collect::<Result<BTreeMap<_, _>, _>>()?;
+    if map.len() != group.len() {
+        return Err(SessionError::Encoding("group/commitment mismatch".into()));
+    }
+    Ok(signing::signing_package(map, sighash))
 }
 
 /// In-memory nonce store (tests and the CLI).
@@ -239,6 +324,118 @@ impl Member<'_> {
         }
         Ok(shares)
     }
+}
+
+/// A signer group to sign: its index, its members' FROST identifiers (group order), and
+/// the commitments fixed for it, per spend then per member.
+pub type GroupPlan = (usize, Vec<Identifier>, Vec<Vec<Vec<u8>>>);
+
+/// This member's shares per signer group: `(group, one share per spend)`.
+pub type GroupSignatures = Vec<(usize, Vec<SignatureShare>)>;
+
+impl Member<'_> {
+    /// One-tap approval: verifies the proposal and signs every signer group this member is
+    /// in, returning `(group, shares per spend)`. `groups[g]` are the members' FROST
+    /// identifiers and `commitments[g][spend]` the commitments fixed for that group.
+    ///
+    /// Every assigned commitment is checked to be this member's and present in `pool`
+    /// before any nonce is consumed; then each nonce is taken (deleted) and used once.
+    pub fn sign_groups(
+        &self,
+        pczt: &Pczt,
+        expected: &Expectations,
+        my_groups: &[GroupPlan],
+        pool: &mut impl PoolStore,
+    ) -> Result<(VerifiedTx, GroupSignatures), SessionError> {
+        let verified = verify_pczt(pczt, self.vault_fvk, expected)?;
+        let spends = &verified.spends_to_sign;
+
+        // Build and check everything first.
+        let mut planned = Vec::with_capacity(my_groups.len());
+        for (group, ids, commitments) in my_groups {
+            if commitments.len() != spends.len() {
+                return Err(SessionError::WrongPackageCount {
+                    expected: spends.len(),
+                    got: commitments.len(),
+                });
+            }
+            let pos = ids
+                .iter()
+                .position(|id| *id == self.identifier)
+                .ok_or(SessionError::UnknownApprover)?;
+            let mut packages = Vec::with_capacity(spends.len());
+            for (spend, per_member) in commitments.iter().enumerate() {
+                let mine = per_member
+                    .get(pos)
+                    .ok_or(SessionError::NotOurCommitments(spend))?;
+                if !pool.contains(mine) {
+                    return Err(SessionError::NoNonces);
+                }
+                packages.push((
+                    group_package(per_member, ids, &verified.sighash)?,
+                    mine.clone(),
+                ));
+            }
+            planned.push((*group, packages));
+        }
+
+        // Then consume: each nonce is deleted before its share exists.
+        let mut out = Vec::with_capacity(planned.len());
+        for (group, packages) in planned {
+            let mut shares = Vec::with_capacity(packages.len());
+            for ((package, mine), spend) in packages.into_iter().zip(spends) {
+                let nonces = pool.take(&mine).ok_or(SessionError::NoNonces)?;
+                let expected_commitment = SigningCommitments::deserialize(&mine)
+                    .map_err(|e| SessionError::Encoding(format!("{e:?}")))?;
+                if *nonces.commitments() != expected_commitment {
+                    return Err(SessionError::NotOurCommitments(0));
+                }
+                shares.push(signing::sign(
+                    &package,
+                    nonces,
+                    self.key_package,
+                    spend.alpha,
+                )?);
+            }
+            out.push((group, shares));
+        }
+        Ok((verified, out))
+    }
+}
+
+/// Aggregates one signature per spend for a complete preprocessed signer group. Every
+/// share is verified; an invalid share yields a FROST error naming the culprit.
+pub fn aggregate_group(
+    ids: &[Identifier],
+    commitments: &[Vec<Vec<u8>>],
+    shares: &BTreeMap<Identifier, Vec<SignatureShare>>,
+    verified: &VerifiedTx,
+    public_key_package: &PublicKeyPackage,
+) -> Result<Vec<(usize, [u8; 64])>, SessionError> {
+    let spends = &verified.spends_to_sign;
+    if commitments.len() != spends.len() {
+        return Err(SessionError::WrongPackageCount {
+            expected: spends.len(),
+            got: commitments.len(),
+        });
+    }
+    let mut signatures = Vec::with_capacity(spends.len());
+    for (i, (spend, per_member)) in spends.iter().zip(commitments).enumerate() {
+        let package = group_package(per_member, ids, &verified.sighash)?;
+        let for_spend = ids
+            .iter()
+            .map(|id| {
+                shares
+                    .get(id)
+                    .and_then(|s| s.get(i))
+                    .map(|s| (*id, *s))
+                    .ok_or(SessionError::IncompleteShares)
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
+        let sig = signing::aggregate(&package, &for_spend, public_key_package, spend.alpha)?;
+        signatures.push((spend.action_index, sig));
+    }
+    Ok(signatures)
 }
 
 /// Sent by the leader to the chosen signers: one signing package per spend.

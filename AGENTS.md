@@ -15,7 +15,7 @@ the same change.
 
 ```bash
 cargo fmt --all && cargo clippy --workspace --all-targets     # must be clean
-cargo test --workspace                                        # ~58 tests, 2 ignored
+cargo test --workspace                                        # ~68 tests, 3 ignored
 
 # ZIP 2005 vectors: regenerate, then check independently in Python
 ZAFE_REGEN_VECTORS=1 cargo test -p zafe-core --test zip2005_vectors
@@ -98,6 +98,24 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
 - **Leader resumability**: the app persists each signing request (`<state>/leader/<id>.req`)
   and the used-commitments set; `send_proposal` after a timeout resumes the same round.
   Known gap: if an approver never answers, there is no "start over" yet.
+- **One-tap signing** (spec §9.5.2; `vault::assign_commitments`, `Member::sign_groups`,
+  `node::{approve, send_ready, top_up_pool, forget_closed}`): members pre-publish
+  commitments (`VaultEvent::Commitments`, nonces stored *before* appending); replaying a
+  `Proposal` deterministically assigns each (group, spend, member) the member's next pool
+  commitment, never reusing one; approving signs every group containing the member and
+  posts the shares in the `Vote`; **a vote with shares is final**; the first complete
+  group is `ready_group` and anyone aggregates it from the log (`send_ready`), the member
+  who completed it (`completed_by`) auto-sends when `auto_send`. `sign_groups` checks every
+  commitment is ours and present **before** taking any nonce. Falls back to interactive
+  signing when pools are short or C(n, t) > 64. Security reading of ePrint 2024/436 is in
+  spec §9.5.1; ZF confirmation pending (U5 / upstream-asks Q7).
+- **Expiry**: `descriptor.proposal_expiry_blocks` (default 7 days); proposer sets expiry =
+  target + window; members accept window + 96 blocks of slack. Never remove expiry: a
+  complete one-tap group stays sendable until it.
+- **Wire formats are not versioned yet** (postcard, pre-release): changing the descriptor
+  or events breaks existing vaults and stored material. Reset test devices
+  (`adb shell pm clear xyz.zafe.zafe`, `scripts/app-harness.sh stop`) after such changes.
+  Add versioning before any external testers.
 - **Shares are bound to the exact request** (request hash); aggregation always goes through
   `session::aggregate_request` (signer-set check + per-share verification).
 - **Vault log replay is lenient after creation**: invalid entries go to `VaultState.ignored`

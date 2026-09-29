@@ -214,6 +214,7 @@ fn payment_flow_through_bridge() {
             amount_zat: 100_000_000,
             memo: "grant #1".into(),
         }],
+        false,
     )
     .unwrap();
     let list = |m: &Member| {
@@ -351,5 +352,84 @@ fn payment_flow_through_bridge() {
     thread::sleep(Duration::from_secs(3));
     let after = sync(&members[2]);
     println!("after: height {} total {}", after.height, after.total_zat);
+
+    // --- One tap. Every member refreshed its proposal list above, which published its
+    // commitments, so this proposal is signed at approval time: A and B each approve once,
+    // B's approval completes the signatures, and B sends alone (no request round, C and A
+    // don't need to be online).
+    chain.mine(3);
+    for m in &members {
+        let h = after.height + 3;
+        let mut b = sync(m);
+        for _ in 0..60 {
+            if b.height >= h {
+                break;
+            }
+            thread::sleep(Duration::from_secs(1));
+            b = sync(m);
+        }
+    }
+    for m in &members {
+        list(m); // tops up pools
+    }
+    let id2 = proposals::propose_payment(
+        relay.clone(),
+        lwd.clone(),
+        a.db_dir.clone(),
+        a.seeds.clone(),
+        a.material.clone(),
+        vec![PaymentInput {
+            address: payee.clone(),
+            amount_zat: 50_000_000,
+            memo: "grant #2".into(),
+        }],
+        true,
+    )
+    .unwrap();
+    let p = list(&members[2]).into_iter().find(|p| p.id == id2).unwrap();
+    assert!(p.one_tap, "second proposal should be one-tap");
+    assert!(p.auto_send);
+    let approve = |m: &Member| {
+        proposals::approve_proposal(
+            relay.clone(),
+            lwd.clone(),
+            m.db_dir.clone(),
+            m.state_dir.clone(),
+            m.seeds.clone(),
+            m.material.clone(),
+            id2.clone(),
+        )
+        .unwrap()
+    };
+    let r_a = approve(&members[0]);
+    assert!(r_a.signed && !r_a.completed);
+    let r_b = approve(&members[1]);
+    assert!(r_b.signed && r_b.completed && r_b.auto_send);
+    let p = list(&members[2]).into_iter().find(|p| p.id == id2).unwrap();
+    assert!(p.ready && !p.completed_by_me);
+
+    let b = &members[1];
+    let mut sent = None;
+    proposals::send_with_progress(
+        relay.clone(),
+        lwd.clone(),
+        b.db_dir.clone(),
+        b.state_dir.clone(),
+        b.seeds.clone(),
+        b.material.clone(),
+        id2.clone(),
+        |p| {
+            if p.stage == SendStage::Sent {
+                sent = p.txid;
+            }
+        },
+    )
+    .expect("one-tap send");
+    let txid2 = sent.expect("txid");
+    println!("one-tap broadcast {txid2}");
+    let p = list(&members[0]).into_iter().find(|p| p.id == id2).unwrap();
+    assert_eq!(p.stage, ProposalStage::Sent);
+    assert_eq!(p.txid.as_deref(), Some(txid2.as_str()));
+
     let _ = std::fs::remove_dir_all(&tmp);
 }

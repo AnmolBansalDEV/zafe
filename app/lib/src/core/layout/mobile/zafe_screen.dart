@@ -42,7 +42,10 @@ class ZafeScreen extends StatelessWidget {
                 ),
               ),
               if (bottom != null)
-                Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 12), child: bottom),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: bottom,
+                ),
             ],
           ),
         ),

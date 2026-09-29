@@ -17,7 +17,10 @@ Future<void> main() async {
       (['Young Serif'], 'assets/fonts/licenses/YoungSerif-OFL.txt'),
       (['Vizor (chainapsis/vizor-wallet)'], 'NOTICE'),
     ]) {
-      yield LicenseEntryWithLineBreaks(packages, await rootBundle.loadString(asset));
+      yield LicenseEntryWithLineBreaks(
+        packages,
+        await rootBundle.loadString(asset),
+      );
     }
   });
   await RustLib.init();

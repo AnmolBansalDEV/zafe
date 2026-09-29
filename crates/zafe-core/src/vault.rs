@@ -38,6 +38,91 @@ pub enum VaultError {
     DuplicateProposal(u64),
     #[error("entry {0}: only the author can cancel a proposal")]
     NotAuthor(u64),
+    #[error("entry {0}: invalid commitment batch")]
+    BadCommitments(u64),
+    #[error("entry {0}: signature shares that don't fit the proposal's signer groups")]
+    BadShares(u64),
+    #[error("entry {0}: this member already signed; an approval with shares is final")]
+    VoteFinal(u64),
+}
+
+/// Most commitments one `Commitments` event may carry.
+pub const MAX_COMMITMENT_BATCH: usize = 256;
+/// Most unused commitments a member may have outstanding in the log.
+pub const MAX_POOL_OUTSTANDING: usize = 4096;
+/// Most signer groups (t-subsets) a proposal may be preprocessed for; beyond this the
+/// proposal uses interactive signing. C(n, t): 2-of-3 = 3, 3-of-5 = 10, 4-of-7 = 35.
+pub const MAX_PREPROCESSED_SUBSETS: usize = 64;
+
+/// A member's pre-published FROST round-1 commitments (spec §9.4, preprocessing). Every
+/// proposal takes the next unused ones in log order, so each is assigned at most once.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Pool {
+    /// Serialized `SigningCommitments`, in publication order.
+    pub commitments: Vec<Vec<u8>>,
+    /// Index of the next unassigned commitment.
+    pub next: usize,
+}
+
+impl Pool {
+    pub fn available(&self) -> usize {
+        self.commitments.len() - self.next
+    }
+}
+
+/// One-tap signing for a proposal: every signer group (t-subset of members, in descriptor
+/// order) with the commitments fixed for it when the proposal was logged.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Preprocessed {
+    /// Member `sig_pk`s of each group, in descriptor order.
+    pub subsets: Vec<Vec<[u8; 32]>>,
+    /// `commitments[group][spend][position in group]`, serialized.
+    pub commitments: Vec<Vec<Vec<Vec<u8>>>>,
+}
+
+impl Preprocessed {
+    /// The commitment assigned to `member` for `group` and `spend`, if it is in the group.
+    pub fn commitment(&self, group: usize, spend: usize, member: &[u8; 32]) -> Option<&[u8]> {
+        let pos = self.subsets.get(group)?.iter().position(|m| m == member)?;
+        Some(self.commitments.get(group)?.get(spend)?.get(pos)?)
+    }
+
+    /// Groups that include `member`.
+    pub fn groups_of(&self, member: &[u8; 32]) -> Vec<usize> {
+        (0..self.subsets.len())
+            .filter(|g| self.subsets[*g].contains(member))
+            .collect()
+    }
+}
+
+/// A member's signature shares for one signer group: one share per spend.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GroupShares {
+    pub group: u16,
+    pub shares: Vec<Vec<u8>>,
+}
+
+/// All t-subsets of `items` (as index lists), in lexicographic order.
+fn combinations(n: usize, t: usize) -> Vec<Vec<usize>> {
+    let mut out = Vec::new();
+    let mut idx: Vec<usize> = (0..t).collect();
+    if t == 0 || t > n {
+        return out;
+    }
+    loop {
+        out.push(idx.clone());
+        let mut i = t;
+        while i > 0 && idx[i - 1] == n - t + i - 1 {
+            i -= 1;
+        }
+        if i == 0 {
+            return out;
+        }
+        idx[i - 1] += 1;
+        for j in i..t {
+            idx[j] = idx[j - 1] + 1;
+        }
+    }
 }
 
 /// A member as recorded in the descriptor.
@@ -137,13 +222,26 @@ pub enum VaultEvent {
         tip_height: u32,
         /// Proposer's clock, unix seconds (display only; not trusted).
         created_at: u64,
+        /// Spends needing a FROST signature (members check it against the PCZT). With
+        /// enough pre-published commitments, the proposal is signed at approval time.
+        signing_spends: u16,
+        /// Whether the member whose approval completes a signer group sends right away
+        /// (otherwise any member sends when they choose).
+        auto_send: bool,
     },
     Vote {
         proposal: ProposalId,
         pczt_hash: [u8; 32],
         approve: bool,
-        /// Serialized FROST round-1 commitments, one per spend (empty for rejections).
+        /// Interactive signing: fresh round-1 commitments, one per spend (empty for
+        /// rejections and one-tap approvals).
         commitments: Vec<Vec<u8>>,
+        /// One-tap signing: this member's shares for the proposal's signer groups.
+        shares: Vec<GroupShares>,
+    },
+    /// Pre-published FROST round-1 commitments of the author (preprocessing).
+    Commitments {
+        batch: Vec<Vec<u8>>,
     },
     Cancelled {
         proposal: ProposalId,
@@ -186,10 +284,36 @@ pub struct ProposalState {
     /// Index of the proposal's log entry (orders proposals).
     pub log_index: u64,
     pub status: ProposalStatus,
-    /// Latest approval per member: their serialized commitments.
+    /// Latest approval per member: their serialized commitments (empty for one-tap).
     pub approvals: BTreeMap<[u8; 32], Vec<Vec<u8>>>,
     pub rejections: BTreeMap<[u8; 32], ()>,
     pub txid: Option<[u8; 32]>,
+    pub signing_spends: u16,
+    pub auto_send: bool,
+    /// Set when the proposal is signed at approval time (enough commitments were in the
+    /// members' pools when it was logged); `None` means interactive signing.
+    pub preprocessed: Option<Preprocessed>,
+    /// One-tap shares posted per member.
+    pub shares: BTreeMap<[u8; 32], Vec<GroupShares>>,
+    /// First signer group (in group order) with every member's shares: ready to send.
+    pub ready_group: Option<u16>,
+    /// The member whose approval completed `ready_group` (the one who auto-sends).
+    pub completed_by: Option<[u8; 32]>,
+}
+
+impl ProposalState {
+    fn find_ready_group(&self) -> Option<u16> {
+        let pre = self.preprocessed.as_ref()?;
+        (0..pre.subsets.len())
+            .find(|g| {
+                pre.subsets[*g].iter().all(|m| {
+                    self.shares
+                        .get(m)
+                        .is_some_and(|gs| gs.iter().any(|s| usize::from(s.group) == *g))
+                })
+            })
+            .map(|g| g as u16)
+    }
 }
 
 /// Current vault state, rebuilt from the log.
@@ -203,6 +327,8 @@ pub struct VaultState {
     /// racing a cancellation). Every member skips the same entries, so all members reach
     /// the same state; a bad entry can never make the log unreadable.
     pub ignored: Vec<(u64, VaultError)>,
+    /// Pre-published commitments per member.
+    pub pools: BTreeMap<[u8; 32], Pool>,
 }
 
 impl VaultState {
@@ -234,6 +360,7 @@ impl VaultState {
             proposals: BTreeMap::new(),
             applied: first.header.index + 1,
             ignored: Vec::new(),
+            pools: BTreeMap::new(),
         };
         for entry in rest {
             state.apply_entry(entry, key);
@@ -282,10 +409,13 @@ impl VaultState {
                 pczt_hash,
                 tip_height,
                 created_at,
+                signing_spends,
+                auto_send,
             } => {
                 if self.proposals.contains_key(&id) {
                     return Err(VaultError::DuplicateProposal(index));
                 }
+                let preprocessed = self.assign_commitments(signing_spends);
                 self.proposals.insert(
                     id,
                     ProposalState {
@@ -301,6 +431,12 @@ impl VaultState {
                         approvals: BTreeMap::new(),
                         rejections: BTreeMap::new(),
                         txid: None,
+                        signing_spends,
+                        auto_send,
+                        preprocessed,
+                        shares: BTreeMap::new(),
+                        ready_group: None,
+                        completed_by: None,
                     },
                 );
             }
@@ -309,6 +445,7 @@ impl VaultState {
                 pczt_hash,
                 approve,
                 commitments,
+                shares,
             } => {
                 let p = self
                     .proposals
@@ -321,6 +458,36 @@ impl VaultState {
                 }
                 if pczt_hash != p.pczt_hash {
                     return Err(VaultError::PcztMismatch(index));
+                }
+                // Once a member has released signature shares, their approval cannot be
+                // withdrawn or replaced (the shares are out).
+                if p.shares.contains_key(&author) {
+                    return Err(VaultError::VoteFinal(index));
+                }
+                if !shares.is_empty() {
+                    let pre = p
+                        .preprocessed
+                        .as_ref()
+                        .ok_or(VaultError::BadShares(index))?;
+                    let mut seen = std::collections::BTreeSet::new();
+                    let valid = approve
+                        && commitments.is_empty()
+                        && shares.iter().all(|gs| {
+                            let g = usize::from(gs.group);
+                            seen.insert(g)
+                                && pre.subsets.get(g).is_some_and(|m| m.contains(&author))
+                                && gs.shares.len() == usize::from(p.signing_spends)
+                        });
+                    if !valid {
+                        return Err(VaultError::BadShares(index));
+                    }
+                    p.shares.insert(author, shares);
+                    if p.ready_group.is_none() {
+                        p.ready_group = p.find_ready_group();
+                        if p.ready_group.is_some() {
+                            p.completed_by = Some(author);
+                        }
+                    }
                 }
                 if approve {
                     p.rejections.remove(&author);
@@ -336,6 +503,20 @@ impl VaultState {
                 } else {
                     ProposalStatus::Open
                 };
+            }
+            VaultEvent::Commitments { batch } => {
+                use reddsa::frost::redpallas::round1::SigningCommitments;
+                let pool = self.pools.entry(author).or_default();
+                if batch.is_empty()
+                    || batch.len() > MAX_COMMITMENT_BATCH
+                    || pool.available() + batch.len() > MAX_POOL_OUTSTANDING
+                    || batch
+                        .iter()
+                        .any(|c| SigningCommitments::deserialize(c).is_err())
+                {
+                    return Err(VaultError::BadCommitments(index));
+                }
+                pool.commitments.extend(batch);
             }
             VaultEvent::Cancelled { proposal } => {
                 let p = self
@@ -363,6 +544,56 @@ impl VaultState {
             }
         }
         Ok(())
+    }
+}
+
+impl VaultState {
+    /// Fixes the signing commitments of a new proposal: for every signer group (t-subset of
+    /// members, descriptor order), every spend and every member of the group, the member's
+    /// next unused pool commitment. Deterministic from the log, so every member computes the
+    /// same assignment; each commitment is assigned at most once. `None` (interactive
+    /// signing) if the vault has too many groups or any pool is short.
+    fn assign_commitments(&mut self, spends: u16) -> Option<Preprocessed> {
+        let members: Vec<[u8; 32]> = self
+            .descriptor
+            .members
+            .iter()
+            .map(|m| m.identity.sig_pk)
+            .collect();
+        let t = usize::from(self.descriptor.threshold);
+        let groups = combinations(members.len(), t);
+        let spends = usize::from(spends);
+        if spends == 0 || groups.is_empty() || groups.len() > MAX_PREPROCESSED_SUBSETS {
+            return None;
+        }
+        let per_member = groups.iter().filter(|g| g.contains(&0)).count() * spends;
+        if members
+            .iter()
+            .any(|m| self.pools.get(m).map_or(0, Pool::available) < per_member)
+        {
+            return None;
+        }
+        let mut commitments = Vec::with_capacity(groups.len());
+        for group in &groups {
+            let mut per_spend = Vec::with_capacity(spends);
+            for _ in 0..spends {
+                let mut per_member = Vec::with_capacity(t);
+                for &i in group {
+                    let pool = self.pools.get_mut(&members[i]).expect("checked above");
+                    per_member.push(pool.commitments[pool.next].clone());
+                    pool.next += 1;
+                }
+                per_spend.push(per_member);
+            }
+            commitments.push(per_spend);
+        }
+        Some(Preprocessed {
+            subsets: groups
+                .iter()
+                .map(|g| g.iter().map(|&i| members[i]).collect())
+                .collect(),
+            commitments,
+        })
     }
 }
 

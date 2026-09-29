@@ -10,7 +10,7 @@ use std::{collections::BTreeSet, fs, path::PathBuf, time::Duration};
 use rand::rngs::OsRng;
 use zafe_core::{
     node::{self, VaultMaterial},
-    nonce_store::FileNonceStore,
+    nonce_store::{FileNonceStore, FilePoolStore},
     relay_client::RelayClient,
     session::ProposalId,
     vault::{ProposalStatus, ProposedPayment, VaultState},
@@ -155,6 +155,14 @@ pub struct ProposalInfo {
     pub txid: Option<String>,
     /// This device already sent a signing request for it (it can resume collecting).
     pub signing_started: bool,
+    /// Signed at approval time (one tap): approvals carry the signatures.
+    pub one_tap: bool,
+    /// Some signer group has every signature: any member can send it now, alone.
+    pub ready: bool,
+    /// This member's approval completed the signatures (it sends when `auto_send`).
+    pub completed_by_me: bool,
+    /// The proposer asked for it to be sent as soon as the signatures are complete.
+    pub auto_send: bool,
 }
 
 fn parse_id(hex_id: &str) -> Result<ProposalId, ZafeError> {
@@ -170,6 +178,10 @@ fn leader_dir(state_dir: &str) -> PathBuf {
 
 fn request_file(state_dir: &str, id: &ProposalId) -> PathBuf {
     leader_dir(state_dir).join(format!("{}.req", hex::encode(id)))
+}
+
+fn pool_store(state_dir: &str) -> FilePoolStore {
+    FilePoolStore::new(PathBuf::from(state_dir).join("pool"))
 }
 
 fn nonce_store(state_dir: &str) -> FileNonceStore {
@@ -220,6 +232,10 @@ fn info(state: &VaultState, me: [u8; 32], state_dir: &str) -> Vec<ProposalInfo> 
                 hex::encode(t)
             }),
             signing_started: request_file(state_dir, &p.id).exists(),
+            one_tap: p.preprocessed.is_some(),
+            ready: p.ready_group.is_some() && p.status == ProposalStatus::Approved,
+            completed_by_me: p.completed_by == Some(me),
+            auto_send: p.auto_send,
         })
         .collect();
     out.sort_by_key(|p| {
@@ -228,7 +244,9 @@ fn info(state: &VaultState, me: [u8; 32], state_dir: &str) -> Vec<ProposalInfo> 
     out
 }
 
-/// Every proposal in the vault log, newest first.
+/// Every proposal in the vault log, newest first. Also keeps this device ready for
+/// one-tap signing: tops up its pre-published commitments when they run low, and deletes
+/// nonces of proposals that closed.
 pub fn list_proposals(
     relay_url: String,
     state_dir: String,
@@ -237,7 +255,14 @@ pub fn list_proposals(
 ) -> Result<Vec<ProposalInfo>, ZafeError> {
     let me = identity(&seeds)?;
     let m = self::material(&material)?;
-    let (_, state) = runtime().block_on(node::load_state(&RelayClient::new(relay_url), &me, &m))?;
+    let relay = RelayClient::new(relay_url);
+    let mut pool = pool_store(&state_dir);
+    let state = runtime().block_on(async {
+        node::top_up_pool(&relay, &me, &m, &mut pool, &mut OsRng).await?;
+        let (_, state) = node::load_state(&relay, &me, &m).await?;
+        Ok::<_, ZafeError>(state)
+    })?;
+    node::forget_closed(&state, &me.public().sig_pk, &mut pool);
     Ok(info(&state, me.public().sig_pk, &state_dir))
 }
 
@@ -258,6 +283,7 @@ pub fn propose_payment(
     seeds: Vec<u8>,
     material: Vec<u8>,
     payments: Vec<PaymentInput>,
+    auto_send: bool,
 ) -> Result<String, ZafeError> {
     let me = identity(&seeds)?;
     let m = self::material(&material)?;
@@ -285,7 +311,16 @@ pub fn propose_payment(
         wallet.sync(&mut connect(&lightwalletd_url).await?).await?;
         let relay = RelayClient::new(relay_url);
         Ok::<_, ZafeError>(
-            node::propose(&relay, &me, &m, &mut wallet, &requests, &mut OsRng).await?,
+            node::propose(
+                &relay,
+                &me,
+                &m,
+                &mut wallet,
+                &requests,
+                auto_send,
+                &mut OsRng,
+            )
+            .await?,
         )
     })?;
     Ok(hex::encode(id))
@@ -354,7 +389,17 @@ pub fn review_proposal(
 
 // --- Voting -----------------------------------------------------------------------------
 
-/// Verifies the proposal on this device and, only if it passes, approves it.
+pub struct ApproveResult {
+    /// The approval carried this member's signatures (one tap).
+    pub signed: bool,
+    /// This approval completed the signatures: the proposal can be sent now.
+    pub completed: bool,
+    /// The proposer asked for the completing member to send right away.
+    pub auto_send: bool,
+}
+
+/// Verifies the proposal on this device and, only if it passes, approves it. For one-tap
+/// proposals the approval also signs; see `ApproveResult`.
 pub fn approve_proposal(
     relay_url: String,
     lightwalletd_url: String,
@@ -363,14 +408,15 @@ pub fn approve_proposal(
     seeds: Vec<u8>,
     material: Vec<u8>,
     proposal_id: String,
-) -> Result<(), ZafeError> {
+) -> Result<ApproveResult, ZafeError> {
     let me = identity(&seeds)?;
     let m = self::material(&material)?;
     let net = network(&m.descriptor.network)?;
     let id = parse_id(&proposal_id)?;
     let tip = local_tip(&db_dir, &lightwalletd_url, &m)?;
     let mut store = nonce_store(&state_dir);
-    runtime().block_on(node::approve(
+    let mut pool = pool_store(&state_dir);
+    let approved = runtime().block_on(node::approve(
         &RelayClient::new(relay_url),
         &me,
         &m,
@@ -378,9 +424,14 @@ pub fn approve_proposal(
         tip,
         id,
         &mut store,
+        &mut pool,
         &mut OsRng,
     ))?;
-    Ok(())
+    Ok(ApproveResult {
+        signed: approved.signed,
+        completed: approved.completed,
+        auto_send: approved.auto_send,
+    })
 }
 
 pub fn reject_proposal(
@@ -517,6 +568,34 @@ pub fn send_with_progress(
     let tip = local_tip(&db_dir, &lightwalletd_url, &m)?;
     let req_path = request_file(&state_dir, &id);
     let io = |e: std::io::Error| ZafeError::new(ZafeErrorKind::Other, e.to_string());
+
+    // One tap: the approvals already carry every signature; aggregate and send alone.
+    let (_, state) = runtime().block_on(node::load_state(&relay, &me, &m))?;
+    if node::is_ready(&state, &id) {
+        on_progress(SendProgress {
+            stage: SendStage::Collecting,
+            received: u32::from(m.descriptor.threshold),
+            needed: u32::from(m.descriptor.threshold),
+            txid: None,
+            error: None,
+        });
+        let txid = runtime().block_on(async {
+            let mut client = connect(&lightwalletd_url).await?;
+            Ok::<_, ZafeError>(
+                node::send_ready(&relay, &me, &m, &net, tip, id, &mut client, &mut OsRng).await?,
+            )
+        })?;
+        let mut display = txid;
+        display.reverse();
+        on_progress(SendProgress {
+            stage: SendStage::Sent,
+            received: u32::from(m.descriptor.threshold),
+            needed: u32::from(m.descriptor.threshold),
+            txid: Some(hex::encode(display)),
+            error: None,
+        });
+        return Ok(());
+    }
 
     let request = match fs::read(&req_path) {
         Ok(bytes) => node::decode_request(&bytes)?,

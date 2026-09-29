@@ -34,7 +34,10 @@ class SettingsScreen extends ConsumerWidget {
     final me = vault.myKeyHex;
     if (summary == null) return const SizedBox.shrink();
 
-    final rowStyle = AppTypography.labelLarge.copyWith(fontWeight: FontWeight.w400, color: colors.text.accent);
+    final rowStyle = AppTypography.labelLarge.copyWith(
+      fontWeight: FontWeight.w400,
+      color: colors.text.accent,
+    );
     MobileListRow row({
       required String icon,
       required String label,
@@ -64,16 +67,26 @@ class SettingsScreen extends ConsumerWidget {
               MobileTopNav.back(title: 'Settings', onBack: () => context.pop()),
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(AppSpacing.sm, AppSpacing.s, AppSpacing.sm, AppSpacing.lg),
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.sm,
+                    AppSpacing.s,
+                    AppSpacing.sm,
+                    AppSpacing.lg,
+                  ),
                   children: [
                     _Group(
                       title: 'Vault',
                       rows: [
-                        row(icon: AppIcons.wallet, label: 'Name', value: summary.name),
+                        row(
+                          icon: AppIcons.wallet,
+                          label: 'Name',
+                          value: summary.name,
+                        ),
                         row(
                           icon: AppIcons.users,
                           label: 'Approval rule',
-                          value: '${summary.threshold} of ${summary.members.length} signers',
+                          value:
+                              '${summary.threshold} of ${summary.members.length} signers',
                         ),
                         row(
                           icon: AppIcons.qr,
@@ -82,7 +95,11 @@ class SettingsScreen extends ConsumerWidget {
                           chevron: true,
                           onTap: () => context.push('/receive'),
                         ),
-                        row(icon: AppIcons.globe, label: 'Network', value: _networkLabel(summary.network)),
+                        row(
+                          icon: AppIcons.globe,
+                          label: 'Network',
+                          value: _networkLabel(summary.network),
+                        ),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.md),
@@ -95,13 +112,18 @@ class SettingsScreen extends ConsumerWidget {
                           value: me == null ? '' : memberLabel(me),
                           onTap: me == null
                               ? null
-                              : () => copyTextWithToast(context, text: me, toastMessage: 'Signer key copied'),
+                              : () => copyTextWithToast(
+                                  context,
+                                  text: me,
+                                  toastMessage: 'Signer key copied',
+                                ),
                         ),
                         row(
                           icon: hideAmounts ? AppIcons.eyeClosed : AppIcons.eye,
                           label: 'Hide amounts',
                           value: hideAmounts ? 'On' : 'Off',
-                          onTap: () => ref.read(privacyModeProvider.notifier).toggle(),
+                          onTap: () =>
+                              ref.read(privacyModeProvider.notifier).toggle(),
                         ),
                       ],
                     ),
@@ -116,8 +138,16 @@ class SettingsScreen extends ConsumerWidget {
                           chevron: true,
                           onTap: () => _pickTheme(context, ref, themeMode),
                         ),
-                        row(icon: AppIcons.endpoint, label: 'Relay', value: _host(kZafeRelayUrl)),
-                        row(icon: AppIcons.endpoint, label: 'Lightwalletd', value: _host(kZafeLightwalletdUrl)),
+                        row(
+                          icon: AppIcons.endpoint,
+                          label: 'Relay',
+                          value: _host(kZafeRelayUrl),
+                        ),
+                        row(
+                          icon: AppIcons.endpoint,
+                          label: 'Lightwalletd',
+                          value: _host(kZafeLightwalletdUrl),
+                        ),
                         row(
                           icon: AppIcons.book,
                           label: 'Open-source licenses',
@@ -134,7 +164,9 @@ class SettingsScreen extends ConsumerWidget {
                     Center(
                       child: Text(
                         'Zafe v$_appVersion',
-                        style: AppTypography.codeSmall.copyWith(color: colors.text.secondary),
+                        style: AppTypography.codeSmall.copyWith(
+                          color: colors.text.secondary,
+                        ),
                       ),
                     ),
                   ],
@@ -147,7 +179,11 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _pickTheme(BuildContext context, WidgetRef ref, ThemeMode current) async {
+  Future<void> _pickTheme(
+    BuildContext context,
+    WidgetRef ref,
+    ThemeMode current,
+  ) async {
     final selected = await showAppMobileSheet<ThemeMode>(
       context: context,
       builder: (_) => _ThemeSheet(current: current),
@@ -181,12 +217,20 @@ class _Group extends StatelessWidget {
   Widget build(BuildContext context) {
     return MobileSurfaceCard(
       cornerRadius: AppRadii.large,
-      padding: const EdgeInsets.fromLTRB(AppSpacing.sm, AppSpacing.base, AppSpacing.sm, AppSpacing.base),
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.sm,
+        AppSpacing.base,
+        AppSpacing.sm,
+        AppSpacing.base,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(left: AppSpacing.xxs, bottom: AppSpacing.xs),
+            padding: const EdgeInsets.only(
+              left: AppSpacing.xxs,
+              bottom: AppSpacing.xs,
+            ),
             child: Text(
               title,
               style: AppTypography.labelLarge.copyWith(
@@ -243,12 +287,16 @@ class _ThemeSheetState extends State<_ThemeSheet> {
                 onTap: () => setState(() => _selected = mode),
                 child: Container(
                   height: 64,
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                  ),
                   decoration: BoxDecoration(
                     color: colors.background.ground,
                     borderRadius: BorderRadius.circular(AppRadii.medium),
                     border: Border.all(
-                      color: mode == _selected ? colors.border.strong : colors.border.subtle,
+                      color: mode == _selected
+                          ? colors.border.strong
+                          : colors.border.subtle,
                       width: mode == _selected ? 1.5 : 1,
                     ),
                   ),
@@ -256,21 +304,38 @@ class _ThemeSheetState extends State<_ThemeSheet> {
                     children: [
                       Opacity(
                         opacity: mode == _selected ? 1 : 0.5,
-                        child: AppIcon(icon, size: 20, color: colors.icon.accent),
+                        child: AppIcon(
+                          icon,
+                          size: 20,
+                          color: colors.icon.accent,
+                        ),
                       ),
                       const SizedBox(width: AppSpacing.s),
                       Expanded(
-                        child: Text(label, style: AppTypography.bodyMediumStrong.copyWith(color: colors.text.accent)),
+                        child: Text(
+                          label,
+                          style: AppTypography.bodyMediumStrong.copyWith(
+                            color: colors.text.accent,
+                          ),
+                        ),
                       ),
                       Container(
                         width: 24,
                         height: 24,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: mode == _selected ? colors.background.inverse : colors.background.raised,
+                          color: mode == _selected
+                              ? colors.background.inverse
+                              : colors.background.raised,
                         ),
                         child: mode == _selected
-                            ? Center(child: AppIcon(AppIcons.check, size: 14, color: colors.text.inverse))
+                            ? Center(
+                                child: AppIcon(
+                                  AppIcons.check,
+                                  size: 14,
+                                  color: colors.text.inverse,
+                                ),
+                              )
                             : null,
                       ),
                     ],
@@ -281,7 +346,11 @@ class _ThemeSheetState extends State<_ThemeSheet> {
             const SizedBox(height: AppSpacing.xs),
           ],
           const SizedBox(height: AppSpacing.sm),
-          AppButton(expand: true, onPressed: () => Navigator.of(context).pop(_selected), child: const Text('Update')),
+          AppButton(
+            expand: true,
+            onPressed: () => Navigator.of(context).pop(_selected),
+            child: const Text('Update'),
+          ),
           const SizedBox(height: AppSpacing.xs),
           AppButton(
             expand: true,

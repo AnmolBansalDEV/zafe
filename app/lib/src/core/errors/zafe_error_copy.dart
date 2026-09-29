@@ -3,15 +3,21 @@ import '../config/network_config.dart';
 
 /// Friendly copy for errors from Rust. Switches on the typed `ZafeErrorKind` (no
 /// substring matching); `fallback` covers `other`.
-String zafeErrorMessage(Object error, {String fallback = 'Something went wrong. Try again.'}) {
+String zafeErrorMessage(
+  Object error, {
+  String fallback = 'Something went wrong. Try again.',
+}) {
   if (error is! ZafeError) return fallback;
   return switch (error.kind) {
-    ZafeErrorKind.network => 'Network error. Check your connection and try again.',
+    ZafeErrorKind.network =>
+      'Network error. Check your connection and try again.',
     ZafeErrorKind.notReady => _sentence(error.message),
-    ZafeErrorKind.timeout => 'Other signers haven\'t answered yet. Ask them to open Zafe, then try again.',
+    ZafeErrorKind.timeout =>
+      'Other signers haven\'t answered yet. Ask them to open Zafe, then try again.',
     ZafeErrorKind.verification =>
       'This payment failed the check on your device. Don\'t approve it. (${error.message})',
-    ZafeErrorKind.insufficientFunds => 'Not enough $kZcashDefaultCurrencyTicker in the vault to cover the amount and the fee.',
+    ZafeErrorKind.insufficientFunds =>
+      'Not enough $kZcashDefaultCurrencyTicker in the vault to cover the amount and the fee.',
     ZafeErrorKind.invalidInput => _sentence(error.message),
     ZafeErrorKind.other => fallback,
   };

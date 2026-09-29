@@ -11,7 +11,7 @@ use clap::{Parser, Subcommand};
 use rand::rngs::OsRng;
 use zafe_core::{
     node::{self, Invite, VaultMaterial},
-    nonce_store::FileNonceStore,
+    nonce_store::{FileNonceStore, FilePoolStore},
     relay_client::RelayClient,
     session::ProposalId,
     wallet::{connect, latest_height, regtest_network, PaymentRequest, VaultWallet},
@@ -58,7 +58,14 @@ enum Command {
         amount: u64,
         #[arg(long)]
         memo: Option<String>,
+        /// Send as soon as the approvals complete (one-tap vaults).
+        #[arg(long)]
+        auto_send: bool,
     },
+    /// Publish fresh commitments so proposals can be signed at approval time (one tap).
+    Pool,
+    /// Send a proposal whose approvals already carry every signature (one tap).
+    Send { proposal: String },
     /// List proposals.
     Proposals,
     /// Verify a proposal independently and approve it.
@@ -207,7 +214,12 @@ async fn main() -> Result<()> {
                 b.total
             );
         }
-        Command::Propose { to, amount, memo } => {
+        Command::Propose {
+            to,
+            amount,
+            memo,
+            auto_send,
+        } => {
             let material = home.material()?;
             let mut wallet = open_wallet(&home, &material, &cli.lightwalletd).await?;
             let memo = memo
@@ -224,6 +236,7 @@ async fn main() -> Result<()> {
                 &material,
                 &mut wallet,
                 &payments,
+                auto_send,
                 &mut rng,
             )
             .await?;
@@ -253,7 +266,8 @@ async fn main() -> Result<()> {
             let material = home.material()?;
             let tip = tip(&home, &material, &cli.lightwalletd).await?;
             let mut store = FileNonceStore::new(home.path("nonces"));
-            let verified = node::approve(
+            let mut pool = FilePoolStore::new(home.path("pool"));
+            let approved = node::approve(
                 &relay,
                 &home.identity()?,
                 &material,
@@ -261,16 +275,46 @@ async fn main() -> Result<()> {
                 tip,
                 parse_proposal(&proposal)?,
                 &mut store,
+                &mut pool,
                 &mut rng,
             )
             .await?;
+            let verified = &approved.verified;
             println!(
-                "verified and approved: {} payment(s), fee {} zat, change {} zat, {} spend(s) to sign",
+                "verified and approved{}: {} payment(s), fee {} zat, change {} zat, {} spend(s) to sign",
+                if approved.signed { " and signed" } else { "" },
                 verified.payments.len(),
                 verified.fee_zat,
                 verified.change_total_zat,
                 verified.spends_to_sign.len()
             );
+            if approved.completed {
+                println!("signatures complete: ready to send");
+            }
+        }
+        Command::Pool => {
+            let material = home.material()?;
+            let mut pool = FilePoolStore::new(home.path("pool"));
+            let n = node::top_up_pool(&relay, &home.identity()?, &material, &mut pool, &mut rng)
+                .await?;
+            println!("published {n} commitment(s)");
+        }
+        Command::Send { proposal } => {
+            let material = home.material()?;
+            let tip = tip(&home, &material, &cli.lightwalletd).await?;
+            let mut client = connect(&cli.lightwalletd).await?;
+            let txid = node::send_ready(
+                &relay,
+                &home.identity()?,
+                &material,
+                &network(),
+                tip,
+                parse_proposal(&proposal)?,
+                &mut client,
+                &mut rng,
+            )
+            .await?;
+            println!("broadcast txid {}", hex_txid(&txid));
         }
         Command::Reject { proposal } => {
             node::reject(

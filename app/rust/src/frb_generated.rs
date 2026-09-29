@@ -503,6 +503,7 @@ fn wire__crate__api__proposals__propose_payment_impl(
             let api_material = <Vec<u8>>::sse_decode(&mut deserializer);
             let api_payments =
                 <Vec<crate::api::proposals::PaymentInput>>::sse_decode(&mut deserializer);
+            let api_auto_send = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, crate::api::error::ZafeError>((move || {
@@ -513,6 +514,7 @@ fn wire__crate__api__proposals__propose_payment_impl(
                         api_seeds,
                         api_material,
                         api_payments,
+                        api_auto_send,
                     )?;
                     Ok(output_ok)
                 })())
@@ -892,6 +894,20 @@ impl SseDecode for crate::api::proposals::AddressCheck {
     }
 }
 
+impl SseDecode for crate::api::proposals::ApproveResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_signed = <bool>::sse_decode(deserializer);
+        let mut var_completed = <bool>::sse_decode(deserializer);
+        let mut var_autoSend = <bool>::sse_decode(deserializer);
+        return crate::api::proposals::ApproveResult {
+            signed: var_signed,
+            completed: var_completed,
+            auto_send: var_autoSend,
+        };
+    }
+}
+
 impl SseDecode for crate::api::vault::Balance {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1132,6 +1148,10 @@ impl SseDecode for crate::api::proposals::ProposalInfo {
         let mut var_createdAt = <u64>::sse_decode(deserializer);
         let mut var_txid = <Option<String>>::sse_decode(deserializer);
         let mut var_signingStarted = <bool>::sse_decode(deserializer);
+        let mut var_oneTap = <bool>::sse_decode(deserializer);
+        let mut var_ready = <bool>::sse_decode(deserializer);
+        let mut var_completedByMe = <bool>::sse_decode(deserializer);
+        let mut var_autoSend = <bool>::sse_decode(deserializer);
         return crate::api::proposals::ProposalInfo {
             id: var_id,
             author: var_author,
@@ -1147,6 +1167,10 @@ impl SseDecode for crate::api::proposals::ProposalInfo {
             created_at: var_createdAt,
             txid: var_txid,
             signing_started: var_signingStarted,
+            one_tap: var_oneTap,
+            ready: var_ready,
+            completed_by_me: var_completedByMe,
+            auto_send: var_autoSend,
         };
     }
 }
@@ -1378,6 +1402,28 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::proposals::AddressCheck>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::proposals::ApproveResult {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.signed.into_into_dart().into_dart(),
+            self.completed.into_into_dart().into_dart(),
+            self.auto_send.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::proposals::ApproveResult
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::proposals::ApproveResult>
+    for crate::api::proposals::ApproveResult
+{
+    fn into_into_dart(self) -> crate::api::proposals::ApproveResult {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::vault::Balance {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -1539,6 +1585,10 @@ impl flutter_rust_bridge::IntoDart for crate::api::proposals::ProposalInfo {
             self.created_at.into_into_dart().into_dart(),
             self.txid.into_into_dart().into_dart(),
             self.signing_started.into_into_dart().into_dart(),
+            self.one_tap.into_into_dart().into_dart(),
+            self.ready.into_into_dart().into_dart(),
+            self.completed_by_me.into_into_dart().into_dart(),
+            self.auto_send.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -1755,6 +1805,15 @@ impl SseEncode for crate::api::proposals::AddressCheck {
     }
 }
 
+impl SseEncode for crate::api::proposals::ApproveResult {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.signed, serializer);
+        <bool>::sse_encode(self.completed, serializer);
+        <bool>::sse_encode(self.auto_send, serializer);
+    }
+}
+
 impl SseEncode for crate::api::vault::Balance {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -1948,6 +2007,10 @@ impl SseEncode for crate::api::proposals::ProposalInfo {
         <u64>::sse_encode(self.created_at, serializer);
         <Option<String>>::sse_encode(self.txid, serializer);
         <bool>::sse_encode(self.signing_started, serializer);
+        <bool>::sse_encode(self.one_tap, serializer);
+        <bool>::sse_encode(self.ready, serializer);
+        <bool>::sse_encode(self.completed_by_me, serializer);
+        <bool>::sse_encode(self.auto_send, serializer);
     }
 }
 

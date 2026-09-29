@@ -32,7 +32,13 @@ final _routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final vault = ref.read(vaultProvider);
       final loc = state.matchedLocation;
-      final inVault = const ['/home', '/receive', '/send', '/proposal', '/settings'].any(loc.startsWith);
+      final inVault = const [
+        '/home',
+        '/receive',
+        '/send',
+        '/proposal',
+        '/settings',
+      ].any(loc.startsWith);
       if (vault.hasVault && !inVault) return '/home';
       if (!vault.hasVault && inVault) {
         return vault.isSettingUp ? '/setup' : '/welcome';
@@ -40,17 +46,33 @@ final _routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(path: '/welcome', pageBuilder: (_, _) => page(const WelcomeScreen())),
-      GoRoute(path: '/create', pageBuilder: (_, _) => page(const CreateVaultScreen())),
-      GoRoute(path: '/join', pageBuilder: (_, _) => page(const JoinVaultScreen())),
+      GoRoute(
+        path: '/welcome',
+        pageBuilder: (_, _) => page(const WelcomeScreen()),
+      ),
+      GoRoute(
+        path: '/create',
+        pageBuilder: (_, _) => page(const CreateVaultScreen()),
+      ),
+      GoRoute(
+        path: '/join',
+        pageBuilder: (_, _) => page(const JoinVaultScreen()),
+      ),
       GoRoute(path: '/setup', pageBuilder: (_, _) => page(const SetupScreen())),
       GoRoute(path: '/home', pageBuilder: (_, _) => page(const HomeScreen())),
-      GoRoute(path: '/receive', pageBuilder: (_, _) => page(const ReceiveScreen())),
-      GoRoute(path: '/settings', pageBuilder: (_, _) => page(const SettingsScreen())),
+      GoRoute(
+        path: '/receive',
+        pageBuilder: (_, _) => page(const ReceiveScreen()),
+      ),
+      GoRoute(
+        path: '/settings',
+        pageBuilder: (_, _) => page(const SettingsScreen()),
+      ),
       GoRoute(path: '/send', pageBuilder: (_, _) => page(const SendScreen())),
       GoRoute(
         path: '/proposal/:id',
-        pageBuilder: (_, state) => page(ProposalScreen(id: state.pathParameters['id']!)),
+        pageBuilder: (_, state) =>
+            page(ProposalScreen(id: state.pathParameters['id']!)),
       ),
     ],
   );

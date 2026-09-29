@@ -35,6 +35,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AddressCheck dco_decode_address_check(dynamic raw);
 
   @protected
+  ApproveResult dco_decode_approve_result(dynamic raw);
+
+  @protected
   Balance dco_decode_balance(dynamic raw);
 
   @protected
@@ -152,6 +155,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   AddressCheck sse_decode_address_check(SseDeserializer deserializer);
+
+  @protected
+  ApproveResult sse_decode_approve_result(SseDeserializer deserializer);
 
   @protected
   Balance sse_decode_balance(SseDeserializer deserializer);
@@ -281,6 +287,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_address_check(AddressCheck self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_approve_result(ApproveResult self, SseSerializer serializer);
 
   @protected
   void sse_encode_balance(Balance self, SseSerializer serializer);
