@@ -23,6 +23,8 @@ use axum::{
     Router,
 };
 use rusqlite::{params, Connection, OptionalExtension};
+pub mod fcm;
+
 use zafe_proto::{
     log::GENESIS_PREV_HASH,
     relay::{
@@ -512,33 +514,40 @@ async fn post_envelope(State(relay): State<Relay>, body: Bytes) -> RelayResult {
     }
 
     // Collect push tokens for the recipients before releasing the database.
-    let mut pushes = Vec::new();
-    {
-        let mut stmt = tx.prepare(
-            "SELECT platform, token FROM push_tokens WHERE mailbox = ?1 AND member = ?2",
-        )?;
-        for recipient in &recipients {
-            if let Some((platform, token)) = stmt
-                .query_row(params![&h.mailbox[..], &recipient[..]], |r| {
-                    Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
-                })
-                .optional()?
-            {
-                let platform = if platform == "apns" {
-                    PushPlatform::Apns
-                } else {
-                    PushPlatform::Fcm
-                };
-                pushes.push((platform, token));
-            }
-        }
-    }
+    let pushes = push_tokens(&tx, &h.mailbox, recipients.iter())?;
     tx.commit()?;
     drop(db);
     for (platform, token) in pushes {
         relay.notifier.notify(platform, &token);
     }
     ok(&())
+}
+
+/// Registered push tokens of `members` in `mailbox`.
+fn push_tokens<'a>(
+    tx: &rusqlite::Transaction<'_>,
+    mailbox: &MailboxId,
+    members: impl Iterator<Item = &'a [u8; 32]>,
+) -> Result<Vec<(PushPlatform, String)>, RelayError> {
+    let mut stmt =
+        tx.prepare("SELECT platform, token FROM push_tokens WHERE mailbox = ?1 AND member = ?2")?;
+    let mut out = Vec::new();
+    for member in members {
+        if let Some((platform, token)) = stmt
+            .query_row(params![&mailbox[..], &member[..]], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+            })
+            .optional()?
+        {
+            let platform = if platform == "apns" {
+                PushPlatform::Apns
+            } else {
+                PushPlatform::Fcm
+            };
+            out.push((platform, token));
+        }
+    }
+    Ok(out)
 }
 
 async fn inbox(State(relay): State<Relay>, body: Bytes) -> RelayResult {
@@ -612,7 +621,19 @@ async fn log_append(State(relay): State<Relay>, body: Bytes) -> RelayResult {
         "INSERT INTO log_entries (mailbox, idx, entry, hash) VALUES (?1, ?2, ?3, ?4)",
         params![&h.mailbox[..], len, &body[..], &hash[..]],
     )?;
+    // Every other member learns there is vault activity (a proposal, a vote, a send...);
+    // the push carries nothing else, the app reads the encrypted log itself.
+    let others: Vec<[u8; 32]> = members_of(&tx, &h.mailbox)?
+        .iter()
+        .map(|m| m.sig_pk)
+        .filter(|pk| *pk != h.author)
+        .collect();
+    let pushes = push_tokens(&tx, &h.mailbox, others.iter())?;
     tx.commit()?;
+    drop(db);
+    for (platform, token) in pushes {
+        relay.notifier.notify(platform, &token);
+    }
     ok(&AppendResult::Appended { index: len as u64 })
 }
 

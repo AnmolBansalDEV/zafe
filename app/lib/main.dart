@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'src/app.dart';
+import 'src/notifications/vault_watch.dart';
 import 'src/providers/vault_provider.dart';
 import 'src/rust/frb_generated.dart';
 
@@ -24,6 +25,7 @@ Future<void> main() async {
     }
   });
   await RustLib.init();
+  await initVaultNotifications();
   final bootstrap = await VaultBootstrap.load();
   runApp(
     ProviderScope(

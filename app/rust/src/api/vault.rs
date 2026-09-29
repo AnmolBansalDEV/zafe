@@ -279,3 +279,28 @@ pub fn sync_vault(
         })
     })
 }
+
+/// Registers this device's push token (FCM on Android, APNs on iOS) for the vault, so the
+/// relay can wake it on vault activity. Pushes carry no content.
+pub fn register_push(
+    relay_url: String,
+    seeds: Vec<u8>,
+    material: Vec<u8>,
+    platform: String,
+    token: String,
+) -> Result<(), ZafeError> {
+    let me = identity(&seeds)?;
+    let m = self::material(&material)?;
+    let platform = match platform.as_str() {
+        "fcm" => zafe_proto::relay::PushPlatform::Fcm,
+        "apns" => zafe_proto::relay::PushPlatform::Apns,
+        other => return Err(ZafeError::invalid(format!("unknown push platform {other}"))),
+    };
+    runtime().block_on(RelayClient::new(relay_url).register_push(
+        &me,
+        m.descriptor.vault_id,
+        platform,
+        token,
+    ))?;
+    Ok(())
+}

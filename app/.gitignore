@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase project config (each deployment brings its own; enables FCM pushes)
+/android/app/google-services.json
+/ios/Runner/GoogleService-Info.plist

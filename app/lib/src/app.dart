@@ -15,6 +15,7 @@ import 'features/receive/receive_screen.dart';
 import 'features/send/send_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'providers/theme_mode_provider.dart';
+import 'notifications/vault_watch.dart';
 import 'providers/vault_provider.dart';
 
 final _routerProvider = Provider<GoRouter>((ref) {
@@ -27,7 +28,20 @@ final _routerProvider = Provider<GoRouter>((ref) {
 
   Page<void> page(Widget child) => CupertinoPage(child: child);
 
-  return GoRouter(
+  late final GoRouter router;
+  // Tapped notifications open their payment (also the one that launched the app).
+  void openTapped() {
+    final id = notificationTaps.value;
+    if (id == null || !ref.read(vaultProvider).hasVault) return;
+    notificationTaps.value = null;
+    router.push('/proposal/$id');
+  }
+
+  notificationTaps.addListener(openTapped);
+  ref.onDispose(() => notificationTaps.removeListener(openTapped));
+  WidgetsBinding.instance.addPostFrameCallback((_) => openTapped());
+
+  return router = GoRouter(
     initialLocation: initial,
     redirect: (context, state) {
       final vault = ref.read(vaultProvider);

@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Relay and lightwalletd. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Vault activity notifications (Android 13+ asks the user). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="Zafe"
         android:name="${applicationName}"

@@ -14,6 +14,7 @@ import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/app_tappable.dart';
 import '../../core/widgets/app_toast.dart';
+import '../../notifications/vault_watch.dart';
 import '../../providers/privacy_mode_provider.dart';
 import '../../providers/proposals_provider.dart';
 import '../../core/privacy/privacy_mask.dart';
@@ -28,14 +29,33 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
   Timer? _poll;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     Future.microtask(_refresh);
     _poll = Timer.periodic(const Duration(seconds: 15), (_) => _refresh());
+    // A vault exists from here on: notifications, background checks, push.
+    unawaited(startVaultWatch());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      // Stop polling while in the background (the process may stay alive): background
+      // checks and pushes take over, and only they may announce new activity.
+      _poll?.cancel();
+      _poll = null;
+      unawaited(scheduleSoonCheck());
+    }
+    if (state == AppLifecycleState.resumed) {
+      _poll ??= Timer.periodic(const Duration(seconds: 15), (_) => _refresh());
+      unawaited(_refresh());
+    }
   }
 
   Future<void> _refresh() async {
@@ -47,6 +67,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _poll?.cancel();
     super.dispose();
   }

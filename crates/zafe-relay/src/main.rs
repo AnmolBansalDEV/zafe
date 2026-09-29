@@ -2,6 +2,8 @@
 //!
 //! - `ZAFE_RELAY_LISTEN` (default `127.0.0.1:8787`)
 //! - `ZAFE_RELAY_DB`: SQLite file (default `zafe-relay.sqlite`; `:memory:` for none)
+//! - `ZAFE_FCM_SERVICE_ACCOUNT`: path to a Firebase service-account JSON key; enables
+//!   Android pushes (otherwise pushes are only logged)
 
 use std::{path::Path, time::Duration};
 
@@ -16,6 +18,19 @@ async fn main() -> std::io::Result<()> {
         zafe_relay::Relay::new()
     } else {
         zafe_relay::Relay::open(Path::new(&db)).map_err(std::io::Error::other)?
+    };
+
+    let relay = match std::env::var("ZAFE_FCM_SERVICE_ACCOUNT") {
+        Ok(path) => {
+            let json = std::fs::read_to_string(&path)?;
+            let account =
+                zafe_relay::fcm::ServiceAccount::from_json(&json).map_err(std::io::Error::other)?;
+            tracing::info!("FCM pushes enabled for project {}", account.project_id);
+            relay.with_notifier(std::sync::Arc::new(zafe_relay::fcm::FcmNotifier::new(
+                account,
+            )))
+        }
+        Err(_) => relay,
     };
 
     // Hourly retention pruning of old undelivered envelopes.

@@ -1,0 +1,308 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/widgets.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:workmanager/workmanager.dart';
+
+import '../core/config/network_config.dart';
+import '../core/errors/zafe_error_copy.dart';
+import '../core/storage/zafe_paths.dart';
+import '../core/storage/zafe_secure_store.dart';
+import '../providers/privacy_mode_provider.dart' show kPrivacyModeKey;
+import '../rust/api/proposals.dart' as rust;
+import '../rust/api/vault.dart' as rust_vault;
+import '../rust/frb_generated.dart';
+import 'vault_updates.dart';
+
+/// Vault notifications (spec §6.1). The relay is blind: a push (FCM) or a periodic
+/// background check (WorkManager) only wakes the app; it then reads the encrypted vault
+/// log itself and shows local notifications for what changed since it last looked.
+
+const kVaultCheckTask = 'zafe.vault_check';
+const _channelId = 'vault_activity';
+const _channelName = 'Vault activity';
+
+final _notifications = FlutterLocalNotificationsPlugin();
+
+/// Proposal ids from tapped notifications, for the router to open.
+final notificationTaps = ValueNotifier<String?>(null);
+
+@pragma('vm:entry-point')
+void workmanagerDispatcher() {
+  Workmanager().executeTask((task, input) async {
+    await checkVaultAndNotify();
+    return true;
+  });
+}
+
+@pragma('vm:entry-point')
+Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
+  await checkVaultAndNotify();
+}
+
+Future<void> _initNotifications() async {
+  await _notifications.initialize(
+    settings: const InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      iOS: DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      ),
+    ),
+    onDidReceiveNotificationResponse: (r) {
+      if (r.payload != null) notificationTaps.value = r.payload;
+    },
+  );
+}
+
+/// Main isolate, before the first frame: notification tap handling and the proposal a
+/// tapped notification launched the app with.
+Future<void> initVaultNotifications() async {
+  await _initNotifications();
+  final launch = await _notifications.getNotificationAppLaunchDetails();
+  if (launch?.didNotificationLaunchApp ?? false) {
+    notificationTaps.value = launch!.notificationResponse?.payload;
+  }
+}
+
+/// Once a vault exists: ask for notification permission, schedule the periodic background
+/// check, and register for pushes when Firebase is configured.
+Future<void> startVaultWatch() async {
+  await _notifications
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >()
+      ?.requestNotificationsPermission();
+  if (Platform.isAndroid) {
+    await Workmanager().initialize(workmanagerDispatcher);
+    await Workmanager().registerPeriodicTask(
+      'zafe-vault-check',
+      kVaultCheckTask,
+      frequency: const Duration(minutes: 15),
+      constraints: Constraints(networkType: NetworkType.connected),
+      existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+    );
+  }
+  await _registerPush();
+}
+
+/// When the app goes to the background: check again soon, so a proposal made while the
+/// member just looked away still gets announced without waiting for the periodic check.
+Future<void> scheduleSoonCheck() async {
+  if (!Platform.isAndroid) return;
+  await Workmanager().registerOneOffTask(
+    'zafe-vault-check-soon',
+    kVaultCheckTask,
+    initialDelay: const Duration(minutes: 1),
+    constraints: Constraints(networkType: NetworkType.connected),
+    existingWorkPolicy: ExistingWorkPolicy.replace,
+  );
+}
+
+/// FCM: only when the app was built with a Firebase config (google-services.json).
+Future<void> _registerPush() async {
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {
+    debugPrint('push: Firebase not configured; relying on background checks');
+    return;
+  }
+  final messaging = FirebaseMessaging.instance;
+  FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
+  await messaging.requestPermission();
+  Future<void> register(String token) async {
+    final store = ZafeSecureStore.instance;
+    final seeds = await store.readIdentity();
+    final material = await store.readMaterial();
+    if (seeds == null || material == null) return;
+    try {
+      await rust_vault.registerPush(
+        relayUrl: kZafeRelayUrl,
+        seeds: seeds,
+        material: material,
+        platform: Platform.isIOS ? 'apns' : 'fcm',
+        token: token,
+      );
+    } catch (e) {
+      debugPrint('push: register failed: ${describeError(e)}');
+    }
+  }
+
+  final token = await messaging.getToken();
+  if (token != null) await register(token);
+  messaging.onTokenRefresh.listen(register);
+}
+
+Future<File> _seenFile() async {
+  final dir = await getApplicationSupportDirectory();
+  return File('${dir.path}/notifications/seen.json');
+}
+
+Future<SeenSnapshot?> _readSeen() async {
+  final f = await _seenFile();
+  if (!await f.exists()) return null;
+  try {
+    return Map<String, String>.from(jsonDecode(await f.readAsString()) as Map);
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Records what this device has seen (also called by the app on every refresh, so things
+/// seen in the app are never announced again from the background).
+Future<void> recordSeen(List<rust.ProposalInfo> proposals) async {
+  final f = await _seenFile();
+  await f.parent.create(recursive: true);
+  final tmp = File('${f.path}.tmp');
+  await tmp.writeAsString(jsonEncode(snapshotOf(proposals)));
+  await tmp.rename(f.path);
+}
+
+bool _rustReady = false;
+
+Future<void> _ensureRust() async {
+  if (_rustReady) return;
+  try {
+    await RustLib.init();
+  } catch (_) {
+    // Already initialized on this isolate (one-off tasks can run on the main engine).
+  }
+  _rustReady = true;
+}
+
+/// The background check: sync, read the vault log, answer interactive signing requests,
+/// finish an auto-send this member owes, and notify about changes. Never throws.
+Future<void> checkVaultAndNotify() async {
+  // One check at a time: the periodic task, the one-off after backgrounding and a push can
+  // fire together (seen on the emulator); a lock older than 5 minutes is stale.
+  final lock = File(
+    '${(await getApplicationSupportDirectory()).path}/notifications/check.lock',
+  );
+  try {
+    await lock.parent.create(recursive: true);
+    if (await lock.exists() &&
+        DateTime.now().difference(await lock.lastModified()) <
+            const Duration(minutes: 5)) {
+      return;
+    }
+    await lock.writeAsString('${DateTime.now()}');
+  } catch (_) {}
+  try {
+    await _check();
+  } finally {
+    try {
+      await lock.delete();
+    } catch (_) {}
+  }
+}
+
+Future<void> _check() async {
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
+    await _ensureRust();
+    await _initNotifications();
+    final store = ZafeSecureStore.instance;
+    final seeds = await store.readIdentity();
+    final material = await store.readMaterial();
+    if (seeds == null || material == null) {
+      debugPrint(
+        'vault check: no vault on this device (identity ${seeds != null}, material ${material != null})',
+      );
+      return;
+    }
+    final paths = await ZafePaths.get();
+    debugPrint('vault check: running');
+    final summary = rust_vault.vaultSummary(material: material);
+
+    try {
+      await rust_vault.syncVault(
+        dbDir: paths.dbDir,
+        lightwalletdUrl: kZafeLightwalletdUrl,
+        material: material,
+      );
+    } catch (_) {}
+    var proposals = await rust.listProposals(
+      relayUrl: kZafeRelayUrl,
+      stateDir: paths.stateDir,
+      seeds: seeds,
+      material: material,
+    );
+    try {
+      await rust.answerSigningRequests(
+        relayUrl: kZafeRelayUrl,
+        lightwalletdUrl: kZafeLightwalletdUrl,
+        dbDir: paths.dbDir,
+        stateDir: paths.stateDir,
+        seeds: seeds,
+        material: material,
+      );
+    } catch (_) {}
+
+    // An approval this member made completed the signatures, but the app closed before
+    // sending: send now.
+    for (final p in proposals) {
+      if (p.stage == rust.ProposalStage.approved &&
+          p.ready &&
+          p.autoSend &&
+          p.completedByMe) {
+        try {
+          await rust
+              .sendProposal(
+                relayUrl: kZafeRelayUrl,
+                lightwalletdUrl: kZafeLightwalletdUrl,
+                dbDir: paths.dbDir,
+                stateDir: paths.stateDir,
+                seeds: seeds,
+                material: material,
+                proposalId: p.id,
+              )
+              .drain<void>();
+        } catch (_) {}
+      }
+    }
+    proposals = await rust.listProposals(
+      relayUrl: kZafeRelayUrl,
+      stateDir: paths.stateDir,
+      seeds: seeds,
+      material: material,
+    );
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    final updates = vaultUpdates(
+      previous: await _readSeen(),
+      proposals: proposals,
+      vaultName: summary.name,
+      hideAmounts: prefs.getBool(kPrivacyModeKey) ?? false,
+    );
+    for (final u in updates) {
+      await _notifications.show(
+        id: u.proposalId.hashCode & 0x7fffffff,
+        title: u.title,
+        body: u.body,
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            _channelId,
+            _channelName,
+            channelDescription:
+                'Payments that need you, and payments sent or rejected',
+            importance: Importance.high,
+            priority: Priority.high,
+          ),
+          iOS: DarwinNotificationDetails(),
+        ),
+        payload: u.proposalId,
+      );
+    }
+    await recordSeen(proposals);
+    debugPrint('vault check: ${updates.length} notification(s)');
+  } catch (e) {
+    debugPrint('vault check failed: ${describeError(e)}');
+  }
+}

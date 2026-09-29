@@ -63,6 +63,12 @@ impl From<NodeError> for ZafeError {
     }
 }
 
+impl From<RelayClientError> for ZafeError {
+    fn from(e: RelayClientError) -> Self {
+        NodeError::Relay(e).into()
+    }
+}
+
 impl From<WalletError> for ZafeError {
     fn from(e: WalletError) -> Self {
         let kind = match &e {

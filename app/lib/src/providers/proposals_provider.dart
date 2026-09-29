@@ -1,11 +1,12 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/config/network_config.dart';
 import '../core/errors/zafe_error_copy.dart';
 import '../core/storage/zafe_paths.dart';
+import '../notifications/vault_watch.dart' show recordSeen;
 import '../rust/api/proposals.dart' as rust;
 import 'vault_provider.dart';
 
@@ -93,6 +94,11 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
         material: vault.material!,
       );
       state = state.copyWith(items: items, loaded: true, clearError: true);
+      // Seen on screen: never announced from the background. Only while the app is in
+      // the foreground; a refresh running in the background must not swallow news.
+      if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        unawaited(recordSeen(items));
+      }
       _autoSend();
       await _answerRequests(paths);
     } catch (e) {

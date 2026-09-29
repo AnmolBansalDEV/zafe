@@ -60,31 +60,43 @@ fn clock(now: &Arc<AtomicU64>) -> Arc<dyn Fn() -> u64 + Send + Sync> {
 
 /// Creates a sealed 2-member mailbox with one envelope and one log entry.
 async fn populate(app: &Router, ids: &[Identity], rng: &mut StdRng) -> LogKey {
+    populate_with_head(app, ids, rng).await.0
+}
+
+/// Creates the mailbox with all `ids` as members, sends one envelope and appends the
+/// first log entry. Returns the log key and the first entry's hash (the log head).
+async fn populate_with_head(
+    app: &Router,
+    ids: &[Identity],
+    rng: &mut StdRng,
+) -> (LogKey, [u8; 32]) {
     let mut token = [0u8; 32];
     rng.fill_bytes(&mut token);
     let create = CreateMailbox {
         mailbox: MAILBOX,
         join_token_hash: join_token_hash(&token),
-        max_members: 2,
+        max_members: ids.len() as u16,
     };
     assert_eq!(
         signed(app, "/v1/mailbox/create", &ids[0], create).await.0,
         StatusCode::OK
     );
-    assert_eq!(
-        signed(
-            app,
-            "/v1/mailbox/join",
-            &ids[1],
-            Join {
-                mailbox: MAILBOX,
-                join_token: token
-            }
-        )
-        .await
-        .0,
-        StatusCode::OK
-    );
+    for id in &ids[1..] {
+        assert_eq!(
+            signed(
+                app,
+                "/v1/mailbox/join",
+                id,
+                Join {
+                    mailbox: MAILBOX,
+                    join_token: token
+                }
+            )
+            .await
+            .0,
+            StatusCode::OK
+        );
+    }
     let members = ids.iter().map(|i| i.public().sig_pk).collect();
     assert_eq!(
         signed(
@@ -121,7 +133,7 @@ async fn populate(app: &Router, ids: &[Identity], rng: &mut StdRng) -> LogKey {
         decode_body::<AppendResult>(&body).unwrap(),
         AppendResult::Appended { index: 0 }
     );
-    key
+    (key, entry.hash().unwrap())
 }
 
 async fn inbox_len(app: &Router, who: &Identity, now: u64) -> usize {
@@ -310,5 +322,48 @@ async fn deliveries_push_to_registered_recipients_only() {
     assert_eq!(
         *recorder.0.lock().unwrap(),
         vec![(PushPlatform::Fcm, "fcm-token-B".to_owned())]
+    );
+}
+
+#[tokio::test]
+async fn log_appends_push_every_other_member() {
+    let now = Arc::new(AtomicU64::new(T0));
+    let recorder = Arc::new(Recorder::default());
+    let app = Relay::with_clock(clock(&now))
+        .with_notifier(recorder.clone())
+        .router();
+    let mut rng = StdRng::seed_from_u64(4);
+    let ids: Vec<Identity> = (0..3).map(|_| Identity::generate(&mut rng)).collect();
+    let (key, head) = populate_with_head(&app, &ids[..3], &mut rng).await;
+    recorder.0.lock().unwrap().clear();
+    for (i, token) in ["tok-0", "tok-1", "tok-2"].iter().enumerate() {
+        let req = RegisterPush {
+            mailbox: MAILBOX,
+            platform: PushPlatform::Fcm,
+            token: (*token).into(),
+        };
+        assert_eq!(
+            signed(&app, "/v1/push/register", &ids[i], req).await.0,
+            StatusCode::OK
+        );
+    }
+    let entry = LogEntry::create(&ids[1], &key, MAILBOX, 1, head, b"vote", &mut rng).unwrap();
+    let (_, body) = call(&app, "/v1/log/append", encode_body(&entry).unwrap()).await;
+    assert_eq!(
+        decode_body::<AppendResult>(&body).unwrap(),
+        AppendResult::Appended { index: 1 }
+    );
+    let mut pushed: Vec<String> = recorder
+        .0
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|(_, t)| t.clone())
+        .collect();
+    pushed.sort();
+    assert_eq!(
+        pushed,
+        vec!["tok-0".to_owned(), "tok-2".to_owned()],
+        "author is not pushed"
     );
 }

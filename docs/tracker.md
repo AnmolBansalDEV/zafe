@@ -23,9 +23,13 @@ Last updated: 2026-09-29 (one-tap approvals; Vizor upstream ideas from `4bff2e7`
    Follow-ups below. ~~**Auto-submit when the threshold is reached.** The member whose approval completes
    the threshold (known from log order, so exactly one per proposal) starts "collect
    signatures & send" automatically. The manual button stays as the fallback. ~1 day.~~
-2. [ ] **Push notifications** so co-signers sign without opening the app: relay `Notifier`
-   → APNs/FCM, and round 2 in the iOS Notification Service Extension / Android FCM handler
-   (spec V8: 12 ms, 6.8 MB fits). Needs Keychain access-group sharing on iOS.
+2. [~] **Notifications** (in progress 2026-09-29): relay pushes on every log append
+   (FCM sender done, tested against a mock); app shows local notifications from a
+   background check (WorkManager 15 min, FCM wake-up, one-off after backgrounding) and
+   opens the payment on tap. **(you)** Create the Firebase project: `google-services.json`
+   → `app/android/app/`, service-account key → relay `ZAFE_FCM_SERVICE_ACCOUNT`.
+   Open: APNs sender + iOS (NSE), pruning dead FCM tokens (404 UNREGISTERED), relay-client
+   TLS (the app's reqwest has no TLS features, so it can't reach an https relay yet).
 3. [ ] **Tor** (as in Vizor `rust/src/network_privacy.rs`): `zcash_client_backend` `tor`
    feature (arti), process-wide fail-closed route policy, bootstrap timeout, dormant when
    backgrounded; route both lightwalletd and the relay (relay client moves off reqwest).

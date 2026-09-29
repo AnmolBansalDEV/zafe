@@ -102,6 +102,22 @@ Future<Balance> syncVault({
   material: material,
 );
 
+/// Registers this device's push token (FCM on Android, APNs on iOS) for the vault, so the
+/// relay can wake it on vault activity. Pushes carry no content.
+Future<void> registerPush({
+  required String relayUrl,
+  required List<int> seeds,
+  required List<int> material,
+  required String platform,
+  required String token,
+}) => RustLib.instance.api.crateApiVaultRegisterPush(
+  relayUrl: relayUrl,
+  seeds: seeds,
+  material: material,
+  platform: platform,
+  token: token,
+);
+
 class Balance {
   final int height;
   final BigInt spendableZat;
