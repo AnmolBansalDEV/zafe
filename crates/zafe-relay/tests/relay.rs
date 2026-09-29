@@ -13,7 +13,8 @@ use tower::ServiceExt;
 use zafe_proto::{
     relay::{
         decode_body, encode_body, join_token_hash, AppendResult, CreateMailbox, InboxRead,
-        InboxResponse, Join, LogRead, LogResponse, MembersRead, MembersResponse, Seal, Signed,
+        InboxResponse, Join, LogRead, LogResponse, MembersRead, MembersResponse, Remove, Seal,
+        Signed,
     },
     Chain, Envelope, Identity, Kind, LogEntry, LogKey,
 };
@@ -74,6 +75,7 @@ impl World {
         let create = CreateMailbox {
             mailbox: MAILBOX,
             join_token_hash: join_token_hash(&token),
+            max_members: 3,
         };
         assert_eq!(
             signed(&app, "/v1/mailbox/create", &ids[0], create).await.0,
@@ -393,4 +395,69 @@ async fn log_appends_must_extend_the_head() {
     }
     assert_eq!(chain.len(), 2);
     assert_eq!(chain.entries()[1].decrypt(&key).unwrap(), b"proposal A");
+}
+
+#[tokio::test]
+async fn member_cap_and_creator_removal() {
+    let w = World::new(false).await;
+    // Mailbox is full (3 of 3): a fourth identity with the right token is refused.
+    let full = signed(
+        &w.app,
+        "/v1/mailbox/join",
+        &w.ids[3],
+        Join {
+            mailbox: MAILBOX,
+            join_token: w.token,
+        },
+    )
+    .await;
+    assert_eq!(full.0, StatusCode::FORBIDDEN);
+
+    // Only the creator can remove, and only before sealing; the creator cannot be removed.
+    let by_member = signed(
+        &w.app,
+        "/v1/mailbox/remove",
+        &w.ids[1],
+        Remove {
+            mailbox: MAILBOX,
+            member: w.ids[2].public().sig_pk,
+        },
+    )
+    .await;
+    assert_eq!(by_member.0, StatusCode::FORBIDDEN);
+    let creator_self = signed(
+        &w.app,
+        "/v1/mailbox/remove",
+        &w.ids[0],
+        Remove {
+            mailbox: MAILBOX,
+            member: w.ids[0].public().sig_pk,
+        },
+    )
+    .await;
+    assert_eq!(creator_self.0, StatusCode::FORBIDDEN);
+    let ok = signed(
+        &w.app,
+        "/v1/mailbox/remove",
+        &w.ids[0],
+        Remove {
+            mailbox: MAILBOX,
+            member: w.ids[2].public().sig_pk,
+        },
+    )
+    .await;
+    assert_eq!(ok.0, StatusCode::OK);
+
+    // A slot is free again.
+    let joined = signed(
+        &w.app,
+        "/v1/mailbox/join",
+        &w.ids[3],
+        Join {
+            mailbox: MAILBOX,
+            join_token: w.token,
+        },
+    )
+    .await;
+    assert_eq!(joined.0, StatusCode::OK);
 }

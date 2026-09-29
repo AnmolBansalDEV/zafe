@@ -6,7 +6,8 @@ use serde::{de::DeserializeOwned, Serialize};
 use zafe_proto::{
     relay::{
         decode_body, encode_body, join_token_hash, AppendResult, CreateMailbox, InboxRead,
-        InboxResponse, Join, LogRead, LogResponse, MembersRead, MembersResponse, Seal, Signed,
+        InboxResponse, Join, LogRead, LogResponse, MembersRead, MembersResponse, Remove, Seal,
+        Signed,
     },
     Envelope, Identity, LogEntry, MailboxId,
 };
@@ -87,8 +88,10 @@ impl RelayClient {
         creator: &Identity,
         mailbox: MailboxId,
         join_token: &[u8; 32],
+        max_members: u16,
     ) -> Result<(), RelayClientError> {
         let payload = CreateMailbox {
+            max_members,
             mailbox,
             join_token_hash: join_token_hash(join_token),
         };
@@ -119,6 +122,17 @@ impl RelayClient {
         members: Vec<[u8; 32]>,
     ) -> Result<(), RelayClientError> {
         self.signed("/v1/mailbox/seal", creator, Seal { mailbox, members })
+            .await
+    }
+
+    /// Creator only, before sealing: removes a joined member.
+    pub async fn remove(
+        &self,
+        creator: &Identity,
+        mailbox: MailboxId,
+        member: [u8; 32],
+    ) -> Result<(), RelayClientError> {
+        self.signed("/v1/mailbox/remove", creator, Remove { mailbox, member })
             .await
     }
 

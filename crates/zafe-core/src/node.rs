@@ -162,7 +162,9 @@ pub async fn create_vault<R: RngCore + CryptoRng>(
     rng.fill_bytes(&mut mailbox);
     rng.fill_bytes(&mut join_token);
     KeygenParams::new(mailbox, threshold, members).map_err(proto)?;
-    relay.create_mailbox(creator, mailbox, &join_token).await?;
+    relay
+        .create_mailbox(creator, mailbox, &join_token, members)
+        .await?;
     Ok(Invite {
         mailbox,
         join_token,
@@ -245,16 +247,21 @@ fn kind_tag(kind: Kind) -> u8 {
 
 impl Inbox<'_> {
     async fn poll(&mut self) -> Result<(), NodeError> {
-        for (cursor, envelope) in self.relay.inbox(self.me, self.mailbox, self.cursor).await? {
+        for (cursor, sender, envelope) in read_inbox(
+            self.relay,
+            self.me,
+            self.mailbox,
+            &self.members,
+            self.cursor,
+        )
+        .await?
+        {
             self.cursor = cursor;
-            let Some(sender) = self.members.get(&envelope.header.from) else {
-                continue;
-            };
-            if let Ok(payload) = envelope.open(self.me, sender) {
-                self.received.insert(
-                    (kind_tag(envelope.header.kind), envelope.header.from),
-                    payload,
-                );
+            if let Ok(payload) = envelope.open(self.me, &sender) {
+                // First message of each kind from each sender wins; later copies are ignored.
+                self.received
+                    .entry((kind_tag(envelope.header.kind), envelope.header.from))
+                    .or_insert(payload);
             }
         }
         Ok(())
@@ -617,7 +624,68 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
     })
 }
 
+// --- Relay reads -------------------------------------------------------------------------
+
+/// Reads every envelope delivered to `me` after `after`, following pagination. Envelopes
+/// for another mailbox, from non-members, with bad signatures, or replayed/reordered
+/// (non-increasing seq per sender) are dropped. Returns `(cursor, sender, envelope)`.
+pub async fn read_inbox(
+    relay: &RelayClient,
+    me: &Identity,
+    mailbox: MailboxId,
+    members: &BTreeMap<[u8; 32], IdentityPublic>,
+    after: u64,
+) -> Result<Vec<(u64, IdentityPublic, Envelope)>, NodeError> {
+    let mut out = Vec::new();
+    let mut cursor = after;
+    let mut guard = ReplayGuard::default();
+    loop {
+        let page = relay.inbox(me, mailbox, cursor).await?;
+        let Some((last, _)) = page.last() else { break };
+        cursor = *last;
+        for (c, envelope) in page {
+            if envelope.header.mailbox != mailbox {
+                continue;
+            }
+            let Some(sender) = members.get(&envelope.header.from) else {
+                continue;
+            };
+            if envelope.verify(sender).is_err() || guard.check_and_record(&envelope.header).is_err()
+            {
+                continue;
+            }
+            out.push((c, *sender, envelope));
+        }
+    }
+    Ok(out)
+}
+
 // --- Vault log helpers -------------------------------------------------------------------
+
+/// Reads new log entries after the chain's head (following pagination), verifying the chain
+/// and applying them to `state`.
+async fn catch_up(
+    relay: &RelayClient,
+    me: &Identity,
+    material: &VaultMaterial,
+    chain: &mut Chain,
+    state: &mut VaultState,
+) -> Result<(), NodeError> {
+    let members = material.member_identities();
+    let key = material.log_key();
+    loop {
+        let batch = relay
+            .read_log(me, material.descriptor.vault_id, chain.len())
+            .await?;
+        if batch.is_empty() {
+            return Ok(());
+        }
+        for entry in batch {
+            chain.append(entry.clone(), &members).map_err(proto)?;
+            state.apply_entry(&entry, &key);
+        }
+    }
+}
 
 /// Reads and verifies the whole log, returning the chain and the replayed state.
 pub async fn load_state(
@@ -628,33 +696,37 @@ pub async fn load_state(
     let mailbox = material.descriptor.vault_id;
     let members = material.member_identities();
     let mut chain = Chain::new(mailbox);
-    loop {
-        let batch = relay.read_log(me, mailbox, chain.len()).await?;
-        if batch.is_empty() {
-            break;
-        }
-        for e in batch {
-            chain.append(e, &members).map_err(proto)?;
-        }
+    // The first page must contain the Created entry.
+    for entry in relay.read_log(me, mailbox, 0).await? {
+        chain.append(entry, &members).map_err(proto)?;
     }
-    let state = VaultState::replay(chain.entries(), &material.log_key()).map_err(proto)?;
+    let mut state = VaultState::replay(chain.entries(), &material.log_key()).map_err(proto)?;
+    catch_up(relay, me, material, &mut chain, &mut state).await?;
     Ok((chain, state))
 }
 
-/// Appends an event, retrying on conflicts by re-reading the head.
+/// Appends `event` on top of an already-loaded chain and state. The event is checked
+/// against the current state first (so members don't write entries everyone will ignore);
+/// on a conflict, only the new entries are fetched, the check is repeated, and the append
+/// is retried.
 pub async fn append_event<R: RngCore + CryptoRng>(
     relay: &RelayClient,
     me: &Identity,
     material: &VaultMaterial,
+    chain: &mut Chain,
+    state: &mut VaultState,
     event: &VaultEvent,
     rng: &mut R,
 ) -> Result<u64, NodeError> {
     let bytes = event.to_bytes().map_err(proto)?;
+    let key = material.log_key();
     for _ in 0..10 {
-        let (chain, _) = load_state(relay, me, material).await?;
+        state
+            .check(me.public().sig_pk, event)
+            .map_err(|e| NodeError::Protocol(format!("event no longer valid: {e}")))?;
         let entry = LogEntry::create(
             me,
-            &material.log_key(),
+            &key,
             material.descriptor.vault_id,
             chain.len(),
             chain.head(),
@@ -662,8 +734,15 @@ pub async fn append_event<R: RngCore + CryptoRng>(
             rng,
         )
         .map_err(proto)?;
-        if let AppendResult::Appended { index } = relay.append_log(&entry).await? {
-            return Ok(index);
+        match relay.append_log(&entry).await? {
+            AppendResult::Appended { index } => {
+                chain
+                    .append(entry.clone(), &material.member_identities())
+                    .map_err(proto)?;
+                state.apply_entry(&entry, &key);
+                return Ok(index);
+            }
+            AppendResult::Conflict { .. } => catch_up(relay, me, material, chain, state).await?,
         }
     }
     Err(NodeError::Protocol(
@@ -673,6 +752,8 @@ pub async fn append_event<R: RngCore + CryptoRng>(
 
 // --- Proposals and signing over the relay ----------------------------------------------
 
+use std::collections::BTreeSet;
+
 use pczt::{
     roles::{prover::Prover, tx_extractor::TransactionExtractor},
     Pczt,
@@ -680,9 +761,12 @@ use pczt::{
 use reddsa::frost::redpallas::{
     round1::SigningCommitments, round2::SignatureShare, SigningPackage,
 };
+use zafe_proto::ReplayGuard;
 
 use crate::{
-    session::{pczt_hash, Leader, Member, NonceStore, ProposalId, SigningRequest},
+    session::{
+        aggregate_request, pczt_hash, Leader, Member, NonceStore, ProposalId, SigningRequest,
+    },
     tx,
     vault::{ProposalStatus, ProposedPayment},
     verify::{verify_pczt, Expectations, Payment, VerifiedTx},
@@ -704,8 +788,37 @@ struct SigningRequestMsg {
 #[derive(Serialize, Deserialize)]
 struct SharesMsg {
     proposal: ProposalId,
-    pczt_hash: [u8; 32],
+    /// Hash of the encoded signing request these shares answer (binds shares to one round).
+    request_hash: [u8; 32],
     shares: Vec<Vec<u8>>,
+}
+
+fn hash_request_bytes(bytes: &[u8]) -> [u8; 32] {
+    blake2b_simd::Params::new()
+        .hash_length(32)
+        .personal(b"Zafe_SignRequest")
+        .hash(bytes)
+        .as_bytes()
+        .try_into()
+        .expect("32 bytes")
+}
+
+/// Hash identifying a signing request (and the round its shares belong to).
+pub fn request_hash(request: &SigningRequest) -> Result<[u8; 32], NodeError> {
+    Ok(hash_request_bytes(&encode_request(request)?))
+}
+
+/// Hash identifying one member's set of round-1 commitments (to avoid reusing them).
+pub fn commitments_hash(commitments: &[Vec<u8>]) -> [u8; 32] {
+    let mut state = blake2b_simd::Params::new()
+        .hash_length(32)
+        .personal(b"Zafe_Commitments")
+        .to_state();
+    for c in commitments {
+        state.update(&(c.len() as u32).to_le_bytes());
+        state.update(c);
+    }
+    state.finalize().as_bytes().try_into().expect("32 bytes")
 }
 
 /// Decodes a unified (or Orchard-receiver-bearing) address to its Orchard receiver.
@@ -753,6 +866,14 @@ pub fn expectations<P: Parameters>(
     })
 }
 
+fn members_by_pk(material: &VaultMaterial) -> BTreeMap<[u8; 32], IdentityPublic> {
+    material
+        .member_identities()
+        .into_iter()
+        .map(|m| (m.sig_pk, m))
+        .collect()
+}
+
 /// Builds a PCZT for `payments` from this member's wallet and logs it as a proposal.
 pub async fn propose<P: Parameters + Clone + Send + Sync + 'static, R: RngCore + CryptoRng>(
     relay: &RelayClient,
@@ -788,7 +909,8 @@ pub async fn propose<P: Parameters + Clone + Send + Sync + 'static, R: RngCore +
         pczt: pczt.serialize().map_err(proto)?,
         tip_height: tip,
     };
-    append_event(relay, me, material, &event, rng).await?;
+    let (mut chain, mut state) = load_state(relay, me, material).await?;
+    append_event(relay, me, material, &mut chain, &mut state, &event, rng).await?;
     Ok(id)
 }
 
@@ -822,7 +944,7 @@ pub async fn approve<P: Parameters, R: RngCore + CryptoRng>(
     store: &mut impl NonceStore,
     rng: &mut R,
 ) -> Result<VerifiedTx, NodeError> {
-    let (_, state) = load_state(relay, me, material).await?;
+    let (mut chain, mut state) = load_state(relay, me, material).await?;
     let (pczt, payments) = proposal_pczt(&state, &proposal)?;
     let expected = expectations(network, &payments, tip_height)?;
     let key_package = material.key_package()?;
@@ -846,7 +968,7 @@ pub async fn approve<P: Parameters, R: RngCore + CryptoRng>(
         approve: true,
         commitments,
     };
-    append_event(relay, me, material, &event, rng).await?;
+    append_event(relay, me, material, &mut chain, &mut state, &event, rng).await?;
     Ok(verified)
 }
 
@@ -858,18 +980,19 @@ pub async fn reject<R: RngCore + CryptoRng>(
     proposal: ProposalId,
     rng: &mut R,
 ) -> Result<(), NodeError> {
-    let (_, state) = load_state(relay, me, material).await?;
-    let p = state
+    let (mut chain, mut state) = load_state(relay, me, material).await?;
+    let pczt_hash = state
         .proposals
         .get(&proposal)
-        .ok_or_else(|| NodeError::Protocol("unknown proposal".into()))?;
+        .ok_or_else(|| NodeError::Protocol("unknown proposal".into()))?
+        .pczt_hash;
     let event = VaultEvent::Vote {
         proposal,
-        pczt_hash: p.pczt_hash,
+        pczt_hash,
         approve: false,
         commitments: vec![],
     };
-    append_event(relay, me, material, &event, rng).await?;
+    append_event(relay, me, material, &mut chain, &mut state, &event, rng).await?;
     Ok(())
 }
 
@@ -887,8 +1010,16 @@ fn member_by_frost_id(
         .ok_or_else(|| NodeError::Protocol("unknown FROST identifier".into()))
 }
 
+/// A signing request sent by the leader, plus the commitment sets it consumed (the leader
+/// must not put them in another request).
+pub struct SentRequest {
+    pub request: SigningRequest,
+    pub used_commitments: Vec<[u8; 32]>,
+}
+
 /// Leader: once the proposal is approved, sends sealed signing requests to `threshold`
-/// approvers and returns the request (keep it until `finalize`).
+/// approvers whose current commitments are not in `used` (commitment sets already put in an
+/// earlier request). Members re-approve to provide fresh commitments after a failed round.
 #[allow(clippy::too_many_arguments)]
 pub async fn request_signatures<P: Parameters, R: RngCore + CryptoRng>(
     relay: &RelayClient,
@@ -897,10 +1028,14 @@ pub async fn request_signatures<P: Parameters, R: RngCore + CryptoRng>(
     network: &P,
     tip_height: u32,
     proposal: ProposalId,
+    used: &BTreeSet<[u8; 32]>,
     rng: &mut R,
-) -> Result<SigningRequest, NodeError> {
+) -> Result<SentRequest, NodeError> {
     let (_, state) = load_state(relay, me, material).await?;
-    let p = &state.proposals[&proposal];
+    let p = state
+        .proposals
+        .get(&proposal)
+        .ok_or_else(|| NodeError::Protocol("unknown proposal".into()))?;
     if p.status != ProposalStatus::Approved {
         return Err(NodeError::NotReady(format!("proposal is {:?}", p.status)));
     }
@@ -915,13 +1050,18 @@ pub async fn request_signatures<P: Parameters, R: RngCore + CryptoRng>(
     let mut leader =
         Leader::new(proposal, &pczt, &verified, material.descriptor.threshold).map_err(proto)?;
 
+    let mut hash_of = BTreeMap::new();
     for (author, commitments) in &p.approvals {
+        let hash = commitments_hash(commitments);
+        if used.contains(&hash) {
+            continue;
+        }
         let info = material
             .descriptor
             .member(author)
             .ok_or_else(|| NodeError::Protocol("approval from non-member".into()))?;
         let member = Identifier::deserialize(&info.frost_id).map_err(proto)?;
-        let commitments = commitments
+        let parsed = commitments
             .iter()
             .map(|c| SigningCommitments::deserialize(c).map_err(proto))
             .collect::<Result<Vec<_>, _>>()?;
@@ -929,14 +1069,22 @@ pub async fn request_signatures<P: Parameters, R: RngCore + CryptoRng>(
             member,
             proposal,
             pczt_hash: p.pczt_hash,
-            commitments,
+            commitments: parsed,
         });
+        hash_of.insert(member, hash);
     }
+    let threshold = usize::from(material.descriptor.threshold);
     let chosen: Vec<Identifier> = leader
         .available_signers()
         .into_iter()
-        .take(usize::from(material.descriptor.threshold))
+        .take(threshold)
         .collect();
+    if chosen.len() < threshold {
+        return Err(NodeError::NotReady(format!(
+            "only {} approver(s) have unused commitments; ask members to approve again",
+            chosen.len()
+        )));
+    }
     let request = leader.request(&chosen).map_err(proto)?;
 
     let bytes = encode_request(&request)?;
@@ -955,11 +1103,23 @@ pub async fn request_signatures<P: Parameters, R: RngCore + CryptoRng>(
         .map_err(proto)?;
         relay.send(&env).await?;
     }
-    Ok(request)
+    let used_commitments = chosen.iter().map(|id| hash_of[id]).collect();
+    Ok(SentRequest {
+        request,
+        used_commitments,
+    })
 }
 
-/// Member: answers every pending signing request addressed to this member. Each request
-/// is re-verified from the log; nonces are deleted before shares are sent.
+/// Outcome of answering signing requests.
+#[derive(Debug, Default)]
+pub struct RespondReport {
+    pub answered: Vec<ProposalId>,
+    /// Requests that were not answered, with the reason (stale, expired, forged, ...).
+    pub skipped: Vec<(ProposalId, String)>,
+}
+
+/// Member: answers every pending signing request addressed to this member. Each request is
+/// re-verified from the log; a bad or stale request is skipped and reported, never fatal.
 #[allow(clippy::too_many_arguments)]
 pub async fn respond<P: Parameters, R: RngCore + CryptoRng>(
     relay: &RelayClient,
@@ -969,13 +1129,9 @@ pub async fn respond<P: Parameters, R: RngCore + CryptoRng>(
     tip_height: u32,
     store: &mut impl NonceStore,
     rng: &mut R,
-) -> Result<Vec<ProposalId>, NodeError> {
+) -> Result<RespondReport, NodeError> {
     let (_, state) = load_state(relay, me, material).await?;
-    let members: BTreeMap<[u8; 32], IdentityPublic> = material
-        .member_identities()
-        .into_iter()
-        .map(|m| (m.sig_pk, m))
-        .collect();
+    let members = members_by_pk(material);
     let key_package = material.key_package()?;
     let keys = material.vault_keys()?;
     let member = Member {
@@ -984,69 +1140,64 @@ pub async fn respond<P: Parameters, R: RngCore + CryptoRng>(
         vault_fvk: keys.fvk(),
     };
     let mut seq = SeqCounter::default();
-    let mut answered = Vec::new();
+    let mut report = RespondReport::default();
 
-    for (_, env) in relay.inbox(me, material.descriptor.vault_id, 0).await? {
+    for (_, leader, env) in read_inbox(relay, me, material.descriptor.vault_id, &members, 0).await?
+    {
         if env.header.kind != Kind::SigningRequest {
             continue;
         }
-        let Some(leader) = members.get(&env.header.from) else {
+        let Ok(bytes) = env.open(me, &leader) else {
             continue;
         };
-        let Ok(bytes) = env.open(me, leader) else {
+        let Ok(msg) = postcard::from_bytes::<SigningRequestMsg>(&bytes) else {
             continue;
         };
-        let msg: SigningRequestMsg = postcard::from_bytes(&bytes).map_err(proto)?;
         if !store.contains(&msg.proposal, &msg.pczt_hash) {
             continue; // already answered, or never approved
         }
-        let (pczt, payments) = proposal_pczt(&state, &msg.proposal)?;
-        let request = SigningRequest {
-            proposal: msg.proposal,
-            pczt_hash: msg.pczt_hash,
-            signers: msg
-                .signers
-                .iter()
-                .map(|b| Identifier::deserialize(b).map_err(proto))
-                .collect::<Result<_, _>>()?,
-            packages: msg
-                .packages
-                .iter()
-                .map(|b| SigningPackage::deserialize(b).map_err(proto))
-                .collect::<Result<_, _>>()?,
-        };
-        let shares = member
-            .sign(
-                &request,
-                &pczt,
-                &expectations(network, &payments, tip_height)?,
-                store,
-            )
-            .map_err(proto)?;
-        let reply = SharesMsg {
-            proposal: msg.proposal,
-            pczt_hash: msg.pczt_hash,
-            shares: shares.iter().map(|s| s.serialize()).collect(),
-        };
-        let reply = postcard::to_allocvec(&reply).map_err(proto)?;
-        let env = Envelope::sealed(
-            me,
-            leader,
-            material.descriptor.vault_id,
-            seq.next_seq(),
-            Kind::SignatureShares,
-            &reply,
-            rng,
-        )
-        .map_err(proto)?;
-        relay.send(&env).await?;
-        answered.push(msg.proposal);
+        let result: Result<Vec<u8>, NodeError> = (|| {
+            let (pczt, payments) = proposal_pczt(&state, &msg.proposal)?;
+            let request = decode_request(&bytes)?;
+            let shares = member
+                .sign(
+                    &request,
+                    &pczt,
+                    &expectations(network, &payments, tip_height)?,
+                    store,
+                )
+                .map_err(proto)?;
+            let reply = SharesMsg {
+                proposal: msg.proposal,
+                request_hash: hash_request_bytes(&bytes),
+                shares: shares.iter().map(|s| s.serialize()).collect(),
+            };
+            postcard::to_allocvec(&reply).map_err(proto)
+        })();
+        match result {
+            Ok(reply) => {
+                let env = Envelope::sealed(
+                    me,
+                    &leader,
+                    material.descriptor.vault_id,
+                    seq.next_seq(),
+                    Kind::SignatureShares,
+                    &reply,
+                    rng,
+                )
+                .map_err(proto)?;
+                relay.send(&env).await?;
+                report.answered.push(msg.proposal);
+            }
+            Err(e) => report.skipped.push((msg.proposal, e.to_string())),
+        }
     }
-    Ok(answered)
+    Ok(report)
 }
 
-/// Leader: waits for every share, aggregates, proves, extracts (fully verified), broadcasts
-/// via lightwalletd, and logs the broadcast. Returns the txid.
+/// Leader: waits for the shares answering exactly `request`, aggregates (verifying every
+/// share), proves, extracts (fully verified), broadcasts via lightwalletd, and logs the
+/// broadcast. Returns the txid.
 #[allow(clippy::too_many_arguments)]
 pub async fn finalize<R: RngCore + CryptoRng>(
     relay: &RelayClient,
@@ -1060,40 +1211,43 @@ pub async fn finalize<R: RngCore + CryptoRng>(
     rng: &mut R,
 ) -> Result<[u8; 32], NodeError> {
     let deadline = Instant::now() + timeout;
-    let (_, state) = load_state(relay, me, material).await?;
+    let (mut chain, mut state) = load_state(relay, me, material).await?;
     let (pczt, _) = proposal_pczt(&state, &request.proposal)?;
-    let members: BTreeMap<[u8; 32], IdentityPublic> = material
-        .member_identities()
-        .into_iter()
-        .map(|m| (m.sig_pk, m))
-        .collect();
+    let members = members_by_pk(material);
+    let wanted = request_hash(request)?;
 
     let mut shares: BTreeMap<Identifier, Vec<SignatureShare>> = BTreeMap::new();
+    let mut cursor = 0;
     while shares.len() < request.signers.len() {
-        for (_, env) in relay.inbox(me, material.descriptor.vault_id, 0).await? {
+        for (c, from, env) in
+            read_inbox(relay, me, material.descriptor.vault_id, &members, cursor).await?
+        {
+            cursor = c;
             if env.header.kind != Kind::SignatureShares {
                 continue;
             }
-            let Some(from) = members.get(&env.header.from) else {
+            let Ok(bytes) = env.open(me, &from) else {
                 continue;
             };
-            let Ok(bytes) = env.open(me, from) else {
+            let Ok(msg) = postcard::from_bytes::<SharesMsg>(&bytes) else {
                 continue;
             };
-            let msg: SharesMsg = postcard::from_bytes(&bytes).map_err(proto)?;
-            if msg.proposal != request.proposal || msg.pczt_hash != request.pczt_hash {
-                continue;
+            if msg.proposal != request.proposal || msg.request_hash != wanted {
+                continue; // a share from another proposal or an earlier round
             }
-            let info = material.descriptor.member(&from.sig_pk).expect("member");
+            let Some(info) = material.descriptor.member(&from.sig_pk) else {
+                continue;
+            };
             let id = Identifier::deserialize(&info.frost_id).map_err(proto)?;
-            if request.signers.contains(&id) {
-                let parsed = msg
-                    .shares
-                    .iter()
-                    .map(|s| SignatureShare::deserialize(s).map_err(proto))
-                    .collect::<Result<_, _>>()?;
-                shares.insert(id, parsed);
+            if !request.signers.contains(&id) {
+                continue;
             }
+            let parsed = msg
+                .shares
+                .iter()
+                .map(|s| SignatureShare::deserialize(s).map_err(proto))
+                .collect::<Result<_, _>>()?;
+            shares.insert(id, parsed);
         }
         if shares.len() < request.signers.len() {
             if Instant::now() > deadline {
@@ -1103,24 +1257,10 @@ pub async fn finalize<R: RngCore + CryptoRng>(
         }
     }
 
-    // Rebuild the leader view from the request's own packages (commitments are inside).
     let keys = material.vault_keys()?;
     let spends = tx::spends_to_sign(&pczt, keys.fvk()).map_err(proto)?;
-    let public_key_package = material.public_key_package()?;
-    let mut signatures = Vec::new();
-    for (i, (spend, package)) in spends.iter().zip(&request.packages).enumerate() {
-        let per_spend = shares
-            .iter()
-            .map(|(id, s)| {
-                s.get(i)
-                    .map(|share| (*id, *share))
-                    .ok_or_else(|| NodeError::Protocol("missing share".into()))
-            })
-            .collect::<Result<BTreeMap<_, _>, _>>()?;
-        let sig = crate::signing::aggregate(package, &per_spend, &public_key_package, spend.alpha)
-            .map_err(proto)?;
-        signatures.push((spend.action_index, sig));
-    }
+    let signatures = aggregate_request(request, &spends, &shares, &material.public_key_package()?)
+        .map_err(proto)?;
 
     let signed = tx::apply_signatures(pczt, &signatures).map_err(proto)?;
     let proved = Prover::new(signed)
@@ -1148,17 +1288,18 @@ pub async fn finalize<R: RngCore + CryptoRng>(
         )));
     }
     let txid: [u8; 32] = *transaction.txid().as_ref();
-    append_event(
-        relay,
-        me,
-        material,
-        &VaultEvent::Broadcast {
-            proposal: request.proposal,
-            txid,
-        },
-        rng,
-    )
-    .await?;
+    // The transaction is on its way regardless; if the log entry is no longer valid (e.g.
+    // the author cancelled meanwhile), report the txid anyway.
+    let event = VaultEvent::Broadcast {
+        proposal: request.proposal,
+        txid,
+    };
+    if let Err(e) = append_event(relay, me, material, &mut chain, &mut state, &event, rng).await {
+        return Err(NodeError::Protocol(format!(
+            "broadcast {} but could not log it: {e}",
+            hex::encode(txid)
+        )));
+    }
     Ok(txid)
 }
 

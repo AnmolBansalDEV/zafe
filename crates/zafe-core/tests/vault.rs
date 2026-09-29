@@ -194,46 +194,77 @@ fn log_must_start_with_creation() {
     assert_eq!(log.replay().unwrap_err(), VaultError::NotCreatedFirst);
 }
 
+/// Invalid entries are skipped by every member instead of making the log unreadable.
 #[test]
-fn outsiders_and_bad_votes_are_rejected() {
-    let mut log = Log::new();
-    log.push(0, &log.created(&[0, 1, 2]));
-    log.push(3, &proposal(1)); // id 3 is not in the descriptor
-    assert_eq!(log.replay().unwrap_err(), VaultError::NotAMember(1));
+fn invalid_entries_are_ignored_not_fatal() {
+    let cases: Vec<(usize, VaultEvent, VaultError)> = vec![
+        (3, proposal(2), VaultError::NotAMember(2)), // id 3 is not in the descriptor
+        (
+            1,
+            VaultEvent::Vote {
+                proposal: [1; 16],
+                pczt_hash: [0xEE; 32],
+                approve: true,
+                commitments: vec![],
+            },
+            VaultError::PcztMismatch(2),
+        ),
+        (
+            1,
+            VaultEvent::Cancelled { proposal: [1; 16] },
+            VaultError::NotAuthor(2),
+        ),
+        (
+            0,
+            VaultEvent::Broadcast {
+                proposal: [1; 16],
+                txid: [0; 32],
+            },
+            VaultError::ProposalClosed(2),
+        ),
+        (1, vote(9, true), VaultError::UnknownProposal(2)),
+    ];
+    for (author, bad, expected) in cases {
+        let mut log = Log::new();
+        log.push(0, &log.created(&[0, 1, 2]));
+        log.push(0, &proposal(1));
+        log.push(author, &bad);
+        log.push(1, &vote(1, true)); // entries after the bad one still apply
+        let state = log.replay().expect("log stays readable");
+        assert_eq!(state.ignored, vec![(2, expected)]);
+        assert_eq!(state.proposals.len(), 1);
+        assert_eq!(state.proposals[&[1; 16]].approvals.len(), 1);
+        assert_eq!(state.applied, 4);
+    }
+}
 
+/// The race from the code review: the author cancels while the leader broadcasts.
+#[test]
+fn broadcast_racing_a_cancel_does_not_brick_the_log() {
     let mut log = Log::new();
     log.push(0, &log.created(&[0, 1, 2]));
     log.push(0, &proposal(1));
+    log.push(1, &vote(1, true));
+    log.push(2, &vote(1, true));
+    log.push(0, &VaultEvent::Cancelled { proposal: [1; 16] });
     log.push(
         1,
-        &VaultEvent::Vote {
-            proposal: [1; 16],
-            pczt_hash: [0xEE; 32],
-            approve: true,
-            commitments: vec![],
-        },
-    );
-    assert_eq!(log.replay().unwrap_err(), VaultError::PcztMismatch(2));
-
-    let mut log = Log::new();
-    log.push(0, &log.created(&[0, 1, 2]));
-    log.push(0, &proposal(1));
-    log.push(1, &VaultEvent::Cancelled { proposal: [1; 16] });
-    assert_eq!(log.replay().unwrap_err(), VaultError::NotAuthor(2));
-
-    let mut log = Log::new();
-    log.push(0, &log.created(&[0, 1, 2]));
-    log.push(0, &proposal(1));
-    log.push(
-        0,
         &VaultEvent::Broadcast {
             proposal: [1; 16],
-            txid: [0; 32],
+            txid: [5; 32],
         },
     );
-    assert_eq!(
-        log.replay().unwrap_err(),
-        VaultError::ProposalClosed(2),
-        "cannot broadcast before approval"
+    let state = log.replay().unwrap();
+    assert_eq!(state.proposals[&[1; 16]].status, ProposalStatus::Cancelled);
+    assert_eq!(state.ignored, vec![(5, VaultError::ProposalClosed(5))]);
+
+    // `check` lets a writer see this before appending.
+    let err = state.check(
+        log.ids[1].public().sig_pk,
+        &VaultEvent::Broadcast {
+            proposal: [1; 16],
+            txid: [5; 32],
+        },
     );
+    assert_eq!(err, Err(VaultError::ProposalClosed(6)));
 }

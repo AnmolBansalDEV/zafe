@@ -60,8 +60,19 @@ fn signed_bytes<T: Serialize>(payload: &T) -> Result<Vec<u8>, ProtoError> {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateMailbox {
     pub mailbox: MailboxId,
-    /// BLAKE2b hash of the one-time join token carried in the invite.
+    /// BLAKE2b hash of the invite's join token. The token is shared by all invited members
+    /// and stops working when the creator seals membership.
     pub join_token_hash: [u8; 32],
+    /// The vault's member count `n` (creator included); joins beyond it are refused.
+    pub max_members: u16,
+}
+
+/// Removes a joined member before sealing (e.g. a stranger with a leaked invite). Signed by
+/// the creator.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Remove {
+    pub mailbox: MailboxId,
+    pub member: [u8; 32],
 }
 
 /// Joins a mailbox using the invite's token. Signed by the joining member.

@@ -270,3 +270,40 @@ fn invalid_share_is_attributed() {
     let text = format!("{err:?}");
     assert!(text.contains("InvalidSignatureShare"), "{text}");
 }
+
+/// From the code review: a stale or forged request must not consume a member's nonces.
+#[test]
+fn bad_request_does_not_burn_nonces() {
+    let mut rng = StdRng::seed_from_u64(46);
+    let mut f = Fixture::new(46);
+    let mut leader = f.leader();
+    for i in 0..3 {
+        f.approve(i, &mut leader, &mut rng);
+    }
+    let real = leader.request(&[f.id(0), f.id(1)]).unwrap();
+
+    // A forged request with the right proposal and PCZT but made-up commitments for member 0.
+    let mut forged = real.clone();
+    let mut commitments = forged.packages[0].signing_commitments().clone();
+    let (_, fake) = zafe_core::signing::commit(&f.members[2].1.key_package, &mut rng);
+    commitments.insert(f.id(0), fake);
+    forged.packages[0] = zafe_core::signing::signing_package(commitments, &[0; 32]);
+    forged.packages[0] = zafe_core::signing::signing_package(
+        forged.packages[0].signing_commitments().clone(),
+        real.packages[0].message().as_slice().try_into().unwrap(),
+    );
+    assert!(matches!(
+        f.sign(0, &forged),
+        Err(SessionError::NotOurCommitments(0))
+    ));
+
+    // The real request still signs: the nonces survived.
+    let mut shares = BTreeMap::new();
+    for i in [0, 1] {
+        shares.insert(f.id(i), f.sign(i, &real).unwrap());
+    }
+    let signatures = leader
+        .aggregate(&real, &shares, &f.members[0].1.public_key_package)
+        .unwrap();
+    f.finalize(&signatures);
+}

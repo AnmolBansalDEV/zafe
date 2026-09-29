@@ -37,7 +37,12 @@ fn main() {
     let (anchor, path) = witness(&note);
     let payee = outside_address(7);
     let outputs = vec![
-        Out { ovk: Some(fvk.to_ovk(Scope::External)), recipient: payee, value: 400_000, memo: MemoBytes::empty() },
+        Out {
+            ovk: Some(fvk.to_ovk(Scope::External)),
+            recipient: payee,
+            value: 400_000,
+            memo: MemoBytes::empty(),
+        },
         Out {
             ovk: Some(fvk.to_ovk(Scope::Internal)),
             recipient: fvk.address_at(0u32, Scope::Internal),
@@ -46,15 +51,24 @@ fn main() {
         },
     ];
     let pczt = build_pczt(&fvk, note, path, anchor, outputs);
-    let expected = expectations(vec![Payment { recipient: payee, amount_zat: 400_000, memo: *MemoBytes::empty().as_array() }]);
+    let expected = expectations(vec![Payment {
+        recipient: payee,
+        amount_zat: 400_000,
+        memo: *MemoBytes::empty().as_array(),
+    }]);
 
     match mode.as_str() {
         "prove" => {
             let t = Instant::now();
-            let pk = orchard::circuit::ProvingKey::build(orchard::circuit::OrchardCircuitVersion::PostNu6_3);
+            let pk = orchard::circuit::ProvingKey::build(
+                orchard::circuit::OrchardCircuitVersion::PostNu6_3,
+            );
             let keygen_ms = t.elapsed().as_millis();
             let t = Instant::now();
-            let _proved = Prover::new(pczt).create_ironwood_proof(&pk).unwrap().finish();
+            let _proved = Prover::new(pczt)
+                .create_ironwood_proof(&pk)
+                .unwrap()
+                .finish();
             let prove_ms = t.elapsed().as_millis();
             println!(
                 r#"{{"mode":"prove","threads":"{threads}","proving_key_build_ms":{keygen_ms},"prove_2_actions_ms":{prove_ms}}}"#
@@ -65,16 +79,29 @@ fn main() {
             let proposal = [1u8; 16];
             let verified = verify_pczt(&pczt, &fvk, &expected).unwrap();
             let mut leader = Leader::new(proposal, &pczt, &verified, 2).unwrap();
-            let mut stores: Vec<MemoryNonceStore> = (0..2).map(|_| MemoryNonceStore::default()).collect();
+            let mut stores: Vec<MemoryNonceStore> =
+                (0..2).map(|_| MemoryNonceStore::default()).collect();
             for (i, store) in stores.iter_mut().enumerate() {
                 let (id, out) = &members[i];
-                let m = Member { identifier: *id, key_package: &out.key_package, vault_fvk: out.vault_keys.fvk() };
-                leader.add_approval(m.approve(proposal, &pczt, &expected, store, &mut rng).unwrap().0);
+                let m = Member {
+                    identifier: *id,
+                    key_package: &out.key_package,
+                    vault_fvk: out.vault_keys.fvk(),
+                };
+                leader.add_approval(
+                    m.approve(proposal, &pczt, &expected, store, &mut rng)
+                        .unwrap()
+                        .0,
+                );
             }
             let request = leader.request(&[members[0].0, members[1].0]).unwrap();
 
             let (id, out) = &members[1];
-            let m = Member { identifier: *id, key_package: &out.key_package, vault_fvk: out.vault_keys.fvk() };
+            let m = Member {
+                identifier: *id,
+                key_package: &out.key_package,
+                vault_fvk: out.vault_keys.fvk(),
+            };
             let t = Instant::now();
             let shares = m.sign(&request, &pczt, &expected, &mut stores[1]).unwrap();
             let round2_ms = t.elapsed().as_micros() as f64 / 1000.0;

@@ -82,6 +82,12 @@ pub fn pczt_hash(pczt: &Pczt) -> Result<[u8; 32], SessionError> {
 /// (spec §9.4). `take` must remove the nonces *before* returning them.
 pub trait NonceStore {
     fn contains(&self, proposal: &ProposalId, pczt_hash: &[u8; 32]) -> bool;
+    /// The public commitments of the stored nonces, without consuming them.
+    fn commitments(
+        &self,
+        proposal: &ProposalId,
+        pczt_hash: &[u8; 32],
+    ) -> Option<Vec<SigningCommitments>>;
     fn put(&mut self, proposal: ProposalId, pczt_hash: [u8; 32], nonces: Vec<SigningNonces>);
     fn take(&mut self, proposal: &ProposalId, pczt_hash: &[u8; 32]) -> Option<Vec<SigningNonces>>;
 }
@@ -93,6 +99,15 @@ pub struct MemoryNonceStore(BTreeMap<(ProposalId, [u8; 32]), Vec<SigningNonces>>
 impl NonceStore for MemoryNonceStore {
     fn contains(&self, proposal: &ProposalId, pczt_hash: &[u8; 32]) -> bool {
         self.0.contains_key(&(*proposal, *pczt_hash))
+    }
+    fn commitments(
+        &self,
+        proposal: &ProposalId,
+        pczt_hash: &[u8; 32],
+    ) -> Option<Vec<SigningCommitments>> {
+        self.0
+            .get(&(*proposal, *pczt_hash))
+            .map(|nonces| nonces.iter().map(|n| *n.commitments()).collect())
     }
     fn put(&mut self, proposal: ProposalId, pczt_hash: [u8; 32], nonces: Vec<SigningNonces>) {
         self.0.insert((proposal, pczt_hash), nonces);
@@ -179,16 +194,24 @@ impl Member<'_> {
             }
         }
 
+        // Check every package against our stored commitments *before* consuming the
+        // nonces, so a stale or forged request cannot destroy valid nonces.
+        let ours = store
+            .commitments(&request.proposal, &request.pczt_hash)
+            .ok_or(SessionError::NoNonces)?;
+        if ours.len() != spends.len() {
+            return Err(SessionError::NoNonces);
+        }
+        for (i, (package, commitment)) in request.packages.iter().zip(&ours).enumerate() {
+            if package.signing_commitment(&self.identifier) != Some(*commitment) {
+                return Err(SessionError::NotOurCommitments(i));
+            }
+        }
         let nonces = store
             .take(&request.proposal, &request.pczt_hash)
             .ok_or(SessionError::NoNonces)?;
-        if nonces.len() != spends.len() {
-            return Err(SessionError::NoNonces);
-        }
-        for (i, (package, nonce)) in request.packages.iter().zip(&nonces).enumerate() {
-            if package.signing_commitment(&self.identifier) != Some(*nonce.commitments()) {
-                return Err(SessionError::NotOurCommitments(i));
-            }
+        if nonces.iter().map(|n| *n.commitments()).collect::<Vec<_>>() != ours {
+            return Err(SessionError::NoNonces); // store changed underneath us; nonces now gone
         }
 
         // alpha comes from this member's own verification of the PCZT, never the request.
@@ -310,25 +333,43 @@ impl Leader {
         shares: &BTreeMap<Identifier, Vec<SignatureShare>>,
         public_key_package: &PublicKeyPackage,
     ) -> Result<Vec<(usize, [u8; 64])>, SessionError> {
-        if shares.keys().copied().collect::<BTreeSet<_>>() != request.signers {
-            return Err(SessionError::NotEnoughSigners {
-                needed: request.signers.len(),
-                got: shares.len(),
-            });
-        }
-        let mut signatures = Vec::with_capacity(self.spends.len());
-        for (i, (spend, package)) in self.spends.iter().zip(&request.packages).enumerate() {
-            let per_spend = shares
-                .iter()
-                .map(|(id, s)| {
-                    s.get(i)
-                        .map(|share| (*id, *share))
-                        .ok_or(SessionError::IncompleteShares)
-                })
-                .collect::<Result<BTreeMap<_, _>, _>>()?;
-            let sig = signing::aggregate(package, &per_spend, public_key_package, spend.alpha)?;
-            signatures.push((spend.action_index, sig));
-        }
-        Ok(signatures)
+        aggregate_request(request, &self.spends, shares, public_key_package)
     }
+}
+
+/// Verifies every share and aggregates one signature per spend for `request`. Shares must
+/// come from exactly the request's signers. On an invalid share, the FROST error names the
+/// culprit.
+pub fn aggregate_request(
+    request: &SigningRequest,
+    spends: &[SpendToSign],
+    shares: &BTreeMap<Identifier, Vec<SignatureShare>>,
+    public_key_package: &PublicKeyPackage,
+) -> Result<Vec<(usize, [u8; 64])>, SessionError> {
+    if shares.keys().copied().collect::<BTreeSet<_>>() != request.signers {
+        return Err(SessionError::NotEnoughSigners {
+            needed: request.signers.len(),
+            got: shares.len(),
+        });
+    }
+    if request.packages.len() != spends.len() {
+        return Err(SessionError::WrongPackageCount {
+            expected: spends.len(),
+            got: request.packages.len(),
+        });
+    }
+    let mut signatures = Vec::with_capacity(spends.len());
+    for (i, (spend, package)) in spends.iter().zip(&request.packages).enumerate() {
+        let per_spend = shares
+            .iter()
+            .map(|(id, s)| {
+                s.get(i)
+                    .map(|share| (*id, *share))
+                    .ok_or(SessionError::IncompleteShares)
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
+        let sig = signing::aggregate(package, &per_spend, public_key_package, spend.alpha)?;
+        signatures.push((spend.action_index, sig));
+    }
+    Ok(signatures)
 }

@@ -14,7 +14,7 @@ use crate::session::ProposalId;
 const PERSONAL_DESCRIPTOR: &[u8; 16] = b"Zafe_VaultDescr_";
 const PERSONAL_EVENT_SIG: &[u8] = b"Zafe descriptor signature v1";
 
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[derive(Clone, Debug, thiserror::Error, PartialEq, Eq)]
 pub enum VaultError {
     #[error("encoding")]
     Encoding,
@@ -179,48 +179,68 @@ pub struct ProposalState {
 pub struct VaultState {
     pub descriptor: VaultDescriptor,
     pub proposals: BTreeMap<ProposalId, ProposalState>,
-    /// Number of log entries applied.
+    /// Number of log entries processed (applied or ignored).
     pub applied: u64,
+    /// Entries that were validly signed and chained but semantically invalid (e.g. a vote
+    /// racing a cancellation). Every member skips the same entries, so all members reach
+    /// the same state; a bad entry can never make the log unreadable.
+    pub ignored: Vec<(u64, VaultError)>,
 }
 
 impl VaultState {
     /// Replays verified log entries (already chain-checked by `zafe_proto::Chain`).
+    ///
+    /// Only structural problems are fatal: the first entry must be a `Created` event signed
+    /// by every member. After that, entries that cannot be decrypted, decoded or applied are
+    /// recorded in `ignored` and skipped deterministically.
     pub fn replay(entries: &[LogEntry], key: &LogKey) -> Result<Self, VaultError> {
-        let mut state: Option<VaultState> = None;
-        for entry in entries {
-            let index = entry.header.index;
-            let event = VaultEvent::from_bytes(
-                &entry
-                    .decrypt(key)
-                    .map_err(|_| VaultError::Undecryptable(index))?,
-            )?;
-            match (&mut state, event) {
-                (
-                    None,
-                    VaultEvent::Created {
-                        descriptor,
-                        signatures,
-                    },
-                ) => {
-                    if descriptor.member(&entry.header.author).is_none() {
-                        return Err(VaultError::NotAMember(index));
-                    }
-                    check_descriptor_signatures(&descriptor, &signatures)?;
-                    state = Some(VaultState {
-                        descriptor,
-                        proposals: BTreeMap::new(),
-                        applied: 0,
-                    });
-                }
-                (None, _) => return Err(VaultError::NotCreatedFirst),
-                (Some(_), VaultEvent::Created { .. }) => return Err(VaultError::DuplicateCreated),
-                (Some(s), event) => s.apply(index, entry.header.author, event)?,
-            }
-            if let Some(s) = &mut state {
-                s.applied = index + 1;
-            }
+        let (first, rest) = entries.split_first().ok_or(VaultError::NotCreatedFirst)?;
+        let event = VaultEvent::from_bytes(
+            &first
+                .decrypt(key)
+                .map_err(|_| VaultError::Undecryptable(first.header.index))?,
+        )?;
+        let VaultEvent::Created {
+            descriptor,
+            signatures,
+        } = event
+        else {
+            return Err(VaultError::NotCreatedFirst);
+        };
+        if descriptor.member(&first.header.author).is_none() {
+            return Err(VaultError::NotAMember(first.header.index));
         }
-        state.ok_or(VaultError::NotCreatedFirst)
+        check_descriptor_signatures(&descriptor, &signatures)?;
+        let mut state = VaultState {
+            descriptor,
+            proposals: BTreeMap::new(),
+            applied: first.header.index + 1,
+            ignored: Vec::new(),
+        };
+        for entry in rest {
+            state.apply_entry(entry, key);
+        }
+        Ok(state)
+    }
+
+    /// Applies one more log entry, recording it in `ignored` if it is invalid.
+    pub fn apply_entry(&mut self, entry: &LogEntry, key: &LogKey) {
+        let index = entry.header.index;
+        let result = entry
+            .decrypt(key)
+            .map_err(|_| VaultError::Undecryptable(index))
+            .and_then(|bytes| VaultEvent::from_bytes(&bytes))
+            .and_then(|event| self.apply(index, entry.header.author, event));
+        if let Err(e) = result {
+            self.ignored.push((index, e));
+        }
+        self.applied = index + 1;
+    }
+
+    /// Whether `event` by `author` would be valid on top of the current state. Callers
+    /// check this before appending, so they don't write entries everyone will ignore.
+    pub fn check(&self, author: [u8; 32], event: &VaultEvent) -> Result<(), VaultError> {
+        self.clone().apply(self.applied, author, event.clone())
     }
 
     /// Applies one event authored by `author`. Also used to apply new entries incrementally.

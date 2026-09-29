@@ -9,7 +9,7 @@ use std::{fs, path::PathBuf, time::Duration};
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
 use rand::rngs::OsRng;
-use reddsa::frost::redpallas::round1::SigningNonces;
+use reddsa::frost::redpallas::round1::{SigningCommitments, SigningNonces};
 use zafe_core::{
     node::{self, Invite, VaultMaterial},
     relay_client::RelayClient,
@@ -146,6 +146,19 @@ impl FileNonceStore {
 impl NonceStore for FileNonceStore {
     fn contains(&self, proposal: &ProposalId, hash: &[u8; 32]) -> bool {
         self.file(proposal, hash).exists()
+    }
+
+    fn commitments(
+        &self,
+        proposal: &ProposalId,
+        hash: &[u8; 32],
+    ) -> Option<Vec<SigningCommitments>> {
+        let encoded: Vec<Vec<u8>> =
+            postcard::from_bytes(&fs::read(self.file(proposal, hash)).ok()?).ok()?;
+        encoded
+            .iter()
+            .map(|b| SigningNonces::deserialize(b).ok().map(|n| *n.commitments()))
+            .collect()
     }
 
     fn put(&mut self, proposal: ProposalId, hash: [u8; 32], nonces: Vec<SigningNonces>) {
@@ -329,31 +342,40 @@ async fn main() -> Result<()> {
             let material = home.material()?;
             let tip = tip(&home, &material, &cli.lightwalletd).await?;
             let id = parse_proposal(&proposal)?;
-            let request = node::request_signatures(
+            // Commitment sets already put in a request must never be reused.
+            let used_path = home.path("requests/used_commitments.bin");
+            let mut used: std::collections::BTreeSet<[u8; 32]> = fs::read(&used_path)
+                .ok()
+                .and_then(|b| postcard::from_bytes(&b).ok())
+                .unwrap_or_default();
+            let sent = node::request_signatures(
                 &relay,
                 &home.identity()?,
                 &material,
                 &network(),
                 tip,
                 id,
+                &used,
                 &mut rng,
             )
             .await?;
+            used.extend(sent.used_commitments);
             fs::create_dir_all(home.path("requests"))?;
+            fs::write(&used_path, postcard::to_allocvec(&used)?)?;
             fs::write(
                 home.path(&format!("requests/{proposal}.bin")),
-                node::encode_request(&request)?,
+                node::encode_request(&sent.request)?,
             )?;
             println!(
                 "signing requests sent to {} member(s)",
-                request.signers.len()
+                sent.request.signers.len()
             );
         }
         Command::Respond => {
             let material = home.material()?;
             let tip = tip(&home, &material, &cli.lightwalletd).await?;
             let mut store = FileNonceStore(home.path("nonces"));
-            let answered = node::respond(
+            let report = node::respond(
                 &relay,
                 &home.identity()?,
                 &material,
@@ -363,7 +385,10 @@ async fn main() -> Result<()> {
                 &mut rng,
             )
             .await?;
-            println!("answered {} signing request(s)", answered.len());
+            for (proposal, reason) in &report.skipped {
+                eprintln!("skipped request for {}: {reason}", hex::encode(proposal));
+            }
+            println!("answered {} signing request(s)", report.answered.len());
         }
         Command::Finalize { proposal } => {
             let material = home.material()?;

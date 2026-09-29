@@ -22,8 +22,8 @@ use zafe_proto::{
     log::Chain,
     relay::{
         decode_body, encode_body, join_token_hash, AppendResult, CreateMailbox, InboxRead,
-        InboxResponse, Join, LogRead, LogResponse, MembersRead, MembersResponse, Seal, Signed,
-        MAX_REQUEST_SKEW_SECS,
+        InboxResponse, Join, LogRead, LogResponse, MembersRead, MembersResponse, Remove, Seal,
+        Signed, MAX_REQUEST_SKEW_SECS,
     },
     Envelope, IdentityPublic, LogEntry, MailboxId, Recipient, ReplayGuard,
 };
@@ -41,6 +41,7 @@ pub struct Relay {
 
 struct Mailbox {
     creator: [u8; 32],
+    max_members: u16,
     join_token_hash: [u8; 32],
     sealed: bool,
     members: BTreeMap<[u8; 32], IdentityPublic>,
@@ -114,6 +115,7 @@ impl Relay {
             .route("/v1/mailbox/create", post(create))
             .route("/v1/mailbox/join", post(join))
             .route("/v1/mailbox/seal", post(seal))
+            .route("/v1/mailbox/remove", post(remove))
             .route("/v1/mailbox/members", post(members))
             .route("/v1/envelope", post(post_envelope))
             .route("/v1/inbox", post(inbox))
@@ -155,6 +157,7 @@ async fn create(State(relay): State<Relay>, body: Bytes) -> RelayResult {
         req.payload.mailbox,
         Mailbox {
             creator: creator.sig_pk,
+            max_members: req.payload.max_members,
             join_token_hash: req.payload.join_token_hash,
             sealed: false,
             members: BTreeMap::from([(creator.sig_pk, creator)]),
@@ -174,6 +177,11 @@ async fn join(State(relay): State<Relay>, body: Bytes) -> RelayResult {
         .get_mut(&req.payload.mailbox)
         .ok_or(RelayError::NotFound)?;
     if mb.sealed || join_token_hash(&req.payload.join_token) != mb.join_token_hash {
+        return Err(RelayError::Forbidden);
+    }
+    if !mb.members.contains_key(&req.signer.sig_pk)
+        && mb.members.len() >= usize::from(mb.max_members)
+    {
         return Err(RelayError::Forbidden);
     }
     mb.members.insert(req.signer.sig_pk, req.signer);
@@ -197,6 +205,19 @@ async fn seal(State(relay): State<Relay>, body: Bytes) -> RelayResult {
         return Err(RelayError::Forbidden);
     }
     mb.sealed = true;
+    ok(&())
+}
+
+async fn remove(State(relay): State<Relay>, body: Bytes) -> RelayResult {
+    let req = verified::<Remove>(&body)?;
+    let mut boxes = relay.mailboxes.lock().expect("lock");
+    let mb = boxes
+        .get_mut(&req.payload.mailbox)
+        .ok_or(RelayError::NotFound)?;
+    if req.signer.sig_pk != mb.creator || mb.sealed || req.payload.member == mb.creator {
+        return Err(RelayError::Forbidden);
+    }
+    mb.members.remove(&req.payload.member);
     ok(&())
 }
 
