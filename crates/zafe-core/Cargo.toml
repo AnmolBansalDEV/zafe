@@ -7,6 +7,9 @@ rust-version.workspace = true
 license.workspace = true
 
 [dependencies]
+zafe-proto = { path = "../zafe-proto" }
+serde.workspace = true
+postcard.workspace = true
 reddsa.workspace = true
 frost-rerandomized.workspace = true
 orchard.workspace = true
