@@ -1,0 +1,21 @@
+[package]
+name = "zafe-relay"
+version = "0.1.0"
+description = "Zafe blind relay: mailboxes, store-and-forward envelopes, vault log"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+zafe-proto = { path = "../zafe-proto" }
+axum.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+tower.workspace = true
+http-body-util.workspace = true
+rand.workspace = true

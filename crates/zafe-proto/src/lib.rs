@@ -4,6 +4,7 @@
 pub mod envelope;
 pub mod identity;
 pub mod log;
+pub mod relay;
 
 pub use envelope::{Envelope, Header, Kind, MailboxId, Recipient, ReplayGuard};
 pub use identity::{safety_number, Identity, IdentityPublic, IdentitySeeds};
