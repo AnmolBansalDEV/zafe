@@ -6,3 +6,4 @@ pub mod keygen;
 pub mod keys;
 pub mod signing;
 pub mod tx;
+pub mod verify;

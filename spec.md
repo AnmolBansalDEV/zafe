@@ -458,11 +458,11 @@ Each member's app parses the PCZT locally and refuses to show an Approve button 
 1. **Network and version:** v6 transaction, correct consensus branch ID for the current height, network matches the vault.
 2. **Spends:** every spend that needs a signature belongs to this vault (the spend's `ak` equals the vault's `groupPublicKey`, and the nullifier derives from the vault's `nk`). For each spend, `rk == ak + [α]·G`, where `α` is the spend's randomizer from the PCZT.
 3. **Outputs:** every output is exactly one of:
-   - a payment in the proposal (same address, amount and memo), or
-   - change to **this vault's own address** (confirmed by decrypting with the vault's viewing key), or
-   - a zero-value dummy output.
-   Any other output means rejection.
-4. **Value:** inputs − outputs = fee, and the fee is within ZIP 317 plus a set tolerance.
+   - a payment in the proposal (same address, amount and memo). **Zafe builds every payment output with the vault's external outgoing viewing key**, and members recover it with that key. Recovery decrypts the real ciphertext and checks it against the note commitment, so the compared recipient, amount and memo are what the recipient actually receives. An output the vault can't recover is rejected.
+   - change to **this vault's own address**. The plaintext recipient must belong to the vault, **and** the output must trial-decrypt with the vault's incoming viewing key for that scope. Otherwise a valid commitment with a garbage ciphertext would silently burn the change.
+   - a zero-value output (padding), which moves no funds.
+   Any other output means rejection. Spends must each be either a vault note (nullifier and `rk` checked against the vault viewing key) or a zero-value padding spend already signed by the IO Finalizer. In v1, transparent, Sapling and Orchard-pool components are rejected outright.
+4. **Value:** inputs − outputs = fee, and the fee must **equal** the ZIP 317 conventional fee (5,000 zat × max(2, number of actions)). No tolerance: overpaying the fee is a way to burn funds.
 5. **Sighash:** compute the v6 sighash locally from the PCZT, and use only this value as the FROST message.
 6. **Rules** (§11) pass, or the proposal carries a rule-override flag that the rules themselves allow.
 7. **Hash:** `pcztHash` matches the PCZT bytes.

@@ -4,143 +4,35 @@
 //!
 //! Modeled on `pczt`'s own `wallet_can_set_ironwood_witness_after_signing` test.
 
-use std::{collections::BTreeMap, sync::OnceLock};
+use std::collections::BTreeMap;
 
-use orchard::{
-    builder::BundleType,
-    bundle::BundleVersion,
-    circuit::{OrchardCircuitVersion, ProvingKey, VerifyingKey},
-    keys::{FullViewingKey, Scope, SpendingKey},
-    note::Note,
-    note_encryption::IronwoodDomain,
-    tree::{MerkleHashOrchard, MerklePath},
-    Address, Anchor,
-};
-use pczt::{
-    roles::{
-        creator::Creator, io_finalizer::IoFinalizer, prover::Prover,
-        tx_extractor::TransactionExtractor,
-    },
-    Pczt,
-};
+use orchard::keys::{FullViewingKey, Scope, SpendingKey};
+use pczt::roles::{prover::Prover, tx_extractor::TransactionExtractor};
 use rand::{rngs::StdRng, SeedableRng};
-use rand_core::OsRng;
-use shardtree::{store::memory::MemoryShardStore, ShardTree};
 use zafe_core::{signing, tx};
-use zcash_note_encryption::try_note_decryption;
-use zcash_primitives::transaction::{
-    builder::{BuildConfig, Builder, BundlePadding, PcztResult},
-    fees::zip317,
-};
-use zcash_protocol::{
-    consensus::BlockHeight,
-    local_consensus::LocalNetwork,
-    memo::{Memo, MemoBytes},
-    value::Zatoshis,
-};
+use zcash_protocol::memo::MemoBytes;
 
 mod common;
-use common::{params, run_keygen};
+use common::*;
 
-fn proving_key() -> &'static ProvingKey {
-    static PK: OnceLock<ProvingKey> = OnceLock::new();
-    PK.get_or_init(|| ProvingKey::build(OrchardCircuitVersion::PostNu6_3))
-}
-
-fn verifying_key() -> &'static VerifyingKey {
-    static VK: OnceLock<VerifyingKey> = OnceLock::new();
-    VK.get_or_init(|| VerifyingKey::build(OrchardCircuitVersion::PostNu6_3))
-}
-
-fn nu6_3_network() -> LocalNetwork {
-    LocalNetwork {
-        overwinter: Some(BlockHeight::from_u32(1)),
-        sapling: Some(BlockHeight::from_u32(2)),
-        blossom: Some(BlockHeight::from_u32(3)),
-        heartwood: Some(BlockHeight::from_u32(4)),
-        canopy: Some(BlockHeight::from_u32(5)),
-        nu5: Some(BlockHeight::from_u32(6)),
-        nu6: Some(BlockHeight::from_u32(7)),
-        nu6_1: Some(BlockHeight::from_u32(8)),
-        nu6_2: Some(BlockHeight::from_u32(9)),
-        nu6_3: Some(BlockHeight::from_u32(10)),
-    }
-}
-
-/// Simulates receiving an Ironwood note at `recipient`, decrypted with `fvk`.
-fn receive_ironwood_note(fvk: &FullViewingKey, recipient: Address, value: u64) -> Note {
-    let version = BundleVersion::ironwood_v3();
-    let mut builder = orchard::builder::Builder::new(
-        BundleType::DEFAULT,
-        version,
-        version.default_flags(),
-        Anchor::empty_tree(),
+fn pay_outside(
+    fvk: &FullViewingKey,
+    note: orchard::note::Note,
+    path: orchard::tree::MerklePath,
+    anchor: orchard::Anchor,
+) -> pczt::Pczt {
+    build_pczt(
+        fvk,
+        note,
+        path,
+        anchor,
+        vec![Out {
+            ovk: None,
+            recipient: outside_address(7),
+            value: 990_000,
+            memo: MemoBytes::empty(),
+        }],
     )
-    .unwrap();
-    builder
-        .add_output(
-            None,
-            recipient,
-            orchard::value::NoteValue::from_raw(value),
-            Memo::Empty.encode().into_bytes(),
-        )
-        .unwrap();
-    let (bundle, meta) = builder.build::<i64>(&mut OsRng).unwrap().unwrap();
-    let action = &bundle.actions()[meta.output_action_index(0).unwrap()];
-    let ivk = fvk.to_ivk(Scope::External).prepare();
-    let (note, _, _) =
-        try_note_decryption(&IronwoodDomain::for_action(action), &ivk, action).unwrap();
-    note
-}
-
-/// A single-leaf Ironwood tree containing `note`.
-fn witness(note: &Note) -> (Anchor, MerklePath) {
-    let cmx: orchard::note::ExtractedNoteCommitment = note.commitment().into();
-    let leaf = MerkleHashOrchard::from_cmx(&cmx);
-    let mut tree =
-        ShardTree::<_, 32, 16>::new(MemoryShardStore::<MerkleHashOrchard, u32>::empty(), 100);
-    tree.append(leaf, incrementalmerkletree::Retention::Marked)
-        .unwrap();
-    tree.checkpoint(9_999_999).unwrap();
-    let path = tree
-        .witness_at_checkpoint_depth(0.into(), 0)
-        .unwrap()
-        .unwrap();
-    (path.root(leaf).into(), path.into())
-}
-
-/// Builds a PCZT spending `note` (owned by `spend_fvk`) to an external recipient.
-fn build_pczt(spend_fvk: &FullViewingKey, note: Note, path: MerklePath, anchor: Anchor) -> Pczt {
-    let recipient = FullViewingKey::from(&SpendingKey::from_bytes([7; 32]).unwrap())
-        .address_at(0u32, Scope::External);
-    let mut builder = Builder::new(
-        nu6_3_network(),
-        10_000_000.into(),
-        BuildConfig::Standard {
-            sapling_anchor: None,
-            orchard_anchor: None,
-            ironwood_anchor: Some(anchor),
-            orchard_padding: BundlePadding::DEFAULT,
-            ironwood_padding: BundlePadding::DEFAULT,
-        },
-    );
-    builder
-        .add_ironwood_spend::<zip317::FeeRule>(spend_fvk.clone(), note, path)
-        .unwrap();
-    builder
-        .add_ironwood_output::<zip317::FeeRule>(
-            None,
-            recipient,
-            Zatoshis::const_from_u64(990_000),
-            MemoBytes::empty(),
-        )
-        .unwrap();
-    let PcztResult { pczt_parts, .. } = builder
-        .build_for_pczt(OsRng, &zip317::FeeRule::standard())
-        .unwrap();
-    IoFinalizer::new(Creator::build_from_parts(pczt_parts).unwrap())
-        .finalize_io()
-        .unwrap()
 }
 
 #[test]
@@ -154,7 +46,7 @@ fn vault_spends_ironwood_note_with_frost() {
     // The vault receives 0.01 ZEC in the Ironwood pool.
     let note = receive_ironwood_note(&vault_fvk, vault_address, 1_000_000);
     let (anchor, path) = witness(&note);
-    let pczt = build_pczt(&vault_fvk, note, path, anchor);
+    let pczt = pay_outside(&vault_fvk, note, path, anchor);
 
     // Every member independently finds the spends to sign and computes the sighash.
     let spends = tx::spends_to_sign(&pczt, &vault_fvk).unwrap();
@@ -224,7 +116,7 @@ fn rejects_spend_of_foreign_note() {
         1_000_000,
     );
     let (anchor, path) = witness(&note);
-    let pczt = build_pczt(&other_fvk, note, path, anchor);
+    let pczt = pay_outside(&other_fvk, note, path, anchor);
 
     assert!(matches!(
         tx::spends_to_sign(&pczt, &vault_fvk),
@@ -244,7 +136,7 @@ fn signature_with_wrong_alpha_is_rejected_on_injection() {
         1_000_000,
     );
     let (anchor, path) = witness(&note);
-    let pczt = build_pczt(&vault_fvk, note, path, anchor);
+    let pczt = pay_outside(&vault_fvk, note, path, anchor);
 
     let spend = &tx::spends_to_sign(&pczt, &vault_fvk).unwrap()[0];
     let sighash = tx::shielded_sighash(&pczt).unwrap();
