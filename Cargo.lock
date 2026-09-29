@@ -2483,12 +2483,14 @@ dependencies = [
  "rand",
  "rand_core",
  "reddsa",
+ "serde_json",
  "thiserror 2.0.21",
  "zcash_client_backend",
  "zcash_client_sqlite",
  "zcash_keys",
  "zcash_primitives",
  "zcash_protocol",
+ "zcash_spec",
  "zeroize",
 ]
 
