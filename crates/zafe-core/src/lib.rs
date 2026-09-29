@@ -4,6 +4,8 @@
 
 pub mod keygen;
 pub mod keys;
+pub mod node;
+pub mod relay_client;
 pub mod session;
 pub mod signing;
 pub mod tx;

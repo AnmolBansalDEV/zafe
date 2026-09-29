@@ -41,6 +41,8 @@ pub enum Kind {
     DkgRound2,
     SkContribution,
     DescriptorSignature,
+    /// The vault log key, sealed to one member.
+    LogKey,
     LogEntry,
     Approval,
     SigningRequest,

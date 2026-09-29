@@ -10,6 +10,9 @@ license.workspace = true
 zafe-proto = { path = "../zafe-proto" }
 serde.workspace = true
 postcard.workspace = true
+reqwest.workspace = true
+hex.workspace = true
+tokio.workspace = true
 reddsa.workspace = true
 frost-rerandomized.workspace = true
 orchard.workspace = true
@@ -37,6 +40,8 @@ rand.workspace = true
 zcash_note_encryption.workspace = true
 
 [dev-dependencies]
+zafe-relay = { path = "../zafe-relay" }
+axum.workspace = true
 tokio.workspace = true
 # Non-standard fees let tests model a malicious proposer overpaying the fee.
 zcash_primitives = { workspace = true, features = ["non-standard-fees"] }
