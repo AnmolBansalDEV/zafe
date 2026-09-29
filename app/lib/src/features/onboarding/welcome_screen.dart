@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_icon.dart';
+import 'onboarding_art.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
@@ -13,50 +14,56 @@ class WelcomeScreen extends StatelessWidget {
     final colors = context.colors;
     return Scaffold(
       backgroundColor: colors.background.window,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Spacer(),
-              Text(
-                'Zafe',
-                style: TextStyle(
-                  fontFamily: 'Young Serif',
-                  fontSize: 48,
-                  height: 1.1,
-                  letterSpacing: -1.35,
-                  color: colors.text.accent,
-                ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const OnboardingHero('welcome_vault'),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Spacer(flex: 3),
+                  Text(
+                    'Zafe',
+                    style: TextStyle(
+                      fontFamily: 'Young Serif',
+                      fontSize: 48,
+                      height: 1.1,
+                      letterSpacing: -1.35,
+                      color: colors.text.accent,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.s),
+                  Text(
+                    'A shielded multisig for Zcash. Every payment needs your co-signers to agree.',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: colors.text.secondary,
+                    ),
+                  ),
+                  const Spacer(),
+                  const _InfoCard(),
+                  const SizedBox(height: AppSpacing.md),
+                  AppButton(
+                    expand: true,
+                    onPressed: () => context.push('/create'),
+                    leading: const AppIcon(AppIcons.addNew, size: 20),
+                    child: const Text('Create a vault'),
+                  ),
+                  const SizedBox(height: AppSpacing.s),
+                  AppButton(
+                    expand: true,
+                    variant: AppButtonVariant.secondary,
+                    onPressed: () => context.push('/join'),
+                    leading: const AppIcon(AppIcons.link, size: 20),
+                    child: const Text('Join with an invite'),
+                  ),
+                ],
               ),
-              const SizedBox(height: AppSpacing.s),
-              Text(
-                'A shielded multisig for Zcash. Every payment needs your co-signers to agree.',
-                style: AppTypography.bodyMedium.copyWith(
-                  color: colors.text.secondary,
-                ),
-              ),
-              const Spacer(),
-              const _InfoCard(),
-              const SizedBox(height: AppSpacing.md),
-              AppButton(
-                expand: true,
-                onPressed: () => context.push('/create'),
-                leading: const AppIcon(AppIcons.addNew, size: 20),
-                child: const Text('Create a vault'),
-              ),
-              const SizedBox(height: AppSpacing.s),
-              AppButton(
-                expand: true,
-                variant: AppButtonVariant.secondary,
-                onPressed: () => context.push('/join'),
-                leading: const AppIcon(AppIcons.link, size: 20),
-                child: const Text('Join with an invite'),
-              ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

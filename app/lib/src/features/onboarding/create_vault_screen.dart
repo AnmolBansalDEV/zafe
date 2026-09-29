@@ -10,6 +10,7 @@ import '../../core/widgets/app_toast.dart';
 import '../../core/widgets/mobile/mobile_surface_card.dart';
 import '../../core/widgets/mobile_text_field.dart';
 import '../../providers/vault_provider.dart';
+import 'onboarding_art.dart';
 
 class CreateVaultScreen extends ConsumerStatefulWidget {
   const CreateVaultScreen({super.key});
@@ -72,6 +73,8 @@ class _CreateVaultScreenState extends ConsumerState<CreateVaultScreen> {
         child: Text(_busy ? 'Creating...' : 'Create vault'),
       ),
       children: [
+        const OnboardingBanner('create_stones'),
+        const SizedBox(height: AppSpacing.md),
         Text(
           'Vault name',
           style: AppTypography.labelMedium.copyWith(

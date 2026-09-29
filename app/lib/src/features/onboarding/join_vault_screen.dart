@@ -11,6 +11,7 @@ import '../../core/widgets/app_toast.dart';
 import '../../core/widgets/mobile_text_field.dart';
 import '../../providers/vault_provider.dart';
 import '../../rust/api/vault.dart' as rust;
+import 'onboarding_art.dart';
 
 class JoinVaultScreen extends ConsumerStatefulWidget {
   const JoinVaultScreen({super.key});
@@ -76,6 +77,8 @@ class _JoinVaultScreenState extends ConsumerState<JoinVaultScreen> {
         child: Text(_busy ? 'Joining...' : 'Join vault'),
       ),
       children: [
+        const OnboardingBanner('join_doorway'),
+        const SizedBox(height: AppSpacing.md),
         Text(
           'Invite',
           style: AppTypography.labelMedium.copyWith(

@@ -17,6 +17,7 @@ import '../../core/widgets/dot_qr_shape.dart';
 import '../../core/widgets/mobile/mobile_surface_card.dart';
 import '../../providers/vault_provider.dart';
 import '../../rust/api/vault.dart' as rust;
+import 'onboarding_art.dart';
 
 /// Vault setup: invite, members joining, locking membership, comparing the safety
 /// number, and key generation (spec §7.2).
@@ -518,36 +519,42 @@ class _CreatingKeys extends StatelessWidget {
     final colors = context.colors;
     return Scaffold(
       backgroundColor: colors.background.window,
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(AppSpacing.sm),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              AppIcon(AppIcons.loader, size: 24, color: colors.icon.accent),
-              const SizedBox(height: AppSpacing.sm),
-              Text(
-                'Creating your vault keys...',
-                style: TextStyle(
-                  fontFamily: 'Young Serif',
-                  fontSize: 24,
-                  height: 28 / 24,
-                  color: colors.text.accent,
-                ),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          const OnboardingHero('key_shards'),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AppIcon(AppIcons.loader, size: 24, color: colors.icon.accent),
+                  const SizedBox(height: AppSpacing.sm),
+                  Text(
+                    'Creating your vault keys...',
+                    style: TextStyle(
+                      fontFamily: 'Young Serif',
+                      fontSize: 24,
+                      height: 28 / 24,
+                      color: colors.text.accent,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    'Keep Zafe open. Your share is being created together with the other members; '
+                    'the full key never exists anywhere.',
+                    style: AppTypography.bodyMedium.copyWith(
+                      color: colors.text.secondary,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.lg),
+                ],
               ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                'Keep Zafe open. Your share is being created together with the other members; '
-                'the full key never exists anywhere.',
-                style: AppTypography.bodyMedium.copyWith(
-                  color: colors.text.secondary,
-                ),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
