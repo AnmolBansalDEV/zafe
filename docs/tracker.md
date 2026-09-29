@@ -12,6 +12,11 @@ Last updated: 2026-09-29 (after `c508aff`, M1 slice 2)
 
 ## Next up (proposed order)
 
+0. [ ] **Proposals expire after ~50 min.** PCZTs are built with the library default expiry
+   (`DEFAULT_TX_EXPIRY_DELTA` = 40 blocks) and `verify` allows at most 100 blocks, so
+   approvals and signing must finish within about 50 minutes. Async multisig needs a long
+   expiry (days; configurable per vault, D2). Anchors can go stale safely (V6: witnesses
+   can be refreshed after signing, before proving). Blocks any real async use.
 1. [ ] **Auto-submit when the threshold is reached.** The member whose approval completes
    the threshold (known from log order, so exactly one per proposal) starts "collect
    signatures & send" automatically. The manual button stays as the fallback. ~1 day.
@@ -115,6 +120,17 @@ Open
 - [ ] Relay: rate limiting / abuse controls for the hosted tier; retention is 30 days
 
 ## Ideas (not decided)
+
+- *(idea, proposed 2026-09-29)* **One-tap approvals: sign at approval time.** Members
+  pre-publish pools of FROST nonce commitments (FROST's preprocessing round, done ahead
+  of time). When a proposal is built, its signing packages are fixed, so an approver's tap
+  produces its signature shares immediately; shares go into the encrypted log. Either the
+  proposer fixes the signer set, or each approver signs one package per t-subset that
+  includes them (C(n-1, t-1) shares: 2-of-3 → 2, 3-of-5 → 6, 4-of-7 → 20), so any t
+  approvers complete it with no second round. Each nonce is used once, with consumption
+  ordered by the log. Fall back to today's interactive round for large vaults. Pairs with
+  auto-submit: the approval that completes the threshold aggregates, proves and
+  broadcasts; a vault setting keeps "send manually" for timing control.
 
 - *(idea)* Relay as a Tor onion service (pairs with the Tor slice)
 - *(idea)* Fiat values next to amounts (Vizor shows USD; needs a price source, Tor-aware)
