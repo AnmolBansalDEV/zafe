@@ -87,3 +87,14 @@ List<VaultUpdate> vaultUpdates({
 SeenSnapshot snapshotOf(List<rust.ProposalInfo> proposals) => {
   for (final p in proposals) p.id: seenKey(p),
 };
+
+/// Payments waiting for this member: a vote, or (once every signature is in and nobody is
+/// auto-sending) a send.
+int actionableCount(List<rust.ProposalInfo> proposals) => proposals
+    .where(
+      (p) =>
+          (p.stage == rust.ProposalStage.open &&
+              p.myVote == rust.MyVote.none) ||
+          (p.stage == rust.ProposalStage.approved && !(p.ready && p.autoSend)),
+    )
+    .length;

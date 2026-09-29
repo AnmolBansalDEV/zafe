@@ -233,12 +233,20 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
         Ok(self.db.chain_height().map_err(db_err)?.map(u32::from))
     }
 
+    /// The vault's balance. A vault whose birthday is still ahead of the chain (just
+    /// created, no new block yet) has nothing to scan and holds nothing: zero.
     pub fn balance(&self) -> Result<VaultBalance, WalletError> {
-        let summary = self
+        let Some(summary) = self
             .db
             .get_wallet_summary(ConfirmationsPolicy::default())
             .map_err(db_err)?
-            .ok_or_else(|| WalletError::Db("wallet not synced".into()))?;
+        else {
+            return Ok(VaultBalance {
+                ironwood_spendable: 0,
+                ironwood_total: 0,
+                total: 0,
+            });
+        };
         let balance = summary
             .account_balances()
             .get(&self.account)

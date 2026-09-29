@@ -77,18 +77,19 @@ Open
 
 ## Multiple vaults, import and export (requested 2026-09-30)
 
-Multiple vaults on one device
-- [ ] **Storage per vault**: secure store keyed by vault id (today one identity, invite and
+Multiple vaults on one device (done 2026-09-30, verified on the emulator: migration from the
+single-vault layout, add via the switcher, cross-vault notification tap, remove)
+- [x] **Storage per vault**: secure store keyed by vault id (today one identity, invite and
       material slot); per-vault `state_dir` (`used_commitments.bin` and the notification
       snapshot are shared today); wallet DBs are already per vault (`vault-<id>.sqlite`)
-- [ ] **A fresh member identity per vault** by default, so the relay can't link one
+- [x] **A fresh member identity per vault** by default, so the relay can't link one
       person's memberships across vaults (it sees each member's public key)
-- [ ] **Vault switcher**: Vizor's account sheet pattern (tap the top-nav vault name/avatar),
+- [x] **Vault switcher**: Vizor's account sheet pattern (tap the top-nav vault name/avatar),
       showing each vault's name, rule (2/3), balance (respecting hide amounts) and a badge
       for payments needing approval; "Add vault" (create or join) from the sheet
-- [ ] Per-vault settings; **remove vault from this device** with a clear warning (it
+- [x] Per-vault settings; **remove vault from this device** with a clear warning (it
       doesn't leave the vault; say what the other members lose if this was needed for t)
-- [ ] Background checks, notifications and push registration for **every** vault
+- [x] Background checks, notifications and push registration for **every** vault
       (notification title already carries the vault name)
 - [ ] Revisit the bridge's single global wallet lock (Known issues) for parallel syncs
 

@@ -1,18 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_icon.dart';
+import '../../core/widgets/app_tappable.dart';
+import '../../providers/vault_provider.dart';
 import 'onboarding_art.dart';
 
-class WelcomeScreen extends StatelessWidget {
+class WelcomeScreen extends ConsumerWidget {
   const WelcomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
-    return Scaffold(
+    // Adding another vault: offer the way back to the one that was on screen.
+    final adding = ref.watch(vaultProvider.select((v) => v.isAdding));
+    Future<void> cancel() async {
+      await ref.read(vaultProvider.notifier).cancelAddVault();
+      if (context.mounted) context.go('/home');
+    }
+
+    final scaffold = Scaffold(
       backgroundColor: colors.background.window,
       body: Stack(
         fit: StackFit.expand,
@@ -63,8 +73,43 @@ class WelcomeScreen extends StatelessWidget {
               ),
             ),
           ),
+          if (adding)
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: Padding(
+                  padding: const EdgeInsets.all(AppSpacing.sm),
+                  child: AppTappable(
+                    onTap: cancel,
+                    semanticsLabel: 'Cancel adding a vault',
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: colors.background.ground,
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: AppIcon(
+                        AppIcons.cross,
+                        size: 20,
+                        color: colors.icon.accent,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
+    );
+    if (!adding) return scaffold;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) cancel();
+      },
+      child: scaffold,
     );
   }
 }

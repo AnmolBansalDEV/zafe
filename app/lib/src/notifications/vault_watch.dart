@@ -11,6 +11,7 @@ import 'package:workmanager/workmanager.dart';
 
 import '../core/config/network_config.dart';
 import '../core/errors/zafe_error_copy.dart';
+import '../core/storage/vault_summaries.dart';
 import '../core/storage/zafe_paths.dart';
 import '../core/storage/zafe_secure_store.dart';
 import '../providers/privacy_mode_provider.dart' show kPrivacyModeKey;
@@ -116,21 +117,21 @@ Future<void> _registerPush() async {
   final messaging = FirebaseMessaging.instance;
   FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
   await messaging.requestPermission();
+  // Every vault on this device, each with its own member identity.
   Future<void> register(String token) async {
-    final store = ZafeSecureStore.instance;
-    final seeds = await store.readIdentity();
-    final material = await store.readMaterial();
-    if (seeds == null || material == null) return;
-    try {
-      await rust_vault.registerPush(
-        relayUrl: kZafeRelayUrl,
-        seeds: seeds,
-        material: material,
-        platform: Platform.isIOS ? 'apns' : 'fcm',
-        token: token,
-      );
-    } catch (e) {
-      debugPrint('push: register failed: ${describeError(e)}');
+    for (final v in await ZafeSecureStore.instance.readAll()) {
+      if (!v.ready) continue;
+      try {
+        await rust_vault.registerPush(
+          relayUrl: kZafeRelayUrl,
+          seeds: v.identity!,
+          material: v.material!,
+          platform: Platform.isIOS ? 'apns' : 'fcm',
+          token: token,
+        );
+      } catch (e) {
+        debugPrint('push: register failed for ${v.id}: ${describeError(e)}');
+      }
     }
   }
 
@@ -139,13 +140,11 @@ Future<void> _registerPush() async {
   messaging.onTokenRefresh.listen(register);
 }
 
-Future<File> _seenFile() async {
-  final dir = await getApplicationSupportDirectory();
-  return File('${dir.path}/notifications/seen.json');
-}
+Future<File> _seenFile(String vaultId) async =>
+    File('${(await ZafePaths.get()).vaultDir(vaultId)}/seen.json');
 
-Future<SeenSnapshot?> _readSeen() async {
-  final f = await _seenFile();
+Future<SeenSnapshot?> _readSeen(String vaultId) async {
+  final f = await _seenFile(vaultId);
   if (!await f.exists()) return null;
   try {
     return Map<String, String>.from(jsonDecode(await f.readAsString()) as Map);
@@ -154,14 +153,26 @@ Future<SeenSnapshot?> _readSeen() async {
   }
 }
 
-/// Records what this device has seen (also called by the app on every refresh, so things
-/// seen in the app are never announced again from the background).
-Future<void> recordSeen(List<rust.ProposalInfo> proposals) async {
-  final f = await _seenFile();
+/// Records what this device has seen of a vault (also called by the app on every refresh,
+/// so things seen in the app are never announced again from the background).
+Future<void> recordSeen(
+  String vaultId,
+  List<rust.ProposalInfo> proposals,
+) async {
+  final f = await _seenFile(vaultId);
   await f.parent.create(recursive: true);
   final tmp = File('${f.path}.tmp');
   await tmp.writeAsString(jsonEncode(snapshotOf(proposals)));
   await tmp.rename(f.path);
+}
+
+/// Notification payloads carry both ids, so a tap can switch to the right vault.
+String notificationPayload(String vaultId, String proposalId) =>
+    '$vaultId:$proposalId';
+
+(String, String)? parsePayload(String payload) {
+  final i = payload.indexOf(':');
+  return i < 0 ? null : (payload.substring(0, i), payload.substring(i + 1));
 }
 
 bool _rustReady = false;
@@ -203,33 +214,40 @@ Future<void> checkVaultAndNotify() async {
 }
 
 Future<void> _check() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await _ensureRust();
+  await _initNotifications();
+  final vaults = await ZafeSecureStore.instance.readAll();
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.reload();
+  final hideAmounts = prefs.getBool(kPrivacyModeKey) ?? false;
+  for (final v in vaults) {
+    if (v.ready) await _checkVault(v, hideAmounts);
+  }
+}
+
+/// One vault: sync, read the log, answer interactive signing requests, finish an auto-send
+/// this member owes, update the switcher summary, and notify about changes.
+Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
   try {
-    WidgetsFlutterBinding.ensureInitialized();
-    await _ensureRust();
-    await _initNotifications();
-    final store = ZafeSecureStore.instance;
-    final seeds = await store.readIdentity();
-    final material = await store.readMaterial();
-    if (seeds == null || material == null) {
-      debugPrint(
-        'vault check: no vault on this device (identity ${seeds != null}, material ${material != null})',
-      );
-      return;
-    }
+    final seeds = v.identity!;
+    final material = v.material!;
     final paths = await ZafePaths.get();
-    debugPrint('vault check: running');
+    final stateDir = await paths.stateDir(v.id);
     final summary = rust_vault.vaultSummary(material: material);
+    debugPrint('vault check: ${summary.name}');
 
     try {
-      await rust_vault.syncVault(
+      final balance = await rust_vault.syncVault(
         dbDir: paths.dbDir,
         lightwalletdUrl: kZafeLightwalletdUrl,
         material: material,
       );
+      await VaultSummaries.write(v.id, balanceZat: balance.totalZat);
     } catch (_) {}
     var proposals = await rust.listProposals(
       relayUrl: kZafeRelayUrl,
-      stateDir: paths.stateDir,
+      stateDir: stateDir,
       seeds: seeds,
       material: material,
     );
@@ -238,7 +256,7 @@ Future<void> _check() async {
         relayUrl: kZafeRelayUrl,
         lightwalletdUrl: kZafeLightwalletdUrl,
         dbDir: paths.dbDir,
-        stateDir: paths.stateDir,
+        stateDir: stateDir,
         seeds: seeds,
         material: material,
       );
@@ -257,7 +275,7 @@ Future<void> _check() async {
                 relayUrl: kZafeRelayUrl,
                 lightwalletdUrl: kZafeLightwalletdUrl,
                 dbDir: paths.dbDir,
-                stateDir: paths.stateDir,
+                stateDir: stateDir,
                 seeds: seeds,
                 material: material,
                 proposalId: p.id,
@@ -268,22 +286,21 @@ Future<void> _check() async {
     }
     proposals = await rust.listProposals(
       relayUrl: kZafeRelayUrl,
-      stateDir: paths.stateDir,
+      stateDir: stateDir,
       seeds: seeds,
       material: material,
     );
+    await VaultSummaries.write(v.id, actionable: actionableCount(proposals));
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.reload();
     final updates = vaultUpdates(
-      previous: await _readSeen(),
+      previous: await _readSeen(v.id),
       proposals: proposals,
       vaultName: summary.name,
-      hideAmounts: prefs.getBool(kPrivacyModeKey) ?? false,
+      hideAmounts: hideAmounts,
     );
     for (final u in updates) {
       await _notifications.show(
-        id: u.proposalId.hashCode & 0x7fffffff,
+        id: notificationPayload(v.id, u.proposalId).hashCode & 0x7fffffff,
         title: u.title,
         body: u.body,
         notificationDetails: const NotificationDetails(
@@ -297,12 +314,14 @@ Future<void> _check() async {
           ),
           iOS: DarwinNotificationDetails(),
         ),
-        payload: u.proposalId,
+        payload: notificationPayload(v.id, u.proposalId),
       );
     }
-    await recordSeen(proposals);
-    debugPrint('vault check: ${updates.length} notification(s)');
+    await recordSeen(v.id, proposals);
+    debugPrint(
+      'vault check: ${summary.name}: ${updates.length} notification(s)',
+    );
   } catch (e) {
-    debugPrint('vault check failed: ${describeError(e)}');
+    debugPrint('vault check failed for ${v.id}: ${describeError(e)}');
   }
 }

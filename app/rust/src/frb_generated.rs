@@ -994,11 +994,13 @@ impl SseDecode for crate::api::vault::IdentityInfo {
 impl SseDecode for crate::api::vault::InviteInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_vaultId = <String>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_threshold = <u16>::sse_decode(deserializer);
         let mut var_members = <u16>::sse_decode(deserializer);
         let mut var_creatorHex = <String>::sse_decode(deserializer);
         return crate::api::vault::InviteInfo {
+            vault_id: var_vaultId,
             name: var_name,
             threshold: var_threshold,
             members: var_members,
@@ -1324,6 +1326,7 @@ impl SseDecode for () {
 impl SseDecode for crate::api::vault::VaultSummary {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_vaultId = <String>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_network = <String>::sse_decode(deserializer);
         let mut var_address = <String>::sse_decode(deserializer);
@@ -1331,6 +1334,7 @@ impl SseDecode for crate::api::vault::VaultSummary {
         let mut var_members = <Vec<String>>::sse_decode(deserializer);
         let mut var_birthdayHeight = <u32>::sse_decode(deserializer);
         return crate::api::vault::VaultSummary {
+            vault_id: var_vaultId,
             name: var_name,
             network: var_network,
             address: var_address,
@@ -1509,6 +1513,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::vault::IdentityInfo>
 impl flutter_rust_bridge::IntoDart for crate::api::vault::InviteInfo {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
+            self.vault_id.into_into_dart().into_dart(),
             self.name.into_into_dart().into_dart(),
             self.threshold.into_into_dart().into_dart(),
             self.members.into_into_dart().into_dart(),
@@ -1749,6 +1754,7 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::proposals::SendStage>
 impl flutter_rust_bridge::IntoDart for crate::api::vault::VaultSummary {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
+            self.vault_id.into_into_dart().into_dart(),
             self.name.into_into_dart().into_dart(),
             self.network.into_into_dart().into_dart(),
             self.address.into_into_dart().into_dart(),
@@ -1892,6 +1898,7 @@ impl SseEncode for crate::api::vault::IdentityInfo {
 impl SseEncode for crate::api::vault::InviteInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.vault_id, serializer);
         <String>::sse_encode(self.name, serializer);
         <u16>::sse_encode(self.threshold, serializer);
         <u16>::sse_encode(self.members, serializer);
@@ -2155,6 +2162,7 @@ impl SseEncode for () {
 impl SseEncode for crate::api::vault::VaultSummary {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.vault_id, serializer);
         <String>::sse_encode(self.name, serializer);
         <String>::sse_encode(self.network, serializer);
         <String>::sse_encode(self.address, serializer);

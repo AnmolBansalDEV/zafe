@@ -15,6 +15,7 @@ import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/app_tappable.dart';
 import '../../core/widgets/app_toast.dart';
 import '../../notifications/vault_watch.dart';
+import '../vaults/vault_switcher_sheet.dart';
 import '../../providers/privacy_mode_provider.dart';
 import '../../providers/proposals_provider.dart';
 import '../../core/privacy/privacy_mask.dart';
@@ -106,7 +107,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     ? colors.sync.textError
                     : colors.sync.text,
                 syncAnimated: vault.syncing,
-                onAccountTap: () => context.push('/settings'),
+                onAccountTap: () => showVaultSwitcher(context),
                 avatar: _VaultAvatar(
                   threshold: summary.threshold,
                   members: summary.members.length,

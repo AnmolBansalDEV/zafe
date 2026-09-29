@@ -160,6 +160,19 @@ class SettingsScreen extends ConsumerWidget {
                         ),
                       ],
                     ),
+                    const SizedBox(height: AppSpacing.md),
+                    AppButton(
+                      expand: true,
+                      variant: AppButtonVariant.destructive,
+                      leading: const AppIcon(AppIcons.trash, size: 20),
+                      onPressed: () => _confirmRemove(
+                        context,
+                        ref,
+                        summary.name,
+                        summary.threshold,
+                      ),
+                      child: const Text('Remove vault from this device'),
+                    ),
                     const SizedBox(height: AppSpacing.base),
                     Center(
                       child: Text(
@@ -176,6 +189,70 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _confirmRemove(
+    BuildContext context,
+    WidgetRef ref,
+    String name,
+    int threshold,
+  ) async {
+    final remove = await showAppMobileSheet<bool>(
+      context: context,
+      builder: (sheet) {
+        final colors = sheet.colors;
+        return MobileModalScaffold(
+          title: 'Remove "$name"?',
+          onClose: () => Navigator.of(sheet).pop(false),
+          leading: AppIcon(
+            AppIcons.warning,
+            size: 20,
+            color: colors.icon.destructive,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'This deletes your key share, signing state and history for this vault from '
+                'this phone. You stay a member, but this phone can no longer approve or sign. '
+                'If fewer than $threshold members keep their shares, the vault\'s funds can never '
+                'be moved again.',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.text.accent,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              AppButton(
+                expand: true,
+                variant: AppButtonVariant.destructive,
+                onPressed: () => Navigator.of(sheet).pop(true),
+                child: const Text('Remove from this device'),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              AppButton(
+                expand: true,
+                variant: AppButtonVariant.ghost,
+                onPressed: () => Navigator.of(sheet).pop(false),
+                child: const Text('Keep it'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (remove != true || !context.mounted) return;
+    final vaultId = ref.read(vaultProvider).activeId!;
+    await ref.read(vaultProvider.notifier).removeVault(vaultId);
+    if (!context.mounted) return;
+    final next = ref.read(vaultProvider);
+    context.go(
+      next.hasVault
+          ? '/home'
+          : next.isSettingUp
+          ? '/setup'
+          : '/welcome',
     );
   }
 

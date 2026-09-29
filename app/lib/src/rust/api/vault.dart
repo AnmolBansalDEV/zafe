@@ -163,12 +163,15 @@ class IdentityInfo {
 }
 
 class InviteInfo {
+  /// The vault's id (hex), known from the invite onward; keys the vault on the device.
+  final String vaultId;
   final String name;
   final int threshold;
   final int members;
   final String creatorHex;
 
   const InviteInfo({
+    required this.vaultId,
     required this.name,
     required this.threshold,
     required this.members,
@@ -177,6 +180,7 @@ class InviteInfo {
 
   @override
   int get hashCode =>
+      vaultId.hashCode ^
       name.hashCode ^
       threshold.hashCode ^
       members.hashCode ^
@@ -187,6 +191,7 @@ class InviteInfo {
       identical(this, other) ||
       other is InviteInfo &&
           runtimeType == other.runtimeType &&
+          vaultId == other.vaultId &&
           name == other.name &&
           threshold == other.threshold &&
           members == other.members &&
@@ -225,6 +230,7 @@ class MembershipInfo {
 }
 
 class VaultSummary {
+  final String vaultId;
   final String name;
   final String network;
   final String address;
@@ -233,6 +239,7 @@ class VaultSummary {
   final int birthdayHeight;
 
   const VaultSummary({
+    required this.vaultId,
     required this.name,
     required this.network,
     required this.address,
@@ -243,6 +250,7 @@ class VaultSummary {
 
   @override
   int get hashCode =>
+      vaultId.hashCode ^
       name.hashCode ^
       network.hashCode ^
       address.hashCode ^
@@ -255,6 +263,7 @@ class VaultSummary {
       identical(this, other) ||
       other is VaultSummary &&
           runtimeType == other.runtimeType &&
+          vaultId == other.vaultId &&
           name == other.name &&
           network == other.network &&
           address == other.address &&

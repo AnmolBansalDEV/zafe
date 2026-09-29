@@ -241,6 +241,17 @@ Learned while studying it:
 - Settings (`/settings`, opened from the vault name on home): vault info, signer key,
   hide amounts, theme (`themeModeProvider`, persisted), endpoints (read-only; compile-time
   dart-defines), open-source licenses (fonts + NOTICE registered in `main.dart`).
+- **Multiple vaults**: `ZafeSecureStore` keeps each vault's identity, invite and material
+  under `zafe_vault_<vaultId>_*`, listed in `zafe_vaults`; the active vault id is in prefs
+  (`zafe_active_vault`). Each vault gets a **fresh member identity** (the relay can't link
+  memberships). Per-vault files live in `ZafePaths.vaultDir(id)`: `signing/` (pass
+  `await paths.stateDir(id)` to Rust), `seen.json`, `summary.json` (switcher's balance and
+  pending count, written by the app and background checks). Wallet DBs stay
+  `vault-<id>.sqlite` in the support dir. `VaultState` exposes the **active** vault
+  through the old getters (`identity`, `material`, `hasVault`...); `ProposalsNotifier`
+  rebuilds when `activeId` changes. The pre-multi-vault layout is migrated in
+  `VaultBootstrap.load()`. Notification payloads are `vaultId:proposalId`; a tap switches
+  vaults first. The switcher opens from the vault name on home.
 - **Notifications** (`lib/src/notifications/`): the relay pushes every other member on
   each log append (content-free; FCM data message, high priority, one collapse key). A push,
   the 15-minute WorkManager task, or a one-off check a minute after the app is backgrounded

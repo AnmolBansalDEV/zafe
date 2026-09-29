@@ -1192,13 +1192,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   InviteInfo dco_decode_invite_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return InviteInfo(
-      name: dco_decode_String(arr[0]),
-      threshold: dco_decode_u_16(arr[1]),
-      members: dco_decode_u_16(arr[2]),
-      creatorHex: dco_decode_String(arr[3]),
+      vaultId: dco_decode_String(arr[0]),
+      name: dco_decode_String(arr[1]),
+      threshold: dco_decode_u_16(arr[2]),
+      members: dco_decode_u_16(arr[3]),
+      creatorHex: dco_decode_String(arr[4]),
     );
   }
 
@@ -1415,15 +1416,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   VaultSummary dco_decode_vault_summary(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return VaultSummary(
-      name: dco_decode_String(arr[0]),
-      network: dco_decode_String(arr[1]),
-      address: dco_decode_String(arr[2]),
-      threshold: dco_decode_u_16(arr[3]),
-      members: dco_decode_list_String(arr[4]),
-      birthdayHeight: dco_decode_u_32(arr[5]),
+      vaultId: dco_decode_String(arr[0]),
+      name: dco_decode_String(arr[1]),
+      network: dco_decode_String(arr[2]),
+      address: dco_decode_String(arr[3]),
+      threshold: dco_decode_u_16(arr[4]),
+      members: dco_decode_list_String(arr[5]),
+      birthdayHeight: dco_decode_u_32(arr[6]),
     );
   }
 
@@ -1542,11 +1544,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   InviteInfo sse_decode_invite_info(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_vaultId = sse_decode_String(deserializer);
     var var_name = sse_decode_String(deserializer);
     var var_threshold = sse_decode_u_16(deserializer);
     var var_members = sse_decode_u_16(deserializer);
     var var_creatorHex = sse_decode_String(deserializer);
     return InviteInfo(
+      vaultId: var_vaultId,
       name: var_name,
       threshold: var_threshold,
       members: var_members,
@@ -1843,6 +1847,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   VaultSummary sse_decode_vault_summary(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_vaultId = sse_decode_String(deserializer);
     var var_name = sse_decode_String(deserializer);
     var var_network = sse_decode_String(deserializer);
     var var_address = sse_decode_String(deserializer);
@@ -1850,6 +1855,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_members = sse_decode_list_String(deserializer);
     var var_birthdayHeight = sse_decode_u_32(deserializer);
     return VaultSummary(
+      vaultId: var_vaultId,
       name: var_name,
       network: var_network,
       address: var_address,
@@ -1972,6 +1978,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_encode_invite_info(InviteInfo self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.vaultId, serializer);
     sse_encode_String(self.name, serializer);
     sse_encode_u_16(self.threshold, serializer);
     sse_encode_u_16(self.members, serializer);
@@ -2212,6 +2219,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_encode_vault_summary(VaultSummary self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.vaultId, serializer);
     sse_encode_String(self.name, serializer);
     sse_encode_String(self.network, serializer);
     sse_encode_String(self.address, serializer);

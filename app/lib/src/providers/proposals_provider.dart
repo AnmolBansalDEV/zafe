@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/config/network_config.dart';
 import '../core/errors/zafe_error_copy.dart';
 import '../core/storage/zafe_paths.dart';
+import '../core/storage/vault_summaries.dart';
+import '../notifications/vault_updates.dart' show actionableCount;
 import '../notifications/vault_watch.dart' show recordSeen;
 import '../rust/api/proposals.dart' as rust;
 import 'vault_provider.dart';
@@ -71,6 +73,8 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
 
   @override
   ProposalsState build() {
+    // A different vault on screen starts from scratch (and cancels this one's listeners).
+    ref.watch(vaultProvider.select((v) => v.activeId));
     ref.onDispose(() {
       for (final s in _subscriptions.values) {
         s.cancel();
@@ -89,7 +93,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
       final paths = await ZafePaths.get();
       final items = await rust.listProposals(
         relayUrl: kZafeRelayUrl,
-        stateDir: paths.stateDir,
+        stateDir: await paths.stateDir(vault.activeId!),
         seeds: vault.identity!,
         material: vault.material!,
       );
@@ -97,8 +101,14 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
       // Seen on screen: never announced from the background. Only while the app is in
       // the foreground; a refresh running in the background must not swallow news.
       if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
-        unawaited(recordSeen(items));
+        unawaited(recordSeen(vault.activeId!, items));
       }
+      unawaited(
+        VaultSummaries.write(
+          vault.activeId!,
+          actionable: actionableCount(items),
+        ),
+      );
       _autoSend();
       await _answerRequests(paths);
     } catch (e) {
@@ -129,7 +139,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
         relayUrl: kZafeRelayUrl,
         lightwalletdUrl: kZafeLightwalletdUrl,
         dbDir: paths.dbDir,
-        stateDir: paths.stateDir,
+        stateDir: await paths.stateDir(vault.activeId!),
         seeds: vault.identity!,
         material: vault.material!,
       );
@@ -183,7 +193,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
       relayUrl: kZafeRelayUrl,
       lightwalletdUrl: kZafeLightwalletdUrl,
       dbDir: paths.dbDir,
-      stateDir: paths.stateDir,
+      stateDir: await paths.stateDir(vault.activeId!),
       seeds: vault.identity!,
       material: vault.material!,
       proposalId: id,
@@ -217,7 +227,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
           relayUrl: kZafeRelayUrl,
           lightwalletdUrl: kZafeLightwalletdUrl,
           dbDir: paths.dbDir,
-          stateDir: paths.stateDir,
+          stateDir: await paths.stateDir(vault.activeId!),
           seeds: vault.identity!,
           material: vault.material!,
           proposalId: id,

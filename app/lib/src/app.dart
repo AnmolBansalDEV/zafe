@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart' show CupertinoPage;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,27 +21,37 @@ import 'notifications/vault_watch.dart';
 import 'providers/vault_provider.dart';
 
 final _routerProvider = Provider<GoRouter>((ref) {
-  final boot = ref.read(vaultBootstrapProvider);
-  final initial = boot.material != null
+  final vault = ref.read(vaultProvider);
+  final initial = vault.hasVault
       ? '/home'
-      : boot.invite != null
+      : vault.isSettingUp
       ? '/setup'
       : '/welcome';
 
   Page<void> page(Widget child) => CupertinoPage(child: child);
 
   late final GoRouter router;
-  // Tapped notifications open their payment (also the one that launched the app).
-  void openTapped() {
-    final id = notificationTaps.value;
-    if (id == null || !ref.read(vaultProvider).hasVault) return;
+  // Tapped notifications open their payment (also the one that launched the app),
+  // switching to that payment's vault first.
+  Future<void> openTapped() async {
+    final payload = notificationTaps.value;
+    final ids = payload == null ? null : parsePayload(payload);
+    if (ids == null) return;
     notificationTaps.value = null;
-    router.push('/proposal/$id');
+    final (vaultId, proposalId) = ids;
+    final vaults = ref.read(vaultProvider);
+    if (!vaults.vaults.any((v) => v.id == vaultId && v.ready)) return;
+    if (vaults.activeId != vaultId || vaults.isAdding) {
+      await ref.read(vaultProvider.notifier).switchTo(vaultId);
+      router.go('/home');
+    }
+    router.push('/proposal/$proposalId');
   }
 
-  notificationTaps.addListener(openTapped);
-  ref.onDispose(() => notificationTaps.removeListener(openTapped));
-  WidgetsBinding.instance.addPostFrameCallback((_) => openTapped());
+  void onTap() => unawaited(openTapped());
+  notificationTaps.addListener(onTap);
+  ref.onDispose(() => notificationTaps.removeListener(onTap));
+  WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(openTapped()));
 
   return router = GoRouter(
     initialLocation: initial,

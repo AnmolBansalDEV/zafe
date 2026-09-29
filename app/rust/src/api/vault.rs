@@ -73,6 +73,8 @@ pub fn identity_public_key(seeds: Vec<u8>) -> Result<String, ZafeError> {
 }
 
 pub struct InviteInfo {
+    /// The vault's id (hex), known from the invite onward; keys the vault on the device.
+    pub vault_id: String,
     pub name: String,
     pub threshold: u16,
     pub members: u16,
@@ -83,6 +85,7 @@ pub struct InviteInfo {
 pub fn parse_invite(invite: String) -> Result<InviteInfo, ZafeError> {
     let i = Invite::decode(&invite)?;
     Ok(InviteInfo {
+        vault_id: hex::encode(i.mailbox),
         name: i.name,
         threshold: i.threshold,
         members: i.members,
@@ -190,6 +193,7 @@ pub fn run_keygen(
 }
 
 pub struct VaultSummary {
+    pub vault_id: String,
     pub name: String,
     pub network: String,
     pub address: String,
@@ -203,6 +207,7 @@ pub fn vault_summary(material: Vec<u8>) -> Result<VaultSummary, ZafeError> {
     let m = self::material(&material)?;
     let d = &m.descriptor;
     Ok(VaultSummary {
+        vault_id: hex::encode(d.vault_id),
         name: d.name.clone(),
         network: d.network.clone(),
         address: d.address.clone(),
@@ -270,10 +275,16 @@ pub fn sync_vault(
     let _guard = wallet_lock();
     runtime().block_on(async {
         let mut wallet = open_wallet(&db_dir, &lightwalletd_url, &m).await?;
-        wallet.sync(&mut connect(&lightwalletd_url).await?).await?;
+        let mut client = connect(&lightwalletd_url).await?;
+        wallet.sync(&mut client).await?;
         let b = wallet.balance()?;
+        // Before the vault's birthday block exists the wallet has no chain height yet.
+        let height = match wallet.chain_height()? {
+            Some(h) => h,
+            None => latest_height(&mut client).await?,
+        };
         Ok(Balance {
-            height: wallet.chain_height()?.unwrap_or(0),
+            height,
             spendable_zat: b.ironwood_spendable,
             total_zat: b.total,
         })
