@@ -30,3 +30,6 @@ zeroize.workspace = true
 rand.workspace = true
 hex.workspace = true
 serde_json.workspace = true
+incrementalmerkletree.workspace = true
+shardtree.workspace = true
+zcash_note_encryption.workspace = true
