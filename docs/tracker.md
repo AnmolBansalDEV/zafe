@@ -75,6 +75,42 @@ Open
 - [ ] Release build + signing config; check size (debug APK ~200 MB with 2 ABIs). Reference:
       Vizor `scripts/build-android-reproducible.sh`, `scripts/build-android-fdroid.sh`
 
+## Multiple vaults, import and export (requested 2026-09-30)
+
+Multiple vaults on one device
+- [ ] **Storage per vault**: secure store keyed by vault id (today one identity, invite and
+      material slot); per-vault `state_dir` (`used_commitments.bin` and the notification
+      snapshot are shared today); wallet DBs are already per vault (`vault-<id>.sqlite`)
+- [ ] **A fresh member identity per vault** by default, so the relay can't link one
+      person's memberships across vaults (it sees each member's public key)
+- [ ] **Vault switcher**: Vizor's account sheet pattern (tap the top-nav vault name/avatar),
+      showing each vault's name, rule (2/3), balance (respecting hide amounts) and a badge
+      for payments needing approval; "Add vault" (create or join) from the sheet
+- [ ] Per-vault settings; **remove vault from this device** with a clear warning (it
+      doesn't leave the vault; say what the other members lose if this was needed for t)
+- [ ] Background checks, notifications and push registration for **every** vault
+      (notification title already carries the vault name)
+- [ ] Revisit the bridge's single global wallet lock (Known issues) for parallel syncs
+
+Export and import
+- [ ] **Export this vault** as an encrypted file (spec §12.2: identity, FROST key package,
+      `sk`, descriptor, log key, `use_qsk`; **never** nonces or pool nonces; Argon2id ≥
+      64 MiB + XChaCha20-Poly1305; strong passphrase), via the share sheet or saved file.
+      Versioned format with a magic header
+- [ ] **Import a vault** on a new or second device from that file + passphrase, then
+      resync the log and the wallet from the birthday; publishes a fresh commitment pool
+- [ ] Decide **move vs. copy** semantics: two live devices holding the same member share
+      can both vote and sign (fresh nonces each, so no key leak, but confusing votes).
+      Proposal: "move to a new phone" exports, then retires this device's copy
+      (deletes material and pool nonces after the import is confirmed); plain backups
+      stay passive files
+- [ ] **Export history** (CSV, already M2 §11.3) and **viewing-key export** for auditors
+      (read-only UFVK; see Vizor viewing-key export in Ideas), plus **import a vault as
+      view-only** (auditor mode: balance and history, no signing)
+- [ ] Backup health in the log once exports exist (M2 item below)
+- [ ] Multi-part QR for device-to-device transfer (material is a few KB) as an
+      alternative to files, *(idea)*
+
 ## M2 — v1 feature-complete, mainnet beta (spec §16)
 
 - [ ] Batch payments (1..50 recipients; core supports many payments, UI is single)
