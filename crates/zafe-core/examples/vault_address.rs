@@ -8,7 +8,8 @@ use zcash_protocol::{consensus::BlockHeight, local_consensus::LocalNetwork};
 
 fn main() {
     // A throwaway ak with even y, from an orchard key; stands in for a DKG group key.
-    let ak: [u8; 32] = FullViewingKey::from(&SpendingKey::from_bytes([42; 32]).unwrap()).to_bytes()[..32]
+    let ak: [u8; 32] = FullViewingKey::from(&SpendingKey::from_bytes([42; 32]).unwrap()).to_bytes()
+        [..32]
         .try_into()
         .unwrap();
     let keys = VaultKeys::derive(&VaultSecret::from_bytes([1; 32]), &ak).unwrap();

@@ -25,12 +25,18 @@ blake3.workspace = true
 rand_core.workspace = true
 thiserror.workspace = true
 zeroize.workspace = true
+zip321.workspace = true
+zcash_address.workspace = true
+tonic.workspace = true
+async-trait.workspace = true
+rusqlite.workspace = true
+rand.workspace = true
 zcash_note_encryption.workspace = true
 
 [dev-dependencies]
+tokio.workspace = true
 # Non-standard fees let tests model a malicious proposer overpaying the fee.
 zcash_primitives = { workspace = true, features = ["non-standard-fees"] }
-rand.workspace = true
 hex.workspace = true
 serde_json.workspace = true
 incrementalmerkletree.workspace = true

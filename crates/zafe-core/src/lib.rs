@@ -8,3 +8,4 @@ pub mod session;
 pub mod signing;
 pub mod tx;
 pub mod verify;
+pub mod wallet;
