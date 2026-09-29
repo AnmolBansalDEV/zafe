@@ -1,0 +1,32 @@
+# Zakura regtest node with every network upgrade through NU6.3 (Ironwood) active at height 1.
+# Rendered by up.sh; ${MINER_ADDRESS} receives coinbase (a unified address pays into Ironwood).
+[network]
+network = "Regtest"
+listen_addr = "0.0.0.0:18233"
+
+[network.testnet_parameters]
+disable_pow = true
+
+[network.testnet_parameters.activation_heights]
+NU5 = 1
+NU6 = 1
+"NU6.1" = 1
+"NU6.2" = 1
+"NU6.3" = 1
+
+# NU6.1's activation block must carry the ZIP 271 lockbox disbursement. Regtest has none by
+# default; this zero-value marker (P2SH of a zero script hash) is what Zakura's own local
+# network generator uses (see zcashlabs/thus-spoke-zakura#118).
+[[network.testnet_parameters.lockbox_disbursements]]
+address = "t26YoyZ1iPgiMEWL4zGUm74eVWfhyDMXzY2"
+amount = 0
+
+[rpc]
+listen_addr = "0.0.0.0:18232"
+enable_cookie_auth = false
+
+[state]
+ephemeral = true
+
+[mining]
+miner_address = "${MINER_ADDRESS}"
