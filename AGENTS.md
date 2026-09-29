@@ -253,6 +253,18 @@ Learned while studying it:
   `app/android/app/` (gitignored) and the Gradle plugin applies itself; without it the app
   builds and relies on background checks. Relay: `ZAFE_FCM_SERVICE_ACCOUNT=<key.json>`
   (never commit it). APNs isn't implemented yet (iOS).
+- **Firebase project `zafe-18c4d`** (the user's account), Android app `xyz.zafe.zafe`
+  (`1:303423821426:android:deff491a8e80f394ea14eb`). Regenerate the app config with
+  `npx -y firebase-tools@latest apps:sdkconfig ANDROID <app id> --project zafe-18c4d --out
+  app/android/app/google-services.json`. The relay key (service account
+  `firebase-adminsdk-fbsvc@zafe-18c4d.iam.gserviceaccount.com`) lives at
+  `~/.config/zafe/fcm-service-account.json` (0600, outside the repo); it was created
+  through the IAM API with the Firebase CLI login token (the CLI has no command for it).
+  The CLI login in a non-interactive shell is two steps: `login --no-localhost`, then
+  `login <code>`.
+- **FCM on the emulator is slow** (~2 min from send to delivery on `google_apis`), so
+  don't conclude "not delivered" too early: check `adb logcat | grep FLTFireMsg`. The
+  relay logs `push: sent` at debug level (`RUST_LOG=zafe_relay=debug`).
 - Font family names must match Vizor's tokens exactly (`Geist Mono`, `Young Serif`).
 - `pubspec.yaml` must have a single `flutter:` key (a duplicate silently breaks FRB codegen).
 - Cargokit is patched (`rust_builder/cargokit/gradle/plugin.gradle`): debug builds no longer

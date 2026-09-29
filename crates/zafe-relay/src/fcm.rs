@@ -172,6 +172,7 @@ impl Notifier for FcmNotifier {
                     let text = resp.text().await.unwrap_or_default();
                     return Err(format!("FCM {status}: {text}"));
                 }
+                tracing::debug!("push: sent");
                 Ok(())
             }
             .await;

@@ -10,6 +10,10 @@
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:dataExtractionRules="@xml/data_extraction_rules">
+        <!-- FCM: use our vault-activity channel for any notification it shows itself. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="vault_activity" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

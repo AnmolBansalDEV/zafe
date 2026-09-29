@@ -26,8 +26,9 @@ Last updated: 2026-09-29 (one-tap approvals; Vizor upstream ideas from `4bff2e7`
 2. [~] **Notifications** (in progress 2026-09-29): relay pushes on every log append
    (FCM sender done, tested against a mock); app shows local notifications from a
    background check (WorkManager 15 min, FCM wake-up, one-off after backgrounding) and
-   opens the payment on tap. **(you)** Create the Firebase project: `google-services.json`
-   → `app/android/app/`, service-account key → relay `ZAFE_FCM_SERVICE_ACCOUNT`.
+   opens the payment on tap. FCM is configured (project `zafe-18c4d`) and verified end to
+   end on the emulator (relay → Google → device → background check → notification).
+   Next: confirm latency on a real phone.
    Open: APNs sender + iOS (NSE), pruning dead FCM tokens (404 UNREGISTERED), relay-client
    TLS (the app's reqwest has no TLS features, so it can't reach an https relay yet).
 3. [ ] **Tor** (as in Vizor `rust/src/network_privacy.rs`): `zcash_client_backend` `tor`
