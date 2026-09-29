@@ -12,7 +12,7 @@ Last updated: 2026-09-29 (after `c508aff`, M1 slice 2)
 
 ## Next up (proposed order)
 
-0. [ ] **Proposals expire after ~50 min.** PCZTs are built with the library default expiry
+0. [x] **Proposals expire after ~50 min.** Fixed: vault descriptor `proposal_expiry_blocks` (default 7 days), proposer sets it, members accept it plus ~2 h tip slack; `bridge_e2e` lets 300 blocks pass before approving. PCZTs are built with the library default expiry
    (`DEFAULT_TX_EXPIRY_DELTA` = 40 blocks) and `verify` allows at most 100 blocks, so
    approvals and signing must finish within about 50 minutes. Async multisig needs a long
    expiry (days; configurable per vault, D2). Anchors can go stale safely (V6: witnesses
@@ -46,7 +46,8 @@ Open
 - [ ] Hosted relay deployment (testnet); relay is SQLite today, Postgres for the hosted tier
 - [ ] Invite by link (deep link `zafe://` / universal link) in addition to QR/paste
 - [ ] Cancel a proposal (author) in the UI; the log already supports `Cancelled`
-- [ ] Proposal expiry: show it, and explain/offer "propose again" when it lapses (D2)
+- [ ] Proposal expiry: show it in the UI, offer "propose again" when it lapses, make the window configurable at vault creation (D2)
+- [ ] Privacy: a 7-day expiry delta differs from the 40-block wallet default, so vault spends are distinguishable on chain by expiry. Consider rounding or a shared convention
 - [ ] "Start over" for a signing round when a chosen signer never answers (today the
       leader can only retry the same round; members must re-approve for fresh nonces)
 - [ ] Note reservation across concurrent proposals (`reservedNotes`, spec §9.1): two open

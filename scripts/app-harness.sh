@@ -31,7 +31,7 @@ case "${1:-}" in
     ZAFE_RELAY_LISTEN=127.0.0.1:8787 ZAFE_RELAY_DB="$WORK/relay.sqlite" \
       nohup "$ROOT/target/debug/zafe-relay" > "$WORK/relay.log" 2>&1 &
     echo $! > "$WORK/relay.pid"
-    sleep 1
+    for _ in $(seq 50); do (exec 3<>/dev/tcp/127.0.0.1/8787) 2>/dev/null && break; sleep 0.2; done
     adb reverse tcp:8787 tcp:8787
     adb reverse tcp:9067 tcp:9067
     member B init >/dev/null

@@ -42,7 +42,10 @@ wait_lwd() {  # wait until lightwalletd serves height $1
 step "relay"
 ZAFE_RELAY_LISTEN="127.0.0.1:$RELAY_PORT" ZAFE_RELAY_DB="$WORK/relay.sqlite" "$ROOT/target/debug/zafe-relay" &
 RELAY_PID=$!
-sleep 1
+for _ in $(seq 50); do  # wait until the relay accepts connections
+  (exec 3<>"/dev/tcp/127.0.0.1/$RELAY_PORT") 2>/dev/null && break
+  sleep 0.2
+done
 
 step "identities"
 for who in A B C; do member "$who" init; done

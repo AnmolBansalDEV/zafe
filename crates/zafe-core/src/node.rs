@@ -503,6 +503,7 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
         ufvk: output.vault_keys.ufvk().map_err(proto)?.encode(network),
         address,
         use_qsk: true,
+        proposal_expiry_blocks: crate::vault::DEFAULT_PROPOSAL_EXPIRY_BLOCKS,
         birthday_height,
         epoch: 0,
         transcript_hash: output.transcript_hash,
@@ -777,9 +778,6 @@ use crate::{
 };
 use zcash_protocol::consensus::{BlockHeight, BranchId};
 
-/// Default acceptable distance between the tip and a proposal's expiry height.
-pub const MAX_EXPIRY_DELTA: u32 = 100;
-
 #[derive(Serialize, Deserialize)]
 struct SigningRequestMsg {
     proposal: ProposalId,
@@ -840,12 +838,13 @@ pub fn orchard_receiver<P: Parameters>(
     }
 }
 
-/// What this member expects for a proposal, from the log (payments) and its own wallet
-/// (chain tip), never from the proposer.
+/// What this member expects for a proposal, from the log (payments), the vault descriptor
+/// (expiry window) and its own wallet (chain tip), never from the proposer.
 pub fn expectations<P: Parameters>(
     network: &P,
     payments: &[ProposedPayment],
     tip_height: u32,
+    proposal_expiry_blocks: u32,
 ) -> Result<Expectations, NodeError> {
     Ok(Expectations {
         payments: payments
@@ -865,7 +864,8 @@ pub fn expectations<P: Parameters>(
         consensus_branch_id: BranchId::for_height(network, BlockHeight::from_u32(tip_height + 1))
             .into(),
         tip_height,
-        max_expiry_delta: MAX_EXPIRY_DELTA,
+        // The proposer sets expiry = its target height (tip + 1) + the vault's window.
+        max_expiry_delta: proposal_expiry_blocks + 1 + crate::vault::EXPIRY_TIP_SLACK_BLOCKS,
     })
 }
 
@@ -886,7 +886,9 @@ pub async fn propose<P: Parameters + Clone + Send + Sync + 'static, R: RngCore +
     payments: &[PaymentRequest],
     rng: &mut R,
 ) -> Result<ProposalId, NodeError> {
-    let pczt = wallet.propose(payments).map_err(proto)?;
+    let pczt = wallet
+        .propose(payments, material.descriptor.proposal_expiry_blocks)
+        .map_err(proto)?;
     let tip = wallet
         .chain_height()
         .map_err(proto)?
@@ -951,7 +953,12 @@ pub fn review<P: Parameters>(
     verify_pczt(
         &pczt,
         keys.fvk(),
-        &expectations(network, &payments, tip_height)?,
+        &expectations(
+            network,
+            &payments,
+            tip_height,
+            material.descriptor.proposal_expiry_blocks,
+        )?,
     )
     .map_err(|e| NodeError::Verification(e.to_string()))
 }
@@ -971,7 +978,12 @@ pub async fn approve<P: Parameters, R: RngCore + CryptoRng>(
 ) -> Result<VerifiedTx, NodeError> {
     let (mut chain, mut state) = load_state(relay, me, material).await?;
     let (pczt, payments) = proposal_pczt(&state, &proposal)?;
-    let expected = expectations(network, &payments, tip_height)?;
+    let expected = expectations(
+        network,
+        &payments,
+        tip_height,
+        material.descriptor.proposal_expiry_blocks,
+    )?;
     let key_package = material.key_package()?;
     let keys = material.vault_keys()?;
     let member = Member {
@@ -1075,7 +1087,12 @@ pub async fn request_signatures<P: Parameters, R: RngCore + CryptoRng>(
     let verified = verify_pczt(
         &pczt,
         keys.fvk(),
-        &expectations(network, &payments, tip_height)?,
+        &expectations(
+            network,
+            &payments,
+            tip_height,
+            material.descriptor.proposal_expiry_blocks,
+        )?,
     )
     .map_err(proto)?;
     let mut leader =
@@ -1197,7 +1214,12 @@ pub async fn respond<P: Parameters, R: RngCore + CryptoRng>(
                 .sign(
                     &request,
                     &pczt,
-                    &expectations(network, &payments, tip_height)?,
+                    &expectations(
+                        network,
+                        &payments,
+                        tip_height,
+                        material.descriptor.proposal_expiry_blocks,
+                    )?,
                     store,
                 )
                 .map_err(proto)?;
@@ -1339,7 +1361,12 @@ pub async fn sign_own_shares<P: Parameters>(
         .sign(
             request,
             &pczt,
-            &expectations(network, &payments, tip_height)?,
+            &expectations(
+                network,
+                &payments,
+                tip_height,
+                material.descriptor.proposal_expiry_blocks,
+            )?,
             store,
         )
         .map_err(proto)?;

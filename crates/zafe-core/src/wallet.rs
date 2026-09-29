@@ -253,7 +253,13 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
     /// Selects notes, builds and IO-finalizes a PCZT paying `payments`, with change back to
     /// the vault in the Ironwood pool. Payment outputs are encrypted with the vault's
     /// outgoing viewing key (`OvkPolicy::Sender`), which member verification requires.
-    pub fn propose(&mut self, payments: &[PaymentRequest]) -> Result<Pczt, WalletError> {
+    /// The transaction expires `expiry_blocks` after the height it is built for (the vault's
+    /// `proposal_expiry_blocks`), so members can approve and sign over days.
+    pub fn propose(
+        &mut self,
+        payments: &[PaymentRequest],
+        expiry_blocks: u32,
+    ) -> Result<Pczt, WalletError> {
         let request = TransactionRequest::new(
             payments
                 .iter()
@@ -312,7 +318,7 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
             self.account,
             OvkPolicy::Sender,
             &proposal,
-            None,
+            Some(BlockHeight::from(proposal.min_target_height()) + expiry_blocks),
             BundlePadding::DEFAULT,
         )
         .map_err(|e| WalletError::Proposal(format!("{e:?}")))

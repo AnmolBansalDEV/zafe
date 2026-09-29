@@ -50,6 +50,7 @@ impl Log {
             address: "uregtest1...".into(),
             use_qsk: true,
             birthday_height: 2,
+            proposal_expiry_blocks: 8064,
             epoch: 0,
             transcript_hash: [2; 32],
         }

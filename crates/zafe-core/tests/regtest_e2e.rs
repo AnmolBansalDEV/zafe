@@ -158,11 +158,14 @@ async fn vault_pays_on_regtest() {
     let memo = Memo::from_bytes(b"Grant milestone 1").unwrap().encode();
     let amount = 100_000_000;
     let pczt = wallets[0]
-        .propose(&[PaymentRequest {
-            address: recipient_ua,
-            amount_zat: amount,
-            memo: Some(memo.clone()),
-        }])
+        .propose(
+            &[PaymentRequest {
+                address: recipient_ua,
+                amount_zat: amount,
+                memo: Some(memo.clone()),
+            }],
+            8064,
+        )
         .expect("proposal");
 
     // 5. Members verify independently, approve, and sign (2 of 3).
@@ -175,7 +178,7 @@ async fn vault_pays_on_regtest() {
         }],
         consensus_branch_id: BranchId::for_height(&network, BlockHeight::from_u32(tip + 1)).into(),
         tip_height: tip,
-        max_expiry_delta: 100,
+        max_expiry_delta: 8064 + 1 + 96,
     };
     let verified = verify_pczt(&pczt, &vault_fvk, &expected).expect("member verification");
     println!(

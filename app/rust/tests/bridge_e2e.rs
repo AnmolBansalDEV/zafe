@@ -231,6 +231,22 @@ fn payment_flow_through_bridge() {
     assert_eq!(p.payments[0].memo, "grant #1");
     assert!(!p.is_mine);
 
+    // Approvals are asynchronous: let 300 blocks pass (the old 40-block wallet default would
+    // have expired the proposal after ~50 minutes; the vault window is 7 days).
+    chain.mine(300);
+    let before = balance.height;
+    for m in &members {
+        let mut b = sync(m);
+        for _ in 0..60 {
+            if b.height >= before + 300 {
+                break;
+            }
+            thread::sleep(Duration::from_secs(1));
+            b = sync(m);
+        }
+        assert!(b.height >= before + 300, "member did not reach the new tip");
+    }
+
     // A (the proposer) and B review independently, then approve; C stays out. So the
     // leader is one of the two signers and must sign its own part locally.
     for m in &members[..2] {
@@ -245,6 +261,12 @@ fn payment_flow_through_bridge() {
         .unwrap();
         assert!(r.verified, "review failed: {}", r.problem);
         assert_eq!(r.fee_zat, 10_000);
+        assert!(
+            r.expiry_height > r.tip_height + 7_000,
+            "expiry {} too close to tip {}",
+            r.expiry_height,
+            r.tip_height
+        );
         proposals::approve_proposal(
             relay.clone(),
             lwd.clone(),

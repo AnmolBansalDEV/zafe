@@ -49,6 +49,13 @@ pub struct MemberInfo {
     pub name: String,
 }
 
+/// Default proposal lifetime: 7 days at the 75-second block target (1152 blocks per day).
+pub const DEFAULT_PROPOSAL_EXPIRY_BLOCKS: u32 = 7 * 1152;
+
+/// Extra blocks a member accepts beyond the vault's expiry window, because the member's
+/// synced tip can lag the proposer's (about two hours).
+pub const EXPIRY_TIP_SLACK_BLOCKS: u32 = 96;
+
 /// What every member signs at the end of vault creation (spec §7.3).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VaultDescriptor {
@@ -65,6 +72,11 @@ pub struct VaultDescriptor {
     pub address: String,
     pub use_qsk: bool,
     pub birthday_height: u32,
+    /// How long a payment proposal stays valid, in blocks after the height it is built for
+    /// (the transaction's expiry height). Approvals and signing are asynchronous, so this is
+    /// days rather than the 40-block wallet default. Expiry stays a safety feature: a signed
+    /// but unsent transaction must not remain valid forever.
+    pub proposal_expiry_blocks: u32,
     pub epoch: u32,
     /// Hash of the key-generation transcript (binds the descriptor to the DKG run).
     pub transcript_hash: [u8; 32],
