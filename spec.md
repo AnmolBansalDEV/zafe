@@ -719,7 +719,7 @@ zafe/
 ## 16. Milestones
 
 **M0: Core protocol (CLI, testnet)**
-*Status 2026-09-29: **complete.*** `scripts/m0-e2e.sh` runs three separate `zafe` CLI members through the relay: invite and join, matching safety numbers, key generation over sealed envelopes, vault funded on Ironwood regtest (`infra/regtest/`), payment proposed, independently verified and approved, FROST-signed, broadcast and logged. Library-level tests: 51 plus the Docker-gated `regtest_e2e`. Not yet done from the M0 list: a byte-level cross-check against `zcash-sign` (transactions are instead validated by `orchard::verify_bundle` and accepted by the node). The relay is still in-memory, which is fine for M0.
+*Status 2026-09-29: **complete.*** `scripts/m0-e2e.sh` runs three separate `zafe` CLI members through the relay: invite and join, matching safety numbers, key generation over sealed envelopes, vault funded on Ironwood regtest (`infra/regtest/`), payment proposed, independently verified and approved, FROST-signed, broadcast and logged. Library-level tests: 51 plus the Docker-gated `regtest_e2e`. **Cross-checked against frost-tools `zcash-sign`** (`tests/zcash_sign_crosscheck.rs`): on zcash-sign's real testnet Ironwood fixture, Zafe reproduces the on-chain sighash; on a Zafe PCZT, zcash-sign prints the same sighash and randomizers, accepts Zafe's FROST signatures, and writes byte-identical spend-auth signatures. The relay is still in-memory, which is fine for M0.
 DKG + safety number + `sk` agreement + UFVK/address → sync → PCZT → FROST signing for all spends → broadcast. Three `zafe-cli` members running over a local relay. Resolve every [VERIFY] item. Cross-check signatures and transactions against `zcash-sign` / `zcash-devtool`.
 
 **M1: App v1 (testnet)**
