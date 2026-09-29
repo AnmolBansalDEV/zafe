@@ -90,7 +90,7 @@ impl Invite {
 pub struct SeqCounter(u64);
 
 impl SeqCounter {
-    pub fn next(&mut self) -> u64 {
+    pub fn next_seq(&mut self) -> u64 {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_micros() as u64)
@@ -358,8 +358,14 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
     let payload = postcard::to_allocvec(&msg).map_err(proto)?;
     relay
         .send(
-            &Envelope::public(me, invite.mailbox, seq.next(), Kind::DkgRound1, &payload)
-                .map_err(proto)?,
+            &Envelope::public(
+                me,
+                invite.mailbox,
+                seq.next_seq(),
+                Kind::DkgRound1,
+                &payload,
+            )
+            .map_err(proto)?,
         )
         .await?;
 
@@ -390,7 +396,7 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
     let echo = round2.echo();
     relay
         .send(
-            &Envelope::public(me, invite.mailbox, seq.next(), Kind::DkgEcho, &echo)
+            &Envelope::public(me, invite.mailbox, seq.next_seq(), Kind::DkgEcho, &echo)
                 .map_err(proto)?,
         )
         .await?;
@@ -404,7 +410,7 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
                     me,
                     &to,
                     invite.mailbox,
-                    seq.next(),
+                    seq.next_seq(),
                     Kind::DkgRound2,
                     &bytes,
                     rng,
@@ -418,7 +424,7 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
                     me,
                     &to,
                     invite.mailbox,
-                    seq.next(),
+                    seq.next_seq(),
                     Kind::SkContribution,
                     contribution.as_bytes(),
                     rng,
@@ -499,7 +505,7 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
             &Envelope::public(
                 me,
                 invite.mailbox,
-                seq.next(),
+                seq.next_seq(),
                 Kind::DescriptorSignature,
                 &my_sig,
             )
@@ -536,7 +542,7 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
                         me,
                         &by_pk[pk],
                         invite.mailbox,
-                        seq.next(),
+                        seq.next_seq(),
                         Kind::LogKey,
                         &bytes,
                         rng,
@@ -663,4 +669,528 @@ pub async fn append_event<R: RngCore + CryptoRng>(
     Err(NodeError::Protocol(
         "could not append after 10 conflicts".into(),
     ))
+}
+
+// --- Proposals and signing over the relay ----------------------------------------------
+
+use pczt::{
+    roles::{prover::Prover, tx_extractor::TransactionExtractor},
+    Pczt,
+};
+use reddsa::frost::redpallas::{
+    round1::SigningCommitments, round2::SignatureShare, SigningPackage,
+};
+
+use crate::{
+    session::{pczt_hash, Leader, Member, NonceStore, ProposalId, SigningRequest},
+    tx,
+    vault::{ProposalStatus, ProposedPayment},
+    verify::{verify_pczt, Expectations, Payment, VerifiedTx},
+    wallet::{Client, PaymentRequest, VaultWallet},
+};
+use zcash_protocol::consensus::{BlockHeight, BranchId};
+
+/// Default acceptable distance between the tip and a proposal's expiry height.
+pub const MAX_EXPIRY_DELTA: u32 = 100;
+
+#[derive(Serialize, Deserialize)]
+struct SigningRequestMsg {
+    proposal: ProposalId,
+    pczt_hash: [u8; 32],
+    signers: Vec<Vec<u8>>,
+    packages: Vec<Vec<u8>>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct SharesMsg {
+    proposal: ProposalId,
+    pczt_hash: [u8; 32],
+    shares: Vec<Vec<u8>>,
+}
+
+/// Decodes a unified (or Orchard-receiver-bearing) address to its Orchard receiver.
+pub fn orchard_receiver<P: Parameters>(
+    network: &P,
+    address: &str,
+) -> Result<orchard::Address, NodeError> {
+    match zcash_keys::address::Address::decode(network, address) {
+        Some(zcash_keys::address::Address::Unified(ua)) => ua
+            .orchard()
+            .copied()
+            .ok_or_else(|| NodeError::Protocol("address has no Orchard receiver".into())),
+        _ => Err(NodeError::Protocol(format!(
+            "unsupported recipient address {address}"
+        ))),
+    }
+}
+
+/// What this member expects for a proposal, from the log (payments) and its own wallet
+/// (chain tip), never from the proposer.
+pub fn expectations<P: Parameters>(
+    network: &P,
+    payments: &[ProposedPayment],
+    tip_height: u32,
+) -> Result<Expectations, NodeError> {
+    Ok(Expectations {
+        payments: payments
+            .iter()
+            .map(|p| {
+                Ok(Payment {
+                    recipient: orchard_receiver(network, &p.address)?,
+                    amount_zat: p.amount_zat,
+                    memo: p
+                        .memo
+                        .as_slice()
+                        .try_into()
+                        .map_err(|_| NodeError::Protocol("memo must be 512 bytes".into()))?,
+                })
+            })
+            .collect::<Result<_, NodeError>>()?,
+        consensus_branch_id: BranchId::for_height(network, BlockHeight::from_u32(tip_height + 1))
+            .into(),
+        tip_height,
+        max_expiry_delta: MAX_EXPIRY_DELTA,
+    })
+}
+
+/// Builds a PCZT for `payments` from this member's wallet and logs it as a proposal.
+pub async fn propose<P: Parameters + Clone + Send + Sync + 'static, R: RngCore + CryptoRng>(
+    relay: &RelayClient,
+    me: &Identity,
+    material: &VaultMaterial,
+    wallet: &mut VaultWallet<P>,
+    payments: &[PaymentRequest],
+    rng: &mut R,
+) -> Result<ProposalId, NodeError> {
+    let pczt = wallet.propose(payments).map_err(proto)?;
+    let tip = wallet
+        .chain_height()
+        .map_err(proto)?
+        .ok_or_else(|| NodeError::NotReady("wallet not synced".into()))?;
+    let mut id = [0u8; 16];
+    rng.fill_bytes(&mut id);
+    let event = VaultEvent::Proposal {
+        id,
+        payments: payments
+            .iter()
+            .map(|p| ProposedPayment {
+                address: p.address.clone(),
+                amount_zat: p.amount_zat,
+                memo: p
+                    .memo
+                    .clone()
+                    .unwrap_or_else(zcash_protocol::memo::MemoBytes::empty)
+                    .as_array()
+                    .to_vec(),
+            })
+            .collect(),
+        pczt_hash: pczt_hash(&pczt).map_err(proto)?,
+        pczt: pczt.serialize().map_err(proto)?,
+        tip_height: tip,
+    };
+    append_event(relay, me, material, &event, rng).await?;
+    Ok(id)
+}
+
+fn proposal_pczt(
+    state: &VaultState,
+    id: &ProposalId,
+) -> Result<(Pczt, Vec<ProposedPayment>), NodeError> {
+    let p = state
+        .proposals
+        .get(id)
+        .ok_or_else(|| NodeError::Protocol("unknown proposal".into()))?;
+    let pczt = Pczt::parse(&p.pczt).map_err(proto)?;
+    if pczt_hash(&pczt).map_err(proto)? != p.pczt_hash {
+        return Err(NodeError::Protocol(
+            "logged PCZT does not match its hash".into(),
+        ));
+    }
+    Ok((pczt, p.payments.clone()))
+}
+
+/// Verifies a proposal independently and, if it passes, votes Approve with fresh round-1
+/// commitments. Returns what was verified (for display).
+#[allow(clippy::too_many_arguments)]
+pub async fn approve<P: Parameters, R: RngCore + CryptoRng>(
+    relay: &RelayClient,
+    me: &Identity,
+    material: &VaultMaterial,
+    network: &P,
+    tip_height: u32,
+    proposal: ProposalId,
+    store: &mut impl NonceStore,
+    rng: &mut R,
+) -> Result<VerifiedTx, NodeError> {
+    let (_, state) = load_state(relay, me, material).await?;
+    let (pczt, payments) = proposal_pczt(&state, &proposal)?;
+    let expected = expectations(network, &payments, tip_height)?;
+    let key_package = material.key_package()?;
+    let keys = material.vault_keys()?;
+    let member = Member {
+        identifier: *key_package.identifier(),
+        key_package: &key_package,
+        vault_fvk: keys.fvk(),
+    };
+    let (approval, verified) = member
+        .approve(proposal, &pczt, &expected, store, rng)
+        .map_err(proto)?;
+    let commitments = approval
+        .commitments
+        .iter()
+        .map(|c| c.serialize().map_err(proto))
+        .collect::<Result<Vec<_>, _>>()?;
+    let event = VaultEvent::Vote {
+        proposal,
+        pczt_hash: approval.pczt_hash,
+        approve: true,
+        commitments,
+    };
+    append_event(relay, me, material, &event, rng).await?;
+    Ok(verified)
+}
+
+/// Votes Reject.
+pub async fn reject<R: RngCore + CryptoRng>(
+    relay: &RelayClient,
+    me: &Identity,
+    material: &VaultMaterial,
+    proposal: ProposalId,
+    rng: &mut R,
+) -> Result<(), NodeError> {
+    let (_, state) = load_state(relay, me, material).await?;
+    let p = state
+        .proposals
+        .get(&proposal)
+        .ok_or_else(|| NodeError::Protocol("unknown proposal".into()))?;
+    let event = VaultEvent::Vote {
+        proposal,
+        pczt_hash: p.pczt_hash,
+        approve: false,
+        commitments: vec![],
+    };
+    append_event(relay, me, material, &event, rng).await?;
+    Ok(())
+}
+
+fn member_by_frost_id(
+    material: &VaultMaterial,
+    id: &Identifier,
+) -> Result<IdentityPublic, NodeError> {
+    let bytes = id.serialize();
+    material
+        .descriptor
+        .members
+        .iter()
+        .find(|m| m.frost_id == bytes)
+        .map(|m| m.identity)
+        .ok_or_else(|| NodeError::Protocol("unknown FROST identifier".into()))
+}
+
+/// Leader: once the proposal is approved, sends sealed signing requests to `threshold`
+/// approvers and returns the request (keep it until `finalize`).
+#[allow(clippy::too_many_arguments)]
+pub async fn request_signatures<P: Parameters, R: RngCore + CryptoRng>(
+    relay: &RelayClient,
+    me: &Identity,
+    material: &VaultMaterial,
+    network: &P,
+    tip_height: u32,
+    proposal: ProposalId,
+    rng: &mut R,
+) -> Result<SigningRequest, NodeError> {
+    let (_, state) = load_state(relay, me, material).await?;
+    let p = &state.proposals[&proposal];
+    if p.status != ProposalStatus::Approved {
+        return Err(NodeError::NotReady(format!("proposal is {:?}", p.status)));
+    }
+    let (pczt, payments) = proposal_pczt(&state, &proposal)?;
+    let keys = material.vault_keys()?;
+    let verified = verify_pczt(
+        &pczt,
+        keys.fvk(),
+        &expectations(network, &payments, tip_height)?,
+    )
+    .map_err(proto)?;
+    let mut leader =
+        Leader::new(proposal, &pczt, &verified, material.descriptor.threshold).map_err(proto)?;
+
+    for (author, commitments) in &p.approvals {
+        let info = material
+            .descriptor
+            .member(author)
+            .ok_or_else(|| NodeError::Protocol("approval from non-member".into()))?;
+        let member = Identifier::deserialize(&info.frost_id).map_err(proto)?;
+        let commitments = commitments
+            .iter()
+            .map(|c| SigningCommitments::deserialize(c).map_err(proto))
+            .collect::<Result<Vec<_>, _>>()?;
+        leader.add_approval(crate::session::Approval {
+            member,
+            proposal,
+            pczt_hash: p.pczt_hash,
+            commitments,
+        });
+    }
+    let chosen: Vec<Identifier> = leader
+        .available_signers()
+        .into_iter()
+        .take(usize::from(material.descriptor.threshold))
+        .collect();
+    let request = leader.request(&chosen).map_err(proto)?;
+
+    let bytes = encode_request(&request)?;
+    let mut seq = SeqCounter::default();
+    for id in &request.signers {
+        let to = member_by_frost_id(material, id)?;
+        let env = Envelope::sealed(
+            me,
+            &to,
+            material.descriptor.vault_id,
+            seq.next_seq(),
+            Kind::SigningRequest,
+            &bytes,
+            rng,
+        )
+        .map_err(proto)?;
+        relay.send(&env).await?;
+    }
+    Ok(request)
+}
+
+/// Member: answers every pending signing request addressed to this member. Each request
+/// is re-verified from the log; nonces are deleted before shares are sent.
+#[allow(clippy::too_many_arguments)]
+pub async fn respond<P: Parameters, R: RngCore + CryptoRng>(
+    relay: &RelayClient,
+    me: &Identity,
+    material: &VaultMaterial,
+    network: &P,
+    tip_height: u32,
+    store: &mut impl NonceStore,
+    rng: &mut R,
+) -> Result<Vec<ProposalId>, NodeError> {
+    let (_, state) = load_state(relay, me, material).await?;
+    let members: BTreeMap<[u8; 32], IdentityPublic> = material
+        .member_identities()
+        .into_iter()
+        .map(|m| (m.sig_pk, m))
+        .collect();
+    let key_package = material.key_package()?;
+    let keys = material.vault_keys()?;
+    let member = Member {
+        identifier: *key_package.identifier(),
+        key_package: &key_package,
+        vault_fvk: keys.fvk(),
+    };
+    let mut seq = SeqCounter::default();
+    let mut answered = Vec::new();
+
+    for (_, env) in relay.inbox(me, material.descriptor.vault_id, 0).await? {
+        if env.header.kind != Kind::SigningRequest {
+            continue;
+        }
+        let Some(leader) = members.get(&env.header.from) else {
+            continue;
+        };
+        let Ok(bytes) = env.open(me, leader) else {
+            continue;
+        };
+        let msg: SigningRequestMsg = postcard::from_bytes(&bytes).map_err(proto)?;
+        if !store.contains(&msg.proposal, &msg.pczt_hash) {
+            continue; // already answered, or never approved
+        }
+        let (pczt, payments) = proposal_pczt(&state, &msg.proposal)?;
+        let request = SigningRequest {
+            proposal: msg.proposal,
+            pczt_hash: msg.pczt_hash,
+            signers: msg
+                .signers
+                .iter()
+                .map(|b| Identifier::deserialize(b).map_err(proto))
+                .collect::<Result<_, _>>()?,
+            packages: msg
+                .packages
+                .iter()
+                .map(|b| SigningPackage::deserialize(b).map_err(proto))
+                .collect::<Result<_, _>>()?,
+        };
+        let shares = member
+            .sign(
+                &request,
+                &pczt,
+                &expectations(network, &payments, tip_height)?,
+                store,
+            )
+            .map_err(proto)?;
+        let reply = SharesMsg {
+            proposal: msg.proposal,
+            pczt_hash: msg.pczt_hash,
+            shares: shares.iter().map(|s| s.serialize()).collect(),
+        };
+        let reply = postcard::to_allocvec(&reply).map_err(proto)?;
+        let env = Envelope::sealed(
+            me,
+            leader,
+            material.descriptor.vault_id,
+            seq.next_seq(),
+            Kind::SignatureShares,
+            &reply,
+            rng,
+        )
+        .map_err(proto)?;
+        relay.send(&env).await?;
+        answered.push(msg.proposal);
+    }
+    Ok(answered)
+}
+
+/// Leader: waits for every share, aggregates, proves, extracts (fully verified), broadcasts
+/// via lightwalletd, and logs the broadcast. Returns the txid.
+#[allow(clippy::too_many_arguments)]
+pub async fn finalize<R: RngCore + CryptoRng>(
+    relay: &RelayClient,
+    me: &Identity,
+    material: &VaultMaterial,
+    request: &SigningRequest,
+    lightwalletd: &mut Client,
+    proving_key: &orchard::circuit::ProvingKey,
+    verifying_key: &orchard::circuit::VerifyingKey,
+    timeout: Duration,
+    rng: &mut R,
+) -> Result<[u8; 32], NodeError> {
+    let deadline = Instant::now() + timeout;
+    let (_, state) = load_state(relay, me, material).await?;
+    let (pczt, _) = proposal_pczt(&state, &request.proposal)?;
+    let members: BTreeMap<[u8; 32], IdentityPublic> = material
+        .member_identities()
+        .into_iter()
+        .map(|m| (m.sig_pk, m))
+        .collect();
+
+    let mut shares: BTreeMap<Identifier, Vec<SignatureShare>> = BTreeMap::new();
+    while shares.len() < request.signers.len() {
+        for (_, env) in relay.inbox(me, material.descriptor.vault_id, 0).await? {
+            if env.header.kind != Kind::SignatureShares {
+                continue;
+            }
+            let Some(from) = members.get(&env.header.from) else {
+                continue;
+            };
+            let Ok(bytes) = env.open(me, from) else {
+                continue;
+            };
+            let msg: SharesMsg = postcard::from_bytes(&bytes).map_err(proto)?;
+            if msg.proposal != request.proposal || msg.pczt_hash != request.pczt_hash {
+                continue;
+            }
+            let info = material.descriptor.member(&from.sig_pk).expect("member");
+            let id = Identifier::deserialize(&info.frost_id).map_err(proto)?;
+            if request.signers.contains(&id) {
+                let parsed = msg
+                    .shares
+                    .iter()
+                    .map(|s| SignatureShare::deserialize(s).map_err(proto))
+                    .collect::<Result<_, _>>()?;
+                shares.insert(id, parsed);
+            }
+        }
+        if shares.len() < request.signers.len() {
+            if Instant::now() > deadline {
+                return Err(NodeError::Timeout("signature shares"));
+            }
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
+    }
+
+    // Rebuild the leader view from the request's own packages (commitments are inside).
+    let keys = material.vault_keys()?;
+    let spends = tx::spends_to_sign(&pczt, keys.fvk()).map_err(proto)?;
+    let public_key_package = material.public_key_package()?;
+    let mut signatures = Vec::new();
+    for (i, (spend, package)) in spends.iter().zip(&request.packages).enumerate() {
+        let per_spend = shares
+            .iter()
+            .map(|(id, s)| {
+                s.get(i)
+                    .map(|share| (*id, *share))
+                    .ok_or_else(|| NodeError::Protocol("missing share".into()))
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
+        let sig = crate::signing::aggregate(package, &per_spend, &public_key_package, spend.alpha)
+            .map_err(proto)?;
+        signatures.push((spend.action_index, sig));
+    }
+
+    let signed = tx::apply_signatures(pczt, &signatures).map_err(proto)?;
+    let proved = Prover::new(signed)
+        .create_ironwood_proof(proving_key)
+        .map_err(proto)?
+        .finish();
+    let transaction = TransactionExtractor::new(proved)
+        .with_orchard(verifying_key)
+        .extract()
+        .map_err(proto)?;
+    let mut raw = Vec::new();
+    transaction.write(&mut raw).map_err(proto)?;
+    let reply = lightwalletd
+        .send_transaction(zcash_client_backend::proto::service::RawTransaction {
+            data: raw,
+            height: 0,
+        })
+        .await
+        .map_err(|e| NodeError::Protocol(e.to_string()))?
+        .into_inner();
+    if reply.error_code != 0 {
+        return Err(NodeError::Protocol(format!(
+            "broadcast rejected: {}",
+            reply.error_message
+        )));
+    }
+    let txid: [u8; 32] = *transaction.txid().as_ref();
+    append_event(
+        relay,
+        me,
+        material,
+        &VaultEvent::Broadcast {
+            proposal: request.proposal,
+            txid,
+        },
+        rng,
+    )
+    .await?;
+    Ok(txid)
+}
+
+/// Serializes a signing request (e.g. for the leader to keep it between steps).
+pub fn encode_request(request: &SigningRequest) -> Result<Vec<u8>, NodeError> {
+    let msg = SigningRequestMsg {
+        proposal: request.proposal,
+        pczt_hash: request.pczt_hash,
+        signers: request.signers.iter().map(|id| id.serialize()).collect(),
+        packages: request
+            .packages
+            .iter()
+            .map(|p| p.serialize().map_err(proto))
+            .collect::<Result<_, _>>()?,
+    };
+    postcard::to_allocvec(&msg).map_err(proto)
+}
+
+pub fn decode_request(bytes: &[u8]) -> Result<SigningRequest, NodeError> {
+    let msg: SigningRequestMsg = postcard::from_bytes(bytes).map_err(proto)?;
+    Ok(SigningRequest {
+        proposal: msg.proposal,
+        pczt_hash: msg.pczt_hash,
+        signers: msg
+            .signers
+            .iter()
+            .map(|b| Identifier::deserialize(b).map_err(proto))
+            .collect::<Result<_, _>>()?,
+        packages: msg
+            .packages
+            .iter()
+            .map(|b| SigningPackage::deserialize(b).map_err(proto))
+            .collect::<Result<_, _>>()?,
+    })
 }

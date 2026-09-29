@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/zafe-core", "crates/zafe-proto", "crates/zafe-relay"]
+members = ["crates/zafe-core", "crates/zafe-proto", "crates/zafe-relay", "crates/zafe-cli"]
 
 [workspace.package]
 edition = "2021"
@@ -53,6 +53,8 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync",
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 tracing = "0.1"
+clap = { version = "4", features = ["derive", "env"] }
+anyhow = "1"
 reqwest = { version = "0.12", default-features = false }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde_json = "1"

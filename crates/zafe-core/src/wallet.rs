@@ -95,6 +95,18 @@ pub async fn connect(endpoint: &str) -> Result<Client, WalletError> {
     Ok(CompactTxStreamerClient::new(channel))
 }
 
+/// The chain tip height lightwalletd reports.
+pub async fn latest_height(client: &mut Client) -> Result<u32, WalletError> {
+    client
+        .get_latest_block(service::ChainSpec::default())
+        .await
+        .map_err(|e| WalletError::Remote(e.to_string()))?
+        .into_inner()
+        .height
+        .try_into()
+        .map_err(|_| WalletError::Remote("height out of range".into()))
+}
+
 /// A payment in a proposal.
 #[derive(Clone, Debug)]
 pub struct PaymentRequest {
@@ -174,6 +186,24 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
             db,
             params,
             account,
+            cache: MemBlockCache::default(),
+        })
+    }
+
+    /// Opens an existing wallet database holding exactly one vault account.
+    pub fn open(path: &Path, params: P) -> Result<Self, WalletError> {
+        let db = WalletDb::for_path(path, params.clone(), SystemClock, OsRng).map_err(db_err)?;
+        let ids = db.get_account_ids().map_err(db_err)?;
+        let [account] = ids.as_slice() else {
+            return Err(WalletError::Db(format!(
+                "expected one account, found {}",
+                ids.len()
+            )));
+        };
+        Ok(Self {
+            db,
+            params,
+            account: *account,
             cache: MemBlockCache::default(),
         })
     }
