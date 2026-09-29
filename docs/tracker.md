@@ -6,7 +6,7 @@ finished ones, tick them and add the commit. Spec references are to `spec.md`.
 
 Legend: `[ ]` open · `[x]` done · **(you)** needs the user · *(idea)* not yet decided
 
-Last updated: 2026-09-29 (one-tap approvals)
+Last updated: 2026-09-29 (one-tap approvals; Vizor upstream ideas from `4bff2e7`)
 
 ---
 
@@ -54,7 +54,10 @@ Open
 - [ ] "Start over" for a signing round when a chosen signer never answers (today the
       leader can only retry the same round; members must re-approve for fresh nonces)
 - [ ] Note reservation across concurrent proposals (`reservedNotes`, spec §9.1): two open
-      proposals can pick the same notes; the second fails at broadcast
+      proposals can pick the same notes; the second fails at broadcast. Upstream answer:
+      `zcash_client_backend` `OutputLockStore` (`data_api/locking.rs`, already in our 0.24.0
+      pin) as used by Vizor `rust/src/wallet/sync/proposal_locks.rs` (lock inputs per
+      proposal, release at startup, retain until expiry on an ambiguous broadcast)
 - [ ] Member names instead of hex keys (local labels, or part of the address book)
 - [ ] Endpoint settings editable (today: compile-time dart-defines, read-only)
 - [ ] iOS: build and run at all (only Android has been exercised)
@@ -64,7 +67,8 @@ Open
 - [ ] Pre-warm the proving key when a proposal becomes Approved (2–4 s on a phone)
 - [ ] Low-end device benchmark (V7 still open: Cortex-A55-class phone)
 - [ ] App icon, launcher name/branding (still the Flutter default icon)
-- [ ] Release build + signing config; check size (debug APK ~200 MB with 2 ABIs)
+- [ ] Release build + signing config; check size (debug APK ~200 MB with 2 ABIs). Reference:
+      Vizor `scripts/build-android-reproducible.sh`, `scripts/build-android-fdroid.sh`
 
 ## M2 — v1 feature-complete, mainnet beta (spec §16)
 
@@ -123,19 +127,27 @@ Open
 ## Known issues and tech debt
 
 - [ ] `AppButton` label is a separate node in accessibility trees (button role is fixed;
-      merge still not happening)
+      merge still not happening). Upstream Vizor `4bff2e7` has no fix: its `AppButton` still
+      has no `Semantics` at all, so keep ours when resyncing
 - [ ] Proposal `created_at` is the proposer's clock (display only, untrusted)
 - [ ] Wallet DB access is serialized with one global lock in the bridge; fine for one
       vault, revisit for multiple vaults
 - [ ] Sync error copy: only "can't reach the network" vs "sync failed, retrying"; no
-      details screen
+      details screen. Upstream typed kinds to copy: `lib/src/providers/sync_failure.dart`
+      (`SyncFailureKind` incl. `torUnavailable`) + `core/formatting/sync_status_label.dart`
+      ("Sync paused" states); Vizor has no details screen either
 - [ ] Copied Vizor `lib/src/core` is from an older snapshot (`ff02152`); upstream
       (`chainapsis/vizor-wallet` @ `4bff2e7`) added tokens and button options. Resync
-      deliberately, keeping Zafe's fixes (button semantics)
+      deliberately, keeping Zafe's fixes (button semantics). File-by-file list in
+      `docs/vizor-reference.md` §11: 20 copied files changed upstream, including breaking
+      `surface.input` → `surface.input.primary`, `ZecAmountInputFormatter` removed (→
+      `DecimalAmountInputFormatter`), sheet bottom gap 32 → 16, full-address verify sheet
 - [ ] No CI: add GitHub Actions for `cargo fmt/clippy/test` and `flutter analyze`
-      (regtest/Docker tests stay manual or nightly)
+      (regtest/Docker tests stay manual or nightly). Vizor has no workflows to copy
 - [ ] Agent-device flows are manual; capture them as a repeatable script
-      (`scripts/app-harness.sh` covers the backend side)
+      (`scripts/app-harness.sh` covers the backend side). Model: Vizor's app-level regtest
+      E2E, `integration_test/payment_uri_prefill_test.dart` driven by
+      `scripts/e2e/flutter-ios-regtest-mobile-*.sh`
 - [ ] Relay: rate limiting / abuse controls for the hosted tier; retention is 30 days
 
 ## Ideas (not decided)
@@ -151,12 +163,81 @@ Open
   auto-submit: the approval that completes the threshold aggregates, proves and
   broadcasts; a vault setting keeps "send manually" for timing control.
 
-- *(idea)* Relay as a Tor onion service (pairs with the Tor slice)
-- *(idea)* Fiat values next to amounts (Vizor shows USD; needs a price source, Tor-aware)
+- *(idea)* Relay as a Tor onion service (pairs with the Tor slice; Vizor routes broadcasts on
+  an isolated circuit, `open_isolated_lwd_channel` in `rust/src/wallet/sync_engine/lwd.rs`)
+- *(idea)* Fiat values next to amounts (Vizor shows USD; needs a price source, Tor-aware;
+  Vizor fetches through `lib/src/core/network/network_http_client.dart`)
 - *(idea)* Sensitive-screen protection (Vizor's `SensitivePrivacyOverlay` + Android
-  `FLAG_SECURE`) for invite, safety number and backup screens
-- *(idea)* "Keep screen awake" while collecting signatures (Vizor has this setting)
+  `FLAG_SECURE`) for invite, safety number and backup screens. Upstream now also blocks
+  capture on iOS (`SecureScreenshotShield` in `ios/Runner/AppDelegate.swift`) and warns
+  after screenshots (`lib/src/core/platform/screenshot_observer.dart`)
+- *(idea)* "Keep screen awake" while collecting signatures (Vizor has this setting):
+  `lib/src/providers/sync_keep_awake_provider.dart`, `lib/src/services/native_screen_awake.dart`
+  (ETA-based prompt, privacy lock after 1 min idle)
 - *(idea)* Show which signers are online / last seen (relay metadata; privacy trade-off)
-- *(idea)* Explorer link for txids (Vizor has an explorer setting)
+- *(idea)* Explorer link for txids with a custom explorer setting
+  (`lib/src/features/settings/screens/mobile/mobile_explorer_screen.dart`,
+  `lib/src/core/config/zcash_explorer.dart`; default CipherScan, `{txid}` templates) and
+  txids in explorer byte order
 - *(idea)* Proposal comments/discussion thread in the encrypted log
-- *(idea)* Scheduled / recurring payments (grant programs pay in milestones)
+- *(idea)* Scheduled / recurring payments (grant programs pay in milestones). Model: Vizor's
+  background outbox of fully signed txs with `scheduledHeight` / `expiryHeight` and a
+  `needsResign` state (`ios/Runner/BackgroundMigrationOutbox*.swift`,
+  `BackgroundMigrationManager.swift`)
+- *(idea)* Grantee payment requests: "Request ZEC" on the vault receive screen with a ZIP-321
+  builder that never emits `label`/`message` (`lib/src/core/zcash/zip321_payment_request_builder.dart`,
+  `lib/src/features/receive/widgets/mobile/receive_request_sheet.dart`)
+- *(idea)* Propose from a request: a scanned/pasted/opened `zcash:` URI shows a card that
+  prechecks and builds the proposal up front (`lib/src/features/send/widgets/payment_request_host.dart`,
+  `lib/src/features/send/services/payment_request_precheck.dart`)
+- *(idea)* One link intake for `zafe://` invites and `zcash:` URIs: classify host before
+  scheme, exact route allowlist, pure drain policy for locked/onboarding states
+  (`lib/src/core/navigation/incoming_link_dispatch.dart`, `payment_uri_drain_policy.dart`);
+  pairs with M1 "Invite by link"
+- *(idea)* Put invite secrets in the URL fragment as a compact positional payload so a link
+  host never sees them (`docs/compact-gift-links.md`)
+- *(idea)* Auditor export of the vault UFVK behind the passcode, reusing Vizor's copy
+  (`lib/src/features/settings/viewing_key_copy.dart`, `mobile_viewing_key_screen.dart`);
+  complements M3 payment disclosures
+- *(idea)* Batch payments UI from Gift Card groups: "Per card × N + Network fee = Total",
+  fee estimated for the whole output set, CSV export
+  (`lib/src/features/payment_links/widgets/payment_link_bulk_desktop_flow.dart`,
+  `services/payment_link_batch_export.dart`); feeds M2 batch payments
+- *(idea)* Unknown broadcast results: "Payment status pending" / "Check status" (scan only),
+  never offer a second send (`docs/gift-card-groups.md`,
+  `lib/src/features/pay/screens/mobile/mobile_pay_submitted_screen.dart`)
+- *(idea)* Durable checkpoint of the aggregated tx before broadcast, with a startup recovery
+  loop (`signed_pending_broadcast` / `result_pending_ack`) and a claim registry
+  (`rust/src/wallet/ledger/operations.rs`, `lib/src/features/ledger/services/ledger_operation_recovery.dart`)
+- *(idea)* Honest signing stages from protocol boundaries, no timers/percentages
+  (`docs/ledger/signing-phase-guidance.md`, `lib/src/features/ledger/services/ledger_signing_progress.dart`);
+  voting's named submission stages (`lib/src/features/voting/screens/mobile/mobile_voting_submission_progress_screen.dart`)
+- *(idea)* Proposal list UX from ballots: jump to question, unanswered-first, auto-advance
+  countdown, "Resume to complete the submission" (`lib/src/features/voting/widgets/voting_proposal_navigation.dart`,
+  `voting_auto_advance_indicator.dart`, `voting_resume_plan.dart`)
+- *(idea)* Local notifications as a bridge before push, deduplicated per scope and kind
+  (`ios/Runner/MigrationPreparationNotificationCoordinator.swift`)
+- *(idea)* Evidence-based payee states ("Confirming", "Unverified" with a reason, used after
+  6 confirmations; never inferred from empty history) (`docs/gift-card-claim-outcomes.md`,
+  `docs/gift-card-usage-tracking.md`)
+- *(idea)* Contact names on every address surface and "New address detected. Add to contacts"
+  without guessing between duplicates; basis for member names and the M2 address book
+  (`lib/src/features/address_book/models/address_book_label_lookup.dart`,
+  `widgets/contact_name_inline.dart`, `lib/src/features/pay/models/pay_recent_recipients.dart`)
+- *(idea)* Errors across the bridge as stable codes with a "retry is pointless" flag
+  (`lib/src/features/ledger/ledger_error_codes.dart`, `ledger_failure_guidance.dart`), or
+  typed like voting (`lib/src/services/voting/voting_rust_exception.dart`)
+- *(idea)* Send-status screen with outcome haptics: `MobileTransactionProgressScreen`
+  (`lib/src/core/widgets/mobile/mobile_transaction_progress_screen.dart`) and
+  `AppHaptics.sendSuccess/sendFailure` (`lib/src/core/feedback/app_haptics.dart`)
+- *(idea)* Customise-account step (name + avatar, generated default name) after vault
+  creation/join (`lib/src/features/onboarding/mobile/mobile_customise_account_screen.dart`,
+  `onboarding/create/account_persona_generator.dart`)
+- *(idea)* Small mobile fixes: Android back-exit guard (`lib/src/core/navigation/mobile_exit_back_guard.dart`)
+  and iOS number-pad Done bar (`lib/src/core/widgets/mobile/mobile_numeric_keyboard_toolbar.dart`)
+- *(idea)* Private transaction-detail lookups via PIR once available for Ironwood
+  (`lib/src/providers/enhance_pir_provider.dart`, `rust/src/wallet/sync_engine/enhancement/`)
+- *(idea)* Design review tooling: Widgetbook galleries + headless PNG renders
+  (`lib/widgetbook/`, `lib/figma_compare.dart`, `scripts/figma-compare.sh`)
+- *(idea)* iOS Keychain `first_unlock_this_device` for shares from day one (Vizor migrated to
+  it: `lib/src/core/storage/app_secure_store.dart`, `ios/Runner/KeychainAccessibilityMigrator.swift`)
