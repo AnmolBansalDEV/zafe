@@ -9,7 +9,10 @@ use serde_json::{json, Value};
 use zafe_core::keys::{VaultKeys, VaultSecret};
 use zcash_protocol::consensus::Network;
 
-const PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/test-vectors/zip2005_use_qsk.json");
+const PATH: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/test-vectors/zip2005_use_qsk.json"
+);
 
 /// Deterministic, valid `ak` values: taken from orchard spending keys, so they have ỹ = 0.
 fn ak_for(i: u8) -> [u8; 32] {
@@ -17,7 +20,9 @@ fn ak_for(i: u8) -> [u8; 32] {
     loop {
         let sk = SpendingKey::from_bytes(seed);
         if sk.is_some().into() {
-            return FullViewingKey::from(&sk.unwrap()).to_bytes()[..32].try_into().unwrap();
+            return FullViewingKey::from(&sk.unwrap()).to_bytes()[..32]
+                .try_into()
+                .unwrap();
         }
         seed[0] = seed[0].wrapping_add(1);
     }

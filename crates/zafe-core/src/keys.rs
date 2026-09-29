@@ -211,7 +211,10 @@ mod tests {
             let mut sk = [0u8; 32];
             rng.fill_bytes(&mut sk);
             assert_eq!(prf_expand(&sk, &[&[0x07]]), PrfExpand::ORCHARD_NK.with(&sk));
-            assert_eq!(prf_expand(&sk, &[&[0x08]]), PrfExpand::ORCHARD_RIVK.with(&sk));
+            assert_eq!(
+                prf_expand(&sk, &[&[0x08]]),
+                PrfExpand::ORCHARD_RIVK.with(&sk)
+            );
         }
     }
 
@@ -244,7 +247,8 @@ mod tests {
         let ak: [u8; 32] = legacy[..32].try_into().unwrap();
 
         // Same sk for both paths, so nk must agree; rivk must not.
-        let keys = VaultKeys::derive(&VaultSecret::from_bytes(*orchard_sk.to_bytes()), &ak).unwrap();
+        let keys =
+            VaultKeys::derive(&VaultSecret::from_bytes(*orchard_sk.to_bytes()), &ak).unwrap();
         let ours = keys.fvk().to_bytes();
         assert_eq!(ours[..64], legacy[..64]);
         assert_ne!(ours[64..], legacy[64..]);
@@ -277,7 +281,10 @@ mod tests {
         odd[31] = 0x80;
         assert_eq!(VaultKeys::derive(&sk, &odd).unwrap_err(), KeyError::OddAk);
         // The identity encoding is rejected by orchard.
-        assert_eq!(VaultKeys::derive(&sk, &[0u8; 32]).unwrap_err(), KeyError::InvalidFvk);
+        assert_eq!(
+            VaultKeys::derive(&sk, &[0u8; 32]).unwrap_err(),
+            KeyError::InvalidFvk
+        );
     }
 
     #[test]

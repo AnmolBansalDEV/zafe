@@ -2,4 +2,5 @@
 //!
 //! See `spec.md` at the repository root.
 
+pub mod keygen;
 pub mod keys;
