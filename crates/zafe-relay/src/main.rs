@@ -7,8 +7,17 @@
 //!   Android pushes (otherwise pushes are only logged)
 //! - `ZAFE_FCM_SERVICE_ACCOUNT_JSON`: the same key inline (for secret env vars); wins
 //! - `PORT`: see `ZAFE_RELAY_LISTEN`
+//! - `ZAFE_RELAY_LIMITS`: `off` disables rate limits (default: on, [`Limits::hosted`])
+//! - `ZAFE_RELAY_KEY_RATE` / `ZAFE_RELAY_IP_RATE`: requests per minute per signing key /
+//!   client IP (burst: half of it); `0` turns that limit off
+//! - `ZAFE_RELAY_CLIENT_IP_HEADER`: behind a proxy, the header carrying the client address
+//!   (`fly-client-ip` on Fly.io, `x-forwarded-for` behind Caddy). Unset: the TCP peer
+//!
+//! [`Limits::hosted`]: zafe_relay::limits::Limits::hosted
 
-use std::{path::Path, time::Duration};
+use std::{net::SocketAddr, path::Path, time::Duration};
+
+use zafe_relay::limits::{Limits, Rate};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -50,6 +59,15 @@ async fn main() -> std::io::Result<()> {
         Err(_) => relay,
     };
 
+    let limits = limits_from_env(|name| std::env::var(name).ok());
+    tracing::info!(
+        "limits: per key {:?}, per IP {:?}, client IP from {}",
+        limits.per_key,
+        limits.per_ip,
+        limits.client_ip_header.as_deref().unwrap_or("the TCP peer")
+    );
+    let relay = relay.with_limits(limits);
+
     // Hourly retention pruning of old undelivered envelopes.
     let pruner = relay.clone();
     tokio::spawn(async move {
@@ -65,9 +83,33 @@ async fn main() -> std::io::Result<()> {
 
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     tracing::info!("zafe-relay listening on {addr}, db {db}");
-    axum::serve(listener, relay.router())
-        .with_graceful_shutdown(shutdown_signal())
-        .await
+    axum::serve(
+        listener,
+        relay
+            .router()
+            .into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await
+}
+
+/// Rate limits from the environment (see the module docs).
+fn limits_from_env(var: impl Fn(&str) -> Option<String>) -> Limits {
+    if var("ZAFE_RELAY_LIMITS").is_some_and(|v| v.eq_ignore_ascii_case("off")) {
+        return Limits::none();
+    }
+    let mut limits = Limits::hosted();
+    let rate = |name: &str, default: Option<Rate>| match var(name).map(|v| v.parse::<u32>()) {
+        Some(Ok(0)) => None,
+        Some(Ok(n)) => Some(Rate::new(n, (n / 2).max(1))),
+        _ => default,
+    };
+    limits.per_key = rate("ZAFE_RELAY_KEY_RATE", limits.per_key);
+    limits.per_ip = rate("ZAFE_RELAY_IP_RATE", limits.per_ip);
+    limits.client_ip_header = var("ZAFE_RELAY_CLIENT_IP_HEADER")
+        .map(|h| h.trim().to_ascii_lowercase())
+        .filter(|h| !h.is_empty());
+    limits
 }
 
 /// `ZAFE_RELAY_LISTEN` wins; otherwise `PORT` (Fly.io, Cloud Run, ...) on all interfaces;
@@ -100,7 +142,33 @@ async fn shutdown_signal() {
 
 #[cfg(test)]
 mod tests {
-    use super::listen_addr;
+    use super::{limits_from_env, listen_addr};
+    use zafe_relay::limits::{Limits, Rate};
+
+    #[test]
+    fn limits_from_the_environment() {
+        let env = |pairs: &'static [(&'static str, &'static str)]| {
+            move |name: &str| {
+                pairs
+                    .iter()
+                    .find(|(k, _)| *k == name)
+                    .map(|(_, v)| v.to_string())
+            }
+        };
+        assert_eq!(limits_from_env(env(&[])), Limits::hosted());
+        assert_eq!(
+            limits_from_env(env(&[("ZAFE_RELAY_LIMITS", "OFF")])),
+            Limits::none()
+        );
+        let l = limits_from_env(env(&[
+            ("ZAFE_RELAY_KEY_RATE", "100"),
+            ("ZAFE_RELAY_IP_RATE", "0"),
+            ("ZAFE_RELAY_CLIENT_IP_HEADER", "Fly-Client-IP"),
+        ]));
+        assert_eq!(l.per_key, Some(Rate::new(100, 50)));
+        assert_eq!(l.per_ip, None);
+        assert_eq!(l.client_ip_header.as_deref(), Some("fly-client-ip"));
+    }
 
     #[test]
     fn listen_address_precedence() {

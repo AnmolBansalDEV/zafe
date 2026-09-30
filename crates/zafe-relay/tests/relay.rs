@@ -555,3 +555,104 @@ async fn too_new_versions_get_upgrade_required() {
         )
     );
 }
+
+// --- Limits -----------------------------------------------------------------------------
+
+fn limited(limits: zafe_relay::limits::Limits) -> Router {
+    Relay::with_clock(Arc::new(|| NOW))
+        .with_limits(limits)
+        .router()
+}
+
+fn members_read() -> MembersRead {
+    MembersRead {
+        mailbox: MAILBOX,
+        timestamp: NOW,
+    }
+}
+
+#[tokio::test]
+async fn keys_are_rate_limited_after_their_signature_verifies() {
+    use zafe_relay::limits::{Limits, Rate};
+    let app = limited(Limits {
+        per_key: Some(Rate::new(60, 2)),
+        ..Limits::none()
+    });
+    let mut rng = StdRng::seed_from_u64(9);
+    let (alice, bob) = (Identity::generate(&mut rng), Identity::generate(&mut rng));
+
+    // Forged requests claiming Alice's key are refused before they cost her anything.
+    let mut forged = Signed::new(&bob, members_read()).unwrap();
+    forged.signer = *alice.public();
+    for _ in 0..5 {
+        let (status, _) = call(&app, "/v1/mailbox/members", forged.to_bytes().unwrap()).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+    }
+
+    // Alice's burst of two goes through (unknown mailbox: 404), the third is limited.
+    for _ in 0..2 {
+        let (status, _) = signed(&app, "/v1/mailbox/members", &alice, members_read()).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+    let response = app
+        .clone()
+        .oneshot(
+            Request::post("/v1/mailbox/members")
+                .body(Body::from(
+                    Signed::new(&alice, members_read())
+                        .unwrap()
+                        .to_bytes()
+                        .unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(response.headers()["retry-after"], "1");
+    // Bob has his own bucket.
+    let (status, _) = signed(&app, "/v1/mailbox/members", &bob, members_read()).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn client_addresses_are_rate_limited() {
+    use zafe_relay::limits::{Limits, Rate};
+    let app = limited(Limits {
+        per_ip: Some(Rate::new(60, 1)),
+        client_ip_header: Some("fly-client-ip".into()),
+        ..Limits::none()
+    });
+    let health = |ip: &'static str| {
+        app.clone().oneshot(
+            Request::get("/health")
+                .header("fly-client-ip", ip)
+                .body(Body::empty())
+                .unwrap(),
+        )
+    };
+    assert_eq!(
+        health("203.0.113.1").await.unwrap().status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        health("203.0.113.1").await.unwrap().status(),
+        StatusCode::TOO_MANY_REQUESTS
+    );
+    assert_eq!(
+        health("203.0.113.2").await.unwrap().status(),
+        StatusCode::OK
+    );
+}
+
+#[tokio::test]
+async fn oversized_bodies_are_refused() {
+    let app = Relay::with_clock(Arc::new(|| NOW)).router();
+    let (status, _) = call(
+        &app,
+        "/v1/log/append",
+        vec![0u8; zafe_relay::MAX_BODY_BYTES + 1],
+    )
+    .await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+}

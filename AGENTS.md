@@ -264,6 +264,13 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   `ClientTlsConfig::new().with_webpki_roots()` for https. `RelayClient::with_extra_root`
   adds a trust anchor (private CA / tests) and keeps verification on. Transport errors
   now carry their cause chain (e.g. `UnknownIssuer`).
+- **Relay limits** (`zafe_relay::limits`): off in `Relay::new()` (tests), on in the
+  `zafe-relay` binary (`Limits::hosted()`: 300/min per key, 1200/min per IP). Charge a
+  key only after its signature verifies (`verified(relay, body)`, and after
+  `envelope.verify` / `verify_signature` in the envelope and log handlers), or anyone can
+  drain a member's bucket. The IP middleware needs `into_make_service_with_connect_info`
+  (without ConnectInfo and no proxy header it skips). New flows that poll the relay must
+  stay under the hosted rate: `node_keygen` and `bridge_e2e` run with it.
 - **Relay deploy**: `GET /health`; `PORT` → `0.0.0.0:$PORT` unless `ZAFE_RELAY_LISTEN`;
   FCM key from `ZAFE_FCM_SERVICE_ACCOUNT` (file) or `ZAFE_FCM_SERVICE_ACCOUNT_JSON`
   (inline, for Fly secrets). The image's entrypoint chowns `/data` then drops to uid

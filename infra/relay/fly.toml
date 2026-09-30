@@ -15,6 +15,8 @@ kill_timeout = "30s"
   PORT = "8080"
   ZAFE_RELAY_DB = "/data/relay.sqlite"
   RUST_LOG = "zafe_relay=info"
+  # Rate limits are on by default; Fly's proxy puts the client address in this header.
+  ZAFE_RELAY_CLIENT_IP_HEADER = "fly-client-ip"
   # FCM: `fly secrets set ZAFE_FCM_SERVICE_ACCOUNT_JSON="$(cat key.json)"` (a secret,
   # never in this file). Without it the relay only logs pushes.
 

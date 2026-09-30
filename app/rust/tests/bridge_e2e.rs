@@ -98,9 +98,14 @@ fn start_relay() {
             let listener = tokio::net::TcpListener::bind(("127.0.0.1", RELAY_PORT))
                 .await
                 .unwrap();
-            axum::serve(listener, zafe_relay::Relay::new().router())
-                .await
-                .unwrap();
+            axum::serve(
+                listener,
+                zafe_relay::Relay::new()
+                    .with_limits(zafe_relay::limits::Limits::hosted())
+                    .router(),
+            )
+            .await
+            .unwrap();
         })
     });
     thread::sleep(Duration::from_millis(300));

@@ -11,6 +11,8 @@ ExecStart=/usr/local/bin/zafe-relay
 Environment=ZAFE_RELAY_LISTEN=127.0.0.1:8787
 Environment=ZAFE_RELAY_DB=/var/lib/zafe-relay/relay.sqlite
 Environment=RUST_LOG=zafe_relay=info
+# Behind Caddy: the client address is the entry Caddy adds to X-Forwarded-For.
+Environment=ZAFE_RELAY_CLIENT_IP_HEADER=x-forwarded-for
 # FCM (optional): put the service-account key at /etc/zafe-relay/fcm-service-account.json
 # (root:root 0600) and uncomment both lines. systemd hands the service a private copy.
 #LoadCredential=fcm.json:/etc/zafe-relay/fcm-service-account.json

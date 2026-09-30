@@ -76,8 +76,13 @@ Open
 - [ ] **(you)** Hosted relay deployment (testnet): waiting on the host choice (Fly.io or a
       VPS) and account/DNS; steps in `infra/relay/README.md`. Then build the testnet app
       with `ZAFE_RELAY_URL`. Relay is SQLite today, Postgres for the hosted tier
-- [ ] Relay hardening before public testers: rate limits per IP/key, request size limits
-      tuned to real envelope sizes, off-site backups (Litestream) *(idea)*
+- [x] Relay rate and size limits (2026-09-30): token buckets per signing key (after the
+      signature verifies) and per client IP (`zafe_relay::limits`, 429 + `Retry-After`,
+      env-tunable, proxy header for Fly/Caddy), 1 MiB body cap; client
+      `RelayClientError::RateLimited` → `NotReady` ("the relay is busy"). Keygen
+      (`node_keygen`) and the whole payment flow (`bridge_e2e`) run under the hosted limits
+- [ ] Relay follow-ups: storage quotas (undelivered envelopes per recipient, log size per
+      mailbox), off-site backups (Litestream) *(idea)*, pruning dead FCM tokens
 - [x] Invite by link: `zafe://join?invite=...` custom scheme (see Next up 5)
 - [ ] Universal/App Links (`https://…/join#invite`) so a link works for people without
       Zafe installed (landing page + `assetlinks.json` / AASA). Put the invite in the URL
@@ -312,7 +317,7 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       "No response to onStartJob" for the WorkManager vault check. Likely load, but check
       that the job's startup (RustLib.init, Firebase, secure storage reads) doesn't block
       the main thread before WorkManager gets its answer
-- [ ] Relay: rate limiting / abuse controls for the hosted tier; retention is 30 days
+- [ ] Relay: storage quotas for the hosted tier (rate limits done); retention is 30 days
 - [x] **Versioned formats** (2026-09-30): every wire and stored format carries a version
       tag (`zafe_proto::version`; inventory and bump rules in AGENTS.md), signed where a
       downgrade matters (envelope and log-entry headers, relay requests, descriptor).

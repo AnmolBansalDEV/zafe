@@ -9,20 +9,26 @@ use zafe_core::{
     wallet::regtest_network,
 };
 use zafe_proto::Identity;
+use zafe_relay::limits::{Limits, Rate};
 
-async fn start_relay() -> String {
+/// A relay over HTTP with `limits` (the hosted defaults unless a test needs others, so
+/// these flows prove they fit in them).
+async fn start_relay(limits: Limits) -> String {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
-        axum::serve(listener, zafe_relay::Relay::new().router())
-            .await
-            .unwrap();
+        axum::serve(
+            listener,
+            zafe_relay::Relay::new().with_limits(limits).router(),
+        )
+        .await
+        .unwrap();
     });
     format!("http://{addr}")
 }
 
 async fn setup() -> (RelayClient, Vec<Identity>, Invite, String) {
-    let relay = RelayClient::new(start_relay().await);
+    let relay = RelayClient::new(start_relay(Limits::hosted()).await);
     let mut rng = StdRng::seed_from_u64(60);
     let ids: Vec<Identity> = (0..3).map(|_| Identity::generate(&mut rng)).collect();
     let invite = create_vault(&relay, &ids[0], "Grants", 2, 3, &mut rng)
@@ -119,5 +125,33 @@ async fn keygen_refuses_an_unconfirmed_safety_number() {
     assert!(
         matches!(err, NodeError::SafetyNumberMismatch { .. }),
         "{err:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_rate_limited_client_gets_a_typed_error() {
+    let relay = RelayClient::new(
+        start_relay(Limits {
+            per_key: Some(Rate::new(1, 1)),
+            ..Limits::none()
+        })
+        .await,
+    );
+    let mut rng = StdRng::seed_from_u64(61);
+    let me = Identity::generate(&mut rng);
+    create_vault(&relay, &me, "Grants", 2, 3, &mut rng)
+        .await
+        .unwrap();
+    let again = create_vault(&relay, &me, "Grants", 2, 3, &mut rng).await;
+    assert!(
+        matches!(
+            again,
+            Err(NodeError::Relay(
+                zafe_core::relay_client::RelayClientError::RateLimited {
+                    retry_after_secs: 60
+                }
+            ))
+        ),
+        "{again:?}"
     );
 }

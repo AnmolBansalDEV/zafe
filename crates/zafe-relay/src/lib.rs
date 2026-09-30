@@ -20,14 +20,18 @@ use std::{
 
 use axum::{
     body::Bytes,
-    extract::State,
+    extract::{ConnectInfo, DefaultBodyLimit, Request, State},
     http::StatusCode,
+    middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{get, post},
     Router,
 };
 use rusqlite::{params, Connection, OptionalExtension};
 pub mod fcm;
+pub mod limits;
+
+use limits::{Buckets, Limits};
 
 use zafe_proto::{
     log::GENESIS_PREV_HASH,
@@ -42,6 +46,11 @@ use zafe_proto::{
 
 /// Largest number of items returned by one read.
 const PAGE: i64 = 500;
+
+/// Largest request body. The biggest real bodies are log entries carrying a proposal's
+/// PCZT (tens of KB for a few payments; a 50-recipient batch stays well under this) and
+/// commitment batches (256 x ~70 bytes).
+pub const MAX_BODY_BYTES: usize = 1024 * 1024;
 
 /// Undelivered envelopes older than this are pruned (spec §6.1).
 pub const DELIVERY_RETENTION_SECS: u64 = 30 * 24 * 3600;
@@ -67,6 +76,9 @@ pub struct Relay {
     db: Arc<Mutex<Connection>>,
     clock: Clock,
     notifier: Arc<dyn Notifier>,
+    per_key: Option<Arc<Buckets<[u8; 32]>>>,
+    per_ip: Option<Arc<Buckets<std::net::IpAddr>>>,
+    client_ip_header: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -87,6 +99,9 @@ pub enum RelayError {
     Replay,
     #[error("storage error")]
     Storage,
+    /// Too many requests from one key or address; retry after this many seconds.
+    #[error("too many requests; retry in {0} s")]
+    RateLimited(u64),
     /// A request in a version this relay doesn't speak (HTTP 426), or a database written
     /// by a newer relay.
     #[error(transparent)]
@@ -110,6 +125,14 @@ impl From<rusqlite::Error> for RelayError {
 
 impl IntoResponse for RelayError {
     fn into_response(self) -> Response {
+        if let RelayError::RateLimited(secs) = self {
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                [(axum::http::header::RETRY_AFTER, secs.to_string())],
+                self.to_string(),
+            )
+                .into_response();
+        }
         if let RelayError::UnsupportedVersion(v) = self {
             return (
                 StatusCode::UPGRADE_REQUIRED,
@@ -127,6 +150,7 @@ impl IntoResponse for RelayError {
             RelayError::Storage | RelayError::UnsupportedVersion(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
+            RelayError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
         };
         (status, self.to_string()).into_response()
     }
@@ -239,7 +263,26 @@ impl Relay {
             db: Arc::new(Mutex::new(conn)),
             clock,
             notifier: Arc::new(LogNotifier),
+            per_key: None,
+            per_ip: None,
+            client_ip_header: None,
         })
+    }
+
+    /// Sets request limits (none by default; `zafe-relay` uses [`Limits::hosted`]).
+    pub fn with_limits(mut self, limits: Limits) -> Self {
+        self.per_key = limits.per_key.map(|r| Arc::new(Buckets::new(r)));
+        self.per_ip = limits.per_ip.map(|r| Arc::new(Buckets::new(r)));
+        self.client_ip_header = limits.client_ip_header;
+        self
+    }
+
+    /// Charges one request to a signing key whose signature already verified.
+    fn limit_key(&self, key: &[u8; 32]) -> Result<(), RelayError> {
+        match &self.per_key {
+            Some(b) => b.take(*key, self.now()).map_err(RelayError::RateLimited),
+            None => Ok(()),
+        }
     }
 
     /// Replaces the push notifier.
@@ -261,11 +304,20 @@ impl Relay {
             .route("/v1/inbox", post(inbox))
             .route("/v1/log/append", post(log_append))
             .route("/v1/log/read", post(log_read))
+            .layer(middleware::from_fn_with_state(self.clone(), limit_ip))
+            .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
             .with_state(self)
     }
 
-    /// Deletes deliveries older than [`DELIVERY_RETENTION_SECS`]. Returns how many.
+    /// Deletes deliveries older than [`DELIVERY_RETENTION_SECS`] (and forgets idle rate
+    /// limit buckets). Returns how many deliveries.
     pub fn prune(&self) -> Result<usize, RelayError> {
+        if let Some(b) = &self.per_key {
+            b.prune(self.now());
+        }
+        if let Some(b) = &self.per_ip {
+            b.prune(self.now());
+        }
         let cutoff = self.now().saturating_sub(DELIVERY_RETENTION_SECS);
         let db = self.db.lock().expect("lock");
         Ok(db.execute(
@@ -347,13 +399,32 @@ fn member(
     Ok(members_of(db, id)?.into_iter().find(|m| &m.sig_pk == pk))
 }
 
-fn verified<T>(body: &Bytes) -> Result<Signed<T>, RelayError>
+/// Decodes and verifies a signed request, then charges it to the signer's rate limit.
+fn verified<T>(relay: &Relay, body: &Bytes) -> Result<Signed<T>, RelayError>
 where
     T: serde::Serialize + serde::de::DeserializeOwned,
 {
     let signed = Signed::<T>::from_bytes(body).map_err(bad_request)?;
     signed.verify().map_err(|_| RelayError::Unauthenticated)?;
+    relay.limit_key(&signed.signer.sig_pk)?;
     Ok(signed)
+}
+
+/// Per-IP limit on every route (health checks included).
+async fn limit_ip(State(relay): State<Relay>, request: Request, next: Next) -> Response {
+    if let Some(buckets) = &relay.per_ip {
+        let peer = request
+            .extensions()
+            .get::<ConnectInfo<std::net::SocketAddr>>()
+            .map(|c| c.0.ip());
+        let ip = limits::client_ip(request.headers(), relay.client_ip_header.as_deref(), peer);
+        if let Some(ip) = ip {
+            if let Err(secs) = buckets.take(ip, relay.now()) {
+                return RelayError::RateLimited(secs).into_response();
+            }
+        }
+    }
+    next.run(request).await
 }
 
 fn ok<T: serde::Serialize>(value: &T) -> RelayResult {
@@ -363,7 +434,7 @@ fn ok<T: serde::Serialize>(value: &T) -> RelayResult {
 // --- Handlers ----------------------------------------------------------------------------
 
 async fn create(State(relay): State<Relay>, body: Bytes) -> RelayResult {
-    let req = verified::<CreateMailbox>(&body)?;
+    let req = verified::<CreateMailbox>(&relay, &body)?;
     let p = &req.payload;
     if p.max_members < 2 {
         return Err(RelayError::BadRequest);
@@ -397,7 +468,7 @@ async fn create(State(relay): State<Relay>, body: Bytes) -> RelayResult {
 }
 
 async fn join(State(relay): State<Relay>, body: Bytes) -> RelayResult {
-    let req = verified::<Join>(&body)?;
+    let req = verified::<Join>(&relay, &body)?;
     let mut db = relay.db.lock().expect("lock");
     let tx = db.transaction()?;
     let mb = mailbox(&tx, &req.payload.mailbox)?;
@@ -423,7 +494,7 @@ async fn join(State(relay): State<Relay>, body: Bytes) -> RelayResult {
 }
 
 async fn seal(State(relay): State<Relay>, body: Bytes) -> RelayResult {
-    let req = verified::<Seal>(&body)?;
+    let req = verified::<Seal>(&relay, &body)?;
     let db = relay.db.lock().expect("lock");
     let mb = mailbox(&db, &req.payload.mailbox)?;
     if req.signer.sig_pk != mb.creator || mb.sealed {
@@ -447,7 +518,7 @@ async fn seal(State(relay): State<Relay>, body: Bytes) -> RelayResult {
 }
 
 async fn remove(State(relay): State<Relay>, body: Bytes) -> RelayResult {
-    let req = verified::<Remove>(&body)?;
+    let req = verified::<Remove>(&relay, &body)?;
     let db = relay.db.lock().expect("lock");
     let mb = mailbox(&db, &req.payload.mailbox)?;
     if req.signer.sig_pk != mb.creator || mb.sealed || req.payload.member == mb.creator {
@@ -461,7 +532,7 @@ async fn remove(State(relay): State<Relay>, body: Bytes) -> RelayResult {
 }
 
 async fn members(State(relay): State<Relay>, body: Bytes) -> RelayResult {
-    let req = verified::<MembersRead>(&body)?;
+    let req = verified::<MembersRead>(&relay, &body)?;
     relay.check_fresh(req.payload.timestamp)?;
     let db = relay.db.lock().expect("lock");
     let mb = mailbox(&db, &req.payload.mailbox)?;
@@ -476,7 +547,7 @@ async fn members(State(relay): State<Relay>, body: Bytes) -> RelayResult {
 }
 
 async fn register_push(State(relay): State<Relay>, body: Bytes) -> RelayResult {
-    let req = verified::<RegisterPush>(&body)?;
+    let req = verified::<RegisterPush>(&relay, &body)?;
     if req.payload.token.is_empty() || req.payload.token.len() > 4096 {
         return Err(RelayError::BadRequest);
     }
@@ -506,6 +577,7 @@ async fn post_envelope(State(relay): State<Relay>, body: Bytes) -> RelayResult {
     envelope
         .verify(sender)
         .map_err(|_| RelayError::Unauthenticated)?;
+    relay.limit_key(&sender.sig_pk)?;
 
     let recipients: Vec<[u8; 32]> = match h.to {
         Recipient::One(pk) if pk != sender.sig_pk && members.iter().any(|m| m.sig_pk == pk) => {
@@ -591,7 +663,7 @@ fn push_tokens<'a>(
 }
 
 async fn inbox(State(relay): State<Relay>, body: Bytes) -> RelayResult {
-    let req = verified::<InboxRead>(&body)?;
+    let req = verified::<InboxRead>(&relay, &body)?;
     relay.check_fresh(req.payload.timestamp)?;
     let db = relay.db.lock().expect("lock");
     mailbox(&db, &req.payload.mailbox)?;
@@ -652,6 +724,7 @@ async fn log_append(State(relay): State<Relay>, body: Bytes) -> RelayResult {
     entry
         .verify_signature(&author)
         .map_err(|_| RelayError::Unauthenticated)?;
+    relay.limit_key(&author.sig_pk)?;
     let hash = entry.hash().map_err(|_| RelayError::BadRequest)?;
     tx.execute(
         "INSERT INTO log_entries (mailbox, idx, entry, hash) VALUES (?1, ?2, ?3, ?4)",
@@ -688,7 +761,7 @@ async fn health(State(relay): State<Relay>) -> Response {
 }
 
 async fn log_read(State(relay): State<Relay>, body: Bytes) -> RelayResult {
-    let req = verified::<LogRead>(&body)?;
+    let req = verified::<LogRead>(&relay, &body)?;
     relay.check_fresh(req.payload.timestamp)?;
     let db = relay.db.lock().expect("lock");
     mailbox(&db, &req.payload.mailbox)?;

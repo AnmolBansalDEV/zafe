@@ -19,6 +19,9 @@ pub enum RelayClientError {
     Status { status: u16, body: String },
     #[error("transport: {0}")]
     Transport(String),
+    /// The relay is limiting this key or address (HTTP 429).
+    #[error("the relay is busy; try again in {retry_after_secs} s")]
+    RateLimited { retry_after_secs: u64 },
     #[error("encoding")]
     Encoding,
     /// The relay refused this client's version of `format` (HTTP 426). `ours` newer than
@@ -142,6 +145,14 @@ impl RelayClient {
                 ours: format.current(),
                 relay_supports,
             });
+        }
+        if status.as_u16() == 429 {
+            let retry_after_secs = response
+                .headers()
+                .get("retry-after")
+                .and_then(|v| v.to_str().ok()?.parse().ok())
+                .unwrap_or(60);
+            return Err(RelayClientError::RateLimited { retry_after_secs });
         }
         let bytes = response.bytes().await.map_err(transport)?;
         if !status.is_success() {

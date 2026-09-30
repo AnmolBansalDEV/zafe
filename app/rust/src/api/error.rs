@@ -86,6 +86,7 @@ impl From<NodeError> for ZafeError {
                 }
             }
             NodeError::Relay(RelayClientError::Transport(_)) => ZafeErrorKind::Network,
+            NodeError::Relay(RelayClientError::RateLimited { .. }) => ZafeErrorKind::NotReady,
             NodeError::NotReady(_) => ZafeErrorKind::NotReady,
             NodeError::Timeout(_) => ZafeErrorKind::Timeout,
             NodeError::Verification(_)

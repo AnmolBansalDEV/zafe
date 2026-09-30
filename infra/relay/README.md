@@ -24,6 +24,15 @@ Runtime contract (both paths):
   `ZAFE_FCM_SERVICE_ACCOUNT_JSON='<the JSON>'`. Never commit the key or bake it into an
   image (`.dockerignore` excludes the usual names). Without it pushes are only logged
   and phones rely on background checks.
+- Rate limits (on by default): 300 requests/min per signing key (charged only after the
+  signature verifies, burst 150) and 1200/min per client IP (burst 600); over them the
+  relay answers `429` with `Retry-After`, and the app says the relay is busy. Tune with
+  `ZAFE_RELAY_KEY_RATE` / `ZAFE_RELAY_IP_RATE` (per minute, `0` = off), or
+  `ZAFE_RELAY_LIMITS=off`. Behind a proxy set `ZAFE_RELAY_CLIENT_IP_HEADER` (Fly:
+  `fly-client-ip`, already in `fly.toml`; Caddy: `x-forwarded-for`, in the systemd unit),
+  or every client shares the proxy's address. Never point it at a header clients can set
+  directly.
+- Request bodies are capped at 1 MiB (`413` above it).
 - SIGTERM shuts down gracefully.
 - Exactly **one** instance per database. Don't scale out.
 

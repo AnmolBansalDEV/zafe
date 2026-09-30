@@ -3,9 +3,10 @@
 # A/AAAA record points at this server and ports 80 and 443 are open.
 
 relay.example.com {                 # CHANGE ME: the relay's domain
-	# Relay requests are small signed postcard bodies; refuse anything large early.
+	# Relay requests are small signed postcard bodies; refuse anything large early
+	# (the relay itself refuses bodies over 1 MiB).
 	request_body {
-		max_size 4MB
+		max_size 1MB
 	}
 	reverse_proxy 127.0.0.1:8787 {
 		health_uri /health
