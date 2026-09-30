@@ -6,10 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'src/app.dart';
 import 'src/notifications/vault_watch.dart';
 import 'src/providers/vault_provider.dart';
+import 'src/services/invite_links.dart';
 import 'src/rust/frb_generated.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  initInviteLinks(); // early, so the link that launched the app isn't missed
   // Shown on the licenses page (Settings > Open-source licenses): bundled fonts and the
   // third-party code (NOTICE).
   LicenseRegistry.addLicense(() async* {

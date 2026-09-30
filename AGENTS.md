@@ -324,6 +324,31 @@ Learned while studying it:
 - **FCM on the emulator is slow** (~2 min from send to delivery on `google_apis`), so
   don't conclude "not delivered" too early: check `adb logcat | grep FLTFireMsg`. The
   relay logs `push: sent` at debug level (`RUST_LOG=zafe_relay=debug`).
+- **Invites** (`features/onboarding/invite_link.dart`, pure and unit-tested): raw form
+  `zafe-invite-v1:<hex postcard>` (~250 chars; URL-safe, asserted in `node::tests`), link
+  form `zafe://join?invite=<raw>`. The setup QR and "Share link" carry the link; Join
+  accepts either (typed, pasted inside a message, or scanned on `/scan-invite`). **An
+  invite is a bearer credential until membership is locked**: its `join_token` lets anyone
+  take an empty seat (it can't spend or see funds; the creator's member list and the
+  safety number catch an intruder). Copy says to share it only with co-signers over a
+  trusted channel. Links never join by themselves: they open Join prefilled, and the
+  safety number flow follows.
+- **Deep links**: `app_links` 7.0.0 (7.1+ needs Flutter 3.44), with Flutter's own deep
+  linking **off** (`flutter_deeplinking_enabled` meta-data / `FlutterDeepLinkingEnabled`),
+  otherwise go_router receives `zafe://join` itself. `services/invite_links.dart` feeds
+  `inviteLinks` (its stream also delivers the launch link); `app.dart` opens
+  `/welcome` + push `/join?invite=` (calling `beginAddVault` when a vault is active) and
+  defers while keys are being made or on `/backup-prompt`. Test on a device with
+  `adb shell "am start -a android.intent.action.VIEW -d 'zafe://join?invite=zafe-invite-v1:...'"`
+  (quoted twice: the device shell splits it again; cold start: `adb shell am force-stop
+  xyz.zafe.zafe` first).
+- **Scanner**: `mobile_scanner` 7.4.2 with our own controller, so `scan_invite_screen.dart`
+  handles lifecycle itself (stop on inactive only while running, because the permission
+  prompt makes the app inactive; `start()` on resume also picks up a permission granted
+  in Settings). `permission_handler` is only used for `openAppSettings()`.
+  It bundles ML Kit's barcode model on Android (adds a few MB to the APK).
+- `flutter analyze` in a fresh worktree reports errors in
+  `rust_builder/cargokit/build_tool` until `dart pub get` runs there (not our code).
 - Font family names in code must match `pubspec.yaml` exactly (`Space Grotesk`, `DM Sans`,
   `JetBrains Mono`).
 - `pubspec.yaml` must have a single `flutter:` key (a duplicate silently breaks FRB codegen).

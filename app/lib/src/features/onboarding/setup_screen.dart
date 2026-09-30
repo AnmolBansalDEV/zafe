@@ -17,6 +17,7 @@ import '../../core/widgets/dot_qr_shape.dart';
 import '../../core/widgets/mobile/mobile_surface_card.dart';
 import '../../providers/vault_provider.dart';
 import '../../rust/api/vault.dart' as rust;
+import 'invite_link.dart';
 import 'onboarding_art.dart';
 
 /// Vault setup: invite, members joining, locking membership, comparing the safety
@@ -140,7 +141,7 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
       bottom: bottom,
       children: [
         if (!sealed && isCreator) ...[
-          _InviteCard(invite: vault.invite!),
+          _InviteCard(invite: vault.invite!, vaultName: info.name),
           const SizedBox(height: AppSpacing.md),
         ],
         _MembersCard(
@@ -183,12 +184,15 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
 }
 
 class _InviteCard extends StatelessWidget {
-  const _InviteCard({required this.invite});
+  const _InviteCard({required this.invite, required this.vaultName});
   final String invite;
+  final String vaultName;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    // The QR carries the link too, so a phone's own camera app can open Zafe with it.
+    final link = inviteLink(invite);
     return MobileSurfaceCard(
       cornerRadius: AppRadii.large,
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
@@ -203,7 +207,9 @@ class _InviteCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xxs),
           Text(
-            'Share this with the people who will co-sign. Anyone with it can join until you lock membership.',
+            'Send it only to the people who will co-sign, over a channel you trust. Anyone '
+            'with it can take a seat until you lock membership, so check the member list '
+            'before you do.',
             textAlign: TextAlign.center,
             style: AppTypography.bodySmall.copyWith(
               color: colors.text.secondary,
@@ -219,7 +225,7 @@ class _InviteCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadii.large),
             ),
             child: PrettyQrView.data(
-              data: invite,
+              data: link,
               decoration: const PrettyQrDecoration(
                 shape: DotQrShape(color: Color(0xFF0B0E14)),
               ),
@@ -231,10 +237,14 @@ class _InviteCard extends StatelessWidget {
               Expanded(
                 child: AppButton(
                   variant: AppButtonVariant.secondary,
-                  onPressed: () =>
-                      SharePlus.instance.share(ShareParams(text: invite)),
+                  onPressed: () => SharePlus.instance.share(
+                    ShareParams(
+                      subject: 'Zafe vault invite',
+                      text: 'Join "$vaultName" on Zafe: $link',
+                    ),
+                  ),
                   leading: const AppIcon(AppIcons.share, size: 20),
-                  child: const Text('Share'),
+                  child: const Text('Share link'),
                 ),
               ),
               const SizedBox(width: AppSpacing.xs),
@@ -243,8 +253,8 @@ class _InviteCard extends StatelessWidget {
                   variant: AppButtonVariant.secondary,
                   onPressed: () => copyTextWithToast(
                     context,
-                    text: invite,
-                    toastMessage: 'Invite copied',
+                    text: link,
+                    toastMessage: 'Invite link copied',
                   ),
                   leading: const AppIcon(AppIcons.copy, size: 20),
                   child: const Text('Copy'),
