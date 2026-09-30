@@ -75,11 +75,16 @@ async fn three_members_create_a_vault_over_the_relay() {
             &net,
             "regtest",
             Some(2),
+            Some(3 * 1152),
             &mut r0,
             timeout
         ),
-        run_keygen(&relay, &ids[1], &invite, &number, &net, "regtest", None, &mut r1, timeout),
-        run_keygen(&relay, &ids[2], &invite, &number, &net, "regtest", None, &mut r2, timeout),
+        run_keygen(
+            &relay, &ids[1], &invite, &number, &net, "regtest", None, None, &mut r1, timeout
+        ),
+        run_keygen(
+            &relay, &ids[2], &invite, &number, &net, "regtest", None, None, &mut r2, timeout
+        ),
     );
     let (a, b, c) = (a.unwrap(), b.unwrap(), c.unwrap());
 
@@ -88,6 +93,11 @@ async fn three_members_create_a_vault_over_the_relay() {
     assert_eq!(
         a.descriptor.birthday_height, 2,
         "birthday comes from the creator"
+    );
+    assert_eq!(
+        a.descriptor.proposal_expiry_blocks,
+        3 * 1152,
+        "the creator's expiry window, in every member's signed descriptor"
     );
     assert!(a.descriptor.address.starts_with("uregtest1"));
     assert_eq!(a.vault_secret, b.vault_secret);
@@ -116,6 +126,7 @@ async fn keygen_refuses_an_unconfirmed_safety_number() {
         "0000 0000 0000",
         &net,
         "regtest",
+        None,
         None,
         &mut rng,
         Duration::from_secs(5),

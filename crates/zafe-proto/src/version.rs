@@ -31,7 +31,8 @@ pub const IDENTITY_SEEDS: u16 = 1;
 /// A member's vault material (key package, vault secret, descriptor, log key).
 pub const VAULT_MATERIAL: u16 = 1;
 /// DKG round-1 envelope payload.
-pub const DKG_ROUND1: u16 = 1;
+/// 2 (2026-09-30): the creator's message also carries the proposal expiry window.
+pub const DKG_ROUND1: u16 = 2;
 /// Signing request (envelope payload, and the leader's `<id>.req` file).
 pub const SIGNING_REQUEST: u16 = 1;
 /// Signature shares answering a signing request (envelope payload).

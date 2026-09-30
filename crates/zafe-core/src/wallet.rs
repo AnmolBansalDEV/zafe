@@ -637,7 +637,10 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
             self.account,
             OvkPolicy::Sender,
             &proposal,
-            Some(BlockHeight::from(proposal.min_target_height()) + expiry_blocks),
+            Some(BlockHeight::from(crate::vault::expiry_height(
+                u32::from(BlockHeight::from(proposal.min_target_height())),
+                expiry_blocks,
+            ))),
             BundlePadding::DEFAULT,
         )
         .map_err(|e| WalletError::Proposal(format!("{e:?}")))
@@ -749,7 +752,10 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
             self.account,
             OvkPolicy::Sender,
             &proposal,
-            Some(BlockHeight::from(proposal.min_target_height()) + expiry_blocks),
+            Some(BlockHeight::from(crate::vault::expiry_height(
+                u32::from(BlockHeight::from(proposal.min_target_height())),
+                expiry_blocks,
+            ))),
             BundlePadding::DEFAULT,
         )
         .map_err(|e| WalletError::Proposal(format!("{e:?}")))?;

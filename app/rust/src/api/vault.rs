@@ -164,6 +164,7 @@ pub fn run_keygen(
     confirmed_safety_number: String,
     timeout_secs: u32,
     birthday_height: Option<u32>,
+    expiry_days: Option<u32>,
 ) -> Result<Vec<u8>, ZafeError> {
     let me = identity(&seeds)?;
     let invite = Invite::decode(&invite)?;
@@ -186,6 +187,8 @@ pub fn run_keygen(
             &net,
             net.name(),
             birthday,
+            // Creator only (others take it from the creator); 1152 blocks = 1 day.
+            expiry_days.map(|d| d * 1152),
             &mut OsRng,
             Duration::from_secs(u64::from(timeout_secs)),
         )

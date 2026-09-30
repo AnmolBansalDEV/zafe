@@ -288,6 +288,8 @@ struct Round1Msg {
     package: Vec<u8>,
     /// Set by the creator only: the vault birthday height all descriptors use.
     birthday_height: Option<u32>,
+    /// Set by the creator only: the proposal expiry window, in blocks.
+    proposal_expiry_blocks: Option<u32>,
 }
 
 /// Collects opened envelopes by (kind, sender) from the inbox, keeping the cursor.
@@ -359,7 +361,9 @@ impl Inbox<'_> {
 ///
 /// `confirmed_safety_number` is what the user compared out of band; the ceremony refuses to
 /// start if the relay's member set produces a different one. The creator passes the vault
-/// birthday height; other members take it from the creator's round-1 message.
+/// birthday height and the proposal expiry window (`None`: the default); other members
+/// take both from the creator's round-1 message. Every member signs the descriptor that
+/// holds them, so a creator can't give members different values.
 #[allow(clippy::too_many_arguments)]
 pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
     relay: &RelayClient,
@@ -369,6 +373,7 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
     network: &P,
     network_name: &str,
     creator_birthday_height: Option<u32>,
+    creator_expiry_blocks: Option<u32>,
     rng: &mut R,
     timeout: Duration,
 ) -> Result<VaultMaterial, NodeError> {
@@ -420,6 +425,11 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
         } else {
             None
         },
+        proposal_expiry_blocks: if is_creator {
+            Some(creator_expiry_blocks.unwrap_or(crate::vault::DEFAULT_PROPOSAL_EXPIRY_BLOCKS))
+        } else {
+            None
+        },
     };
     let payload = version::encode(Format::DkgRound1, &msg)?;
     relay
@@ -443,11 +453,13 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
     } else {
         None
     };
+    let mut expiry_blocks = msg.proposal_expiry_blocks;
     let mut received1 = BTreeMap::new();
     for (pk, bytes) in &r1 {
         let m: Round1Msg = version::decode(Format::DkgRound1, bytes)?;
         if *pk == invite.creator {
             birthday_height = m.birthday_height;
+            expiry_blocks = m.proposal_expiry_blocks;
         }
         received1.insert(
             frost_id(pk)?,
@@ -456,6 +468,14 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
     }
     let birthday_height =
         birthday_height.ok_or_else(|| NodeError::Protocol("creator sent no birthday".into()))?;
+    let proposal_expiry_blocks = expiry_blocks
+        .filter(|b| {
+            (crate::vault::MIN_PROPOSAL_EXPIRY_BLOCKS..=crate::vault::MAX_PROPOSAL_EXPIRY_BLOCKS)
+                .contains(b)
+        })
+        .ok_or_else(|| {
+            NodeError::Protocol("creator sent no valid proposal expiry window".into())
+        })?;
 
     // Round 2: echo hash (broadcast), round-2 packages and sk contributions (sealed).
     let (round2, outgoing) = round1.advance(received1).map_err(proto)?;
@@ -559,7 +579,7 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
         ufvk: output.vault_keys.ufvk().map_err(proto)?.encode(network),
         address,
         use_qsk: true,
-        proposal_expiry_blocks: crate::vault::DEFAULT_PROPOSAL_EXPIRY_BLOCKS,
+        proposal_expiry_blocks,
         birthday_height,
         epoch: 0,
         transcript_hash: output.transcript_hash,
@@ -922,7 +942,10 @@ pub fn expectations<P: Parameters>(
             .into(),
         tip_height,
         // The proposer sets expiry = its target height (tip + 1) + the vault's window.
-        max_expiry_delta: proposal_expiry_blocks + 1 + crate::vault::EXPIRY_TIP_SLACK_BLOCKS,
+        max_expiry_delta: proposal_expiry_blocks
+            + 1
+            + crate::vault::EXPIRY_TIP_SLACK_BLOCKS
+            + crate::vault::EXPIRY_ROUNDING_BLOCKS,
     })
 }
 

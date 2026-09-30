@@ -26,6 +26,11 @@ class _CreateVaultScreenState extends ConsumerState<CreateVaultScreen> {
   int _threshold = 2;
   bool _busy = false;
 
+  /// How long a proposal stays approvable (days); a small fixed menu, so vaults share a
+  /// few values on chain.
+  int _expiryDays = 7;
+  static const _expiryChoices = [1, 3, 7, 14];
+
   @override
   void dispose() {
     _name.dispose();
@@ -42,6 +47,7 @@ class _CreateVaultScreenState extends ConsumerState<CreateVaultScreen> {
             name: _name.text.trim(),
             threshold: _threshold,
             members: _members,
+            expiryDays: _expiryDays,
           );
       if (mounted) context.go('/setup');
     } catch (e) {
@@ -132,6 +138,42 @@ class _CreateVaultScreenState extends ConsumerState<CreateVaultScreen> {
             style: AppTypography.bodySmall.copyWith(color: colors.text.warning),
           ),
         ],
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          'Approval window',
+          style: AppTypography.labelMedium.copyWith(
+            color: colors.text.secondary,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Row(
+          children: [
+            for (final d in _expiryChoices) ...[
+              if (d != _expiryChoices.first)
+                const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: AppButton(
+                  expand: true,
+                  size: AppButtonSize.medium,
+                  variant: d == _expiryDays
+                      ? AppButtonVariant.primary
+                      : AppButtonVariant.secondary,
+                  onPressed: _busy
+                      ? null
+                      : () => setState(() => _expiryDays = d),
+                  child: Text('$d day${d == 1 ? '' : 's'}'),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'A proposed payment must be approved and sent within $_expiryDays '
+          'day${_expiryDays == 1 ? '' : 's'}, or it expires and nothing is sent. '
+          'It can\'t be changed later.',
+          style: AppTypography.bodySmall.copyWith(color: colors.text.secondary),
+        ),
       ],
     );
   }

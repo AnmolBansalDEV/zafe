@@ -77,6 +77,7 @@ Future<Uint8List> runKeygen({
   required String confirmedSafetyNumber,
   required int timeoutSecs,
   int? birthdayHeight,
+  int? expiryDays,
 }) => RustLib.instance.api.crateApiVaultRunKeygen(
   relayUrl: relayUrl,
   lightwalletdUrl: lightwalletdUrl,
@@ -86,6 +87,7 @@ Future<Uint8List> runKeygen({
   confirmedSafetyNumber: confirmedSafetyNumber,
   timeoutSecs: timeoutSecs,
   birthdayHeight: birthdayHeight,
+  expiryDays: expiryDays,
 );
 
 VaultSummary vaultSummary({required List<int> material}) =>

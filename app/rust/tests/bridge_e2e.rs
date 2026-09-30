@@ -150,8 +150,18 @@ fn payment_flow_through_bridge() {
                 safety[0].clone(),
             );
             thread::spawn(move || {
-                vault::run_keygen(relay, lwd, "regtest".into(), s, invite, sn, 120, Some(2))
-                    .unwrap()
+                vault::run_keygen(
+                    relay,
+                    lwd,
+                    "regtest".into(),
+                    s,
+                    invite,
+                    sn,
+                    120,
+                    Some(2),
+                    None,
+                )
+                .unwrap()
             })
         })
         .collect();

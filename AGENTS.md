@@ -154,8 +154,10 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   cancelled transaction can never be mined. UI code must handle `payments.isEmpty`
   (`SweepCard`, rows say "To vault"). A proposal's `nullifiers` include padding spends
   that match no note: filter to the wallet's notes before requiring them.
-- **Expiry**: `descriptor.proposal_expiry_blocks` (default 7 days); proposer sets expiry =
-  target + window; members accept window + 96 blocks of slack. Never remove expiry: a
+- **Expiry**: `descriptor.proposal_expiry_blocks` (default 7 days; the creator picks 1-30
+  days, sent in its DKG round-1 message, `DKG_ROUND1` = 2); proposer sets expiry =
+  `vault::expiry_height(target, window)` (rounded up to 144 blocks so it doesn't date the
+  proposal); members accept window + 96 + 144 blocks. Never remove expiry: a
   complete one-tap group stays sendable until it.
 - **Every format is versioned** (`zafe_proto::version`: one constant per format, the
   `Format` enum, `encode`/`decode` for postcard and `frame`/`unframe` for raw bytes; the

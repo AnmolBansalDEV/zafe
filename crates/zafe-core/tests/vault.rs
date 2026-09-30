@@ -673,3 +673,16 @@ fn nonces_of_expired_one_tap_proposals_are_forgotten() {
     );
     assert!(!store.contains(&p.id, &p.pczt_hash));
 }
+
+#[test]
+fn expiry_heights_are_rounded_up_to_the_grid() {
+    use zafe_core::vault::{expiry_height, EXPIRY_ROUNDING_BLOCKS as R};
+    // Proposals built a few blocks apart share one expiry: it doesn't date the proposal.
+    let a = expiry_height(1_000_001, 8064);
+    let b = expiry_height(1_000_050, 8064);
+    assert_eq!(a, b);
+    assert_eq!(a % R, 0);
+    assert!((1_000_001 + 8064..1_000_001 + 8064 + R).contains(&a));
+    // Already on the grid: unchanged.
+    assert_eq!(expiry_height(R * 10, R), R * 11);
+}

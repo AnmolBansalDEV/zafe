@@ -112,6 +112,9 @@ enum VaultCmd {
         /// Creator only: vault birthday height (default: lightwalletd tip + 1).
         #[arg(long)]
         birthday: Option<u32>,
+        /// Creator only: how many days a proposal stays approvable (1 to 30, default 7).
+        #[arg(long)]
+        expiry_days: Option<u32>,
     },
     /// Show the vault address and details.
     Show,
@@ -506,6 +509,7 @@ async fn vault(
             safety_number,
             timeout_secs,
             birthday,
+            expiry_days,
         } => {
             let invite = home.invite()?;
             let me = home.identity()?;
@@ -522,6 +526,7 @@ async fn vault(
                 &network(),
                 "regtest",
                 birthday,
+                expiry_days.map(|d| d * 1152),
                 rng,
                 Duration::from_secs(timeout_secs),
             )

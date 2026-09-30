@@ -152,6 +152,23 @@ pub const DEFAULT_PROPOSAL_EXPIRY_BLOCKS: u32 = 7 * 1152;
 /// synced tip can lag the proposer's (about two hours).
 pub const EXPIRY_TIP_SLACK_BLOCKS: u32 = 96;
 
+/// Expiry heights are rounded up to a multiple of this (144 blocks, about 3 hours), so a
+/// vault transaction's expiry doesn't reveal when it was proposed. A long expiry still
+/// sets vault transactions apart from ordinary wallets (40 blocks); that's inherent to
+/// approving over days. Members accept up to this much extra delta.
+pub const EXPIRY_ROUNDING_BLOCKS: u32 = 144;
+
+/// Allowed expiry windows (vault setting): 1 to 30 days. A small fixed menu in the app
+/// (1, 3, 7, 14 days) keeps Zafe vaults in a few shared buckets.
+pub const MIN_PROPOSAL_EXPIRY_BLOCKS: u32 = 1152;
+pub const MAX_PROPOSAL_EXPIRY_BLOCKS: u32 = 30 * 1152;
+
+/// The expiry height for a transaction targeting `target` in a vault with `window`:
+/// `target + window`, rounded up to [`EXPIRY_ROUNDING_BLOCKS`].
+pub fn expiry_height(target: u32, window: u32) -> u32 {
+    (target + window).div_ceil(EXPIRY_ROUNDING_BLOCKS) * EXPIRY_ROUNDING_BLOCKS
+}
+
 /// What every member signs at the end of vault creation (spec §7.3).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VaultDescriptor {

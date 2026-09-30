@@ -104,10 +104,16 @@ Open
       page read "Expired" (amount struck through), and "Propose again" opened the review
       step prefilled and logged a new proposal. The CLI's `proposals` still prints an
       expired one as `Open` (no tip there)
-- [ ] Expiry window configurable at vault creation (D2): every member builds and signs the
-      descriptor, so the choice has to travel in the invite (invite format bump) or the
-      seal; today it's `DEFAULT_PROPOSAL_EXPIRY_BLOCKS` (7 days)
-- [ ] Privacy: a 7-day expiry delta differs from the 40-block wallet default, so vault spends are distinguishable on chain by expiry. Consider rounding or a shared convention
+- [x] Expiry window chosen at vault creation (D2; 2026-09-30): "Approval window" 1/3/7/14
+      days on Create; the creator's DKG round-1 message carries it (`DKG_ROUND1` = 2, no
+      invite change, so backups are unaffected) and every member signs it in the
+      descriptor; 1..30 days accepted. CLI `vault keygen --expiry-days`. Not shown in
+      Settings yet
+- [x] Expiry privacy (2026-09-30): expiry heights are rounded up to a multiple of 144
+      blocks (`vault::expiry_height`), so they don't date the proposal; members accept
+      window + 96 + 144. The long window itself still sets vault transactions apart from
+      40-block wallets: inherent to approving over days (a small fixed menu keeps vaults
+      in a few buckets)
 - [x] "Start over" for a signing round (2026-09-30): after a timeout the leader can "Start
       over with other signers" (bridge `restart_signing` drops `<id>.req`/`.own`; used
       commitment sets stay used); members whose approval's nonces are gone

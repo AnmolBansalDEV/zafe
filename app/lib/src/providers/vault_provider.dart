@@ -204,6 +204,7 @@ class VaultNotifier extends Notifier<VaultState> {
     required String name,
     required int threshold,
     required int members,
+    int expiryDays = 7,
   }) async {
     // A fresh member identity per vault, so the relay can't link memberships.
     final id = rust.generateIdentity();
@@ -216,6 +217,9 @@ class VaultNotifier extends Notifier<VaultState> {
     );
     final vaultId = rust.parseInvite(invite: invite).vaultId;
     await _store.add(id: vaultId, identity: id.seeds, invite: invite);
+    // Used by `createKeys` (the creator's round-1 message carries it to the others).
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_expiryDaysKey(vaultId), expiryDays);
     state = state.copyWith(clearReturnTo: true);
     await _reload(activeId: vaultId);
   }
@@ -290,6 +294,9 @@ class VaultNotifier extends Notifier<VaultState> {
       confirmedSafetyNumber: safetyNumber,
       timeoutSecs: 600,
       birthdayHeight: null,
+      expiryDays: (await SharedPreferences.getInstance()).getInt(
+        _expiryDaysKey(vaultId),
+      ),
     );
     await _store.writeMaterial(vaultId, material);
     await _reload(activeId: vaultId);
@@ -346,6 +353,9 @@ class VaultNotifier extends Notifier<VaultState> {
     }
   }
 }
+
+/// The approval window the creator chose for a vault being set up (days).
+String _expiryDaysKey(String vaultId) => 'zafe_vault_${vaultId}_expiryDays';
 
 final vaultProvider = NotifierProvider<VaultNotifier, VaultState>(
   VaultNotifier.new,
