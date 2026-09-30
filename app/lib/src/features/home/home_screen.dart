@@ -143,7 +143,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     } else if (vault.syncing) {
       syncLabel = 'Syncing...';
     } else if (vault.balance != null) {
-      syncLabel = 'Synced at ${vault.balance!.height}';
+      syncLabel = 'Zafe is synced';
     } else {
       syncLabel = 'Connecting...';
     }

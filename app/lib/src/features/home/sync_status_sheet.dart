@@ -112,6 +112,10 @@ class _SyncStatusSheetState extends ConsumerState<_SyncStatusSheet> {
     body.add(
       DetailRow(label: 'Last synced', value: formatLastSuccess(syncedAt)),
     );
+    final height = vault.balance?.height;
+    if (height != null) {
+      body.add(DetailRow(label: 'Block height', value: '$height'));
+    }
     if (endpoint == SyncEndpoint.relay ||
         failure?.kind == SyncFailureKind.offline) {
       body.add(
