@@ -585,7 +585,10 @@ html.world-on .story-static { display: none; }
    the pieces fly with it; the nav logo takes over, rings pulse out from it, and the page
    rises in. */
 :root {
-  --land-x: 50vw;  /* centre of .nav-logo: the grid centres it */
+  /* Centre of .nav-logo: the grid centres it in the page, which excludes a classic
+     scrollbar, so it's 50% of the fixed intro layer (not 50vw, which includes it). */
+  --land-x: 50%;
+  --lift-x: 0px;   /* from the landing point to the screen's centre, horizontally */
   --land-y: 58px;  /* nav padding-top 36 + half of 44 */
   --big: 9;        /* the mark's size on arrival, as a multiple of 44 px */
   --tile: #004A46; /* the mark's tile colour (public/assets/zafe.svg) */
@@ -593,7 +596,7 @@ html.world-on .story-static { display: none; }
   --rise: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 @media (max-width: 600px) {
-  :root { --land-x: 42px; --land-y: 46px; --big: 6; }  /* padding 20/24 + 22 */
+  :root { --land-x: 42px; --lift-x: calc(50vw - 42px); --land-y: 46px; --big: 6; }  /* padding 20/24 + 22 */
 }
 
 .intro {
@@ -619,7 +622,7 @@ html.world-on .story-static { display: none; }
   margin: -22px 0 0 -22px;
 }
 .intro-mark {
-  transform: translate(calc(50vw - var(--land-x)), calc(50vh - var(--land-y))) scale(var(--big));
+  transform: translate(var(--lift-x), calc(50vh - var(--land-y))) scale(var(--big));
   animation: mark-fly 0.8s var(--ease) 1s forwards, gone 0s linear 1.8s forwards;
 }
 .intro-mark .mark { display: block; width: 44px; height: 44px; animation: mark-in 0.5s var(--rise) both; }
