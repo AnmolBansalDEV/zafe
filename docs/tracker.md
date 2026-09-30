@@ -18,17 +18,16 @@ Last updated: 2026-10-01 (Verdigris + Seam brand implemented; note reservation; 
       gold for received/success, Patina icons for Home, Activity, the tab bar, activity
       rows, the notice card and Home buttons, Seam app icon / splash / notification icon,
       window colours, illustration palette, retinted vault emblem palettes.
-  - [ ] **Patina for the rest of the icon set**: 21 names are Patina
-        (`AppIcons.patina`); the other ~90 in `assets/icons/` are still filled Material
-        shapes (settings, send flow, signers, backup, scanner...). Map each to a Phosphor
-        icon in `scripts/brand/patina_icons.py` and `AppIcons.patina`; drop unused
-        Vizor-only icons (keystone, ledger, dragon, crystal ball...).
+  - [x] **Patina for the rest of the icon set** (2026-10-01): all 45 used icons are
+        Patina (Phosphor via `scripts/brand/patina_icons.py`), except the Zcash currency
+        glyph; 65 unused SVGs (Vizor leftovers incl. `vizor_logo`, keystone, ledger,
+        dragon) and 5 unused PNGs were deleted. Contact sheet:
+        `tool/screens/icons_render_test.dart`.
   - [ ] Check the new colours on a device (emulator/phone): splash, themed icon, the
         light vault card, notification tint. Only render tests were run.
-  - [ ] Unused semantic tokens still named for old roles (`utilitySuccess*`,
-        `positiveStrong`, `sync.*` now all gold): rename to value/received when touching
-        them. `legacy_material_theme.dart` still has Vizor's gray/green Material scheme
-        (only used by stray Material widgets).
+  - [x] Token names by role (2026-10-01): `value*`, `destructive*`, `darkCard`,
+        `RosePrimitives`; unused gold leftovers deleted; `material_theme.dart` builds the
+        Material `ColorScheme` from `AppColors` (AGENTS.md "Palette").
   - *(idea)* N-of-M ring emblem for the avatar (logo study); Quorum Z splash animation.
 
 0. [x] **Proposals expire after ~50 min.** Fixed: vault descriptor `proposal_expiry_blocks` (default 7 days), proposer sets it, members accept it plus ~2 h tip slack; `bridge_e2e` lets 300 blocks pass before approving. PCZTs are built with the library default expiry
