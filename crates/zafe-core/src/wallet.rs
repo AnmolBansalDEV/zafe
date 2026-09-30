@@ -238,6 +238,26 @@ pub async fn latest_height(client: &mut Client) -> Result<u32, WalletError> {
         .map_err(|_| WalletError::Remote("height out of range".into()))
 }
 
+/// Txids (protocol byte order) of every transaction in lightwalletd's mempool with
+/// shielded data. The whole mempool is read, so the server learns nothing about which
+/// transaction the caller is looking for.
+pub async fn mempool_txids(
+    client: &mut Client,
+) -> Result<std::collections::BTreeSet<[u8; 32]>, WalletError> {
+    let mut stream = client
+        .get_mempool_tx(service::GetMempoolTxRequest::default())
+        .await
+        .map_err(|e| remote_error(&e))?
+        .into_inner();
+    let mut txids = std::collections::BTreeSet::new();
+    while let Some(tx) = stream.message().await.map_err(|e| remote_error(&e))? {
+        if let Ok(txid) = <[u8; 32]>::try_from(tx.txid.as_slice()) {
+            txids.insert(txid);
+        }
+    }
+    Ok(txids)
+}
+
 /// A payment in a proposal.
 #[derive(Clone, Debug)]
 pub struct PaymentRequest {
@@ -434,6 +454,23 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
     /// transfer), not incoming money. Expired unmined transactions are left out.
     pub fn received_payments(&self) -> Result<Vec<ReceivedPayment>, WalletError> {
         received_payments_at(&self.path, &self.key, self.account.expose_uuid().as_bytes())
+    }
+
+    /// Whether this wallet has seen transaction `txid` mined (e.g. a vault spend).
+    pub fn tx_mined(&self, txid: &[u8; 32]) -> Result<bool, WalletError> {
+        let conn = open_connection(&self.path, &self.key, true)?;
+        let mined: Option<Option<u32>> = conn
+            .query_row(
+                "SELECT mined_height FROM transactions WHERE txid = ?1",
+                [txid.as_slice()],
+                |r| r.get(0),
+            )
+            .map(Some)
+            .or_else(|e| match e {
+                rusqlite::Error::QueryReturnedNoRows => Ok(None),
+                e => Err(db_err(e)),
+            })?;
+        Ok(matches!(mined, Some(Some(_))))
     }
 
     /// Makes the wallet's note locks match `holds` exactly, so new proposals skip every note

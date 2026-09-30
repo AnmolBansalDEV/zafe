@@ -312,8 +312,11 @@ class VaultNotifier extends Notifier<VaultState> {
 
   Future<void> sync() async {
     final material = state.material;
+    final seeds = state.identity;
     final vaultId = state.activeId;
-    if (material == null || vaultId == null || state.syncing) return;
+    if (material == null || seeds == null || vaultId == null || state.syncing) {
+      return;
+    }
     state = state.copyWith(syncing: true, clearSyncError: true);
     try {
       final paths = await ZafePaths.get();
@@ -321,6 +324,8 @@ class VaultNotifier extends Notifier<VaultState> {
         dbDir: paths.dbDir,
         dbKey: await ZafeSecureStore.instance.walletKey(vaultId),
         lightwalletdUrl: kZafeLightwalletdUrl,
+        relayUrl: kZafeRelayUrl,
+        seeds: seeds,
         material: material,
       );
       state = state.copyWith(

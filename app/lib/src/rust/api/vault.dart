@@ -91,16 +91,22 @@ Future<Uint8List> runKeygen({
 VaultSummary vaultSummary({required List<int> material}) =>
     RustLib.instance.api.crateApiVaultVaultSummary(material: material);
 
-/// Syncs the vault wallet (creating its database under `db_dir` on first use).
+/// Syncs the vault wallet (creating its database under `db_dir` on first use), then holds
+/// back the notes that live proposals spend, so `spendable_zat` is what a new proposal can
+/// use. Holds are best effort: if the relay can't be reached, the previous ones stay.
 Future<Balance> syncVault({
   required String dbDir,
   required List<int> dbKey,
   required String lightwalletdUrl,
+  required String relayUrl,
+  required List<int> seeds,
   required List<int> material,
 }) => RustLib.instance.api.crateApiVaultSyncVault(
   dbDir: dbDir,
   dbKey: dbKey,
   lightwalletdUrl: lightwalletdUrl,
+  relayUrl: relayUrl,
+  seeds: seeds,
   material: material,
 );
 

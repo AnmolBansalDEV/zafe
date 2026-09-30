@@ -51,6 +51,10 @@ pub enum VaultError {
     BadShares(u64),
     #[error("entry {0}: this member already signed; an approval with shares is final")]
     VoteFinal(u64),
+    /// The proposal spends a note that an earlier open or approved proposal also spends
+    /// (two members proposed at the same time). At most one of them could be mined.
+    #[error("entry {0}: spends a note another open proposal already spends")]
+    NotesInUse(u64),
 }
 
 /// Most commitments one `Commitments` event may carry.
@@ -309,6 +313,10 @@ pub struct ProposalState {
     pub txid: Option<[u8; 32]>,
     pub signing_spends: u16,
     pub auto_send: bool,
+    /// Nullifiers of the notes the PCZT spends, and its expiry height (empty and 0 if the
+    /// PCZT doesn't parse; members' verification rejects such a proposal anyway).
+    pub nullifiers: Vec<[u8; 32]>,
+    pub expiry_height: u32,
     /// Set when the proposal is signed at approval time (enough commitments were in the
     /// members' pools when it was logged); `None` means interactive signing.
     pub preprocessed: Option<Preprocessed>,
@@ -444,6 +452,25 @@ impl VaultState {
                 if self.proposals.contains_key(&id) {
                     return Err(VaultError::DuplicateProposal(index));
                 }
+                let (nullifiers, expiry_height) = pczt::Pczt::parse(&pczt)
+                    .ok()
+                    .and_then(|p| {
+                        let nfs = crate::tx::spent_nullifiers(&p).ok()?;
+                        Some((nfs, *p.global().expiry_height()))
+                    })
+                    .unwrap_or_default();
+                // First come, first served: notes an earlier proposal that can still be
+                // signed spends are taken, until that proposal's transaction expires (as
+                // of the chain tip this proposal was built on, so every member agrees).
+                // Broadcast and cancelled proposals don't block: a new proposal may
+                // deliberately respend their notes, and at most one transaction is mined.
+                if self.proposals.values().any(|p| {
+                    matches!(p.status, ProposalStatus::Open | ProposalStatus::Approved)
+                        && p.expiry_height > tip_height
+                        && p.nullifiers.iter().any(|nf| nullifiers.contains(nf))
+                }) {
+                    return Err(VaultError::NotesInUse(index));
+                }
                 let preprocessed = self.assign_commitments(signing_spends);
                 self.proposals.insert(
                     id,
@@ -462,6 +489,8 @@ impl VaultState {
                         txid: None,
                         signing_spends,
                         auto_send,
+                        nullifiers,
+                        expiry_height,
                         preprocessed,
                         shares: BTreeMap::new(),
                         ready_group: None,

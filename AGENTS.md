@@ -85,15 +85,25 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   (recipient, amount, memo); change must belong to the vault **and trial-decrypt** with its IVK;
   fee must **equal** ZIP 317 (5000 × max(2, actions)); sighash computed locally.
 - **Proposals are built with `OvkPolicy::Sender`** and Ironwood change, or verification fails.
-- **Note reservation**: `node::propose` replays the log and calls
-  `VaultWallet::reserve(&node::note_holds(&state))` before building: every note a live
-  proposal spends (open, approved, broadcast, or cancelled with a complete group) is locked
-  in this member's wallet via upstream `OutputLockStore` until that tx's expiry height
-  (owner = PCZT hash; nullifier → `(txid, action_index)` looked up on a read-only
-  connection). `reserve` clears and re-locks, so it always mirrors the log. Locked notes
-  drop out of `spendable_value` but stay in `total`. `node::propose` returns wallet errors
-  as `NodeError::Wallet` (not a string), so the bridge keeps `InsufficientFunds` /
-  `FundsReserved` typed.
+- **Note reservation** (spec §9.1): two layers.
+  *Log rule* (`VaultState::apply`, deterministic): a `Proposal` whose PCZT spends a note
+  of an earlier **open/approved** proposal with `expiry_height > new.tip_height` is
+  ignored (`VaultError::NotesInUse`). Broadcast and cancelled proposals don't block (a
+  respend is how you invalidate; at most one tx mines). `ProposalState` carries the
+  parsed `nullifiers` + `expiry_height` (empty/0 when the PCZT doesn't parse; test
+  fixtures use fake PCZTs). Changing this rule changes replay: gate it like an event
+  version once external testers exist.
+  *Wallet holds* (`node::reserve_notes` → `note_holds` → `VaultWallet::reserve`): open,
+  approved and broadcast proposals' notes are locked with upstream `OutputLockStore`
+  until expiry (owner = PCZT hash; `reserve` clears and re-locks, mirroring the log). A
+  broadcast tx that's neither mined (`tx_mined`) nor in lightwalletd's mempool
+  (`wallet::mempool_txids`, whole mempool, never a txid lookup: privacy) releases its
+  notes, unless the chain moved past the wallet meanwhile. Run by `node::propose` (which
+  now takes a lightwalletd client and rebuilds up to 3× on `NotesInUse`) and by the
+  bridge's `sync_vault` (takes `relay_url` + `seeds`; best effort, locks persist in the
+  DB). Locked notes leave `spendable_value`, stay in `total`. Wallet errors from
+  `node::propose` are `NodeError::Wallet`, so `InsufficientFunds` / `FundsReserved` stay
+  typed; `append_event`'s check failure is `NodeError::Invalid(VaultError)`.
 - **Nonce storage**: `nonce_store::FileNonceStore` (atomic write+rename; `put` returns an
   error so a failed write never publishes an approval). The directory must be excluded from
   backups/device transfer: the Android app disables both (`allowBackup=false`,

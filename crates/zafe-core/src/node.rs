@@ -28,7 +28,7 @@ use crate::{
     keygen::{member_identifier, KeygenParams, Round1, SkContribution},
     keys::VaultSecret,
     relay_client::{RelayClient, RelayClientError},
-    vault::{MemberInfo, VaultDescriptor, VaultEvent, VaultState},
+    vault::{MemberInfo, VaultDescriptor, VaultError, VaultEvent, VaultState},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -52,6 +52,9 @@ pub enum NodeError {
     Protocol(String),
     #[error(transparent)]
     Wallet(#[from] crate::wallet::WalletError),
+    /// The event is not valid on top of the current log (every member would ignore it).
+    #[error("event no longer valid: {0}")]
+    Invalid(crate::vault::VaultError),
     /// Data or a message in a version this build doesn't read (see
     /// [`UnsupportedVersion::is_newer`]: newer means "update the app").
     #[error(transparent)]
@@ -780,7 +783,7 @@ pub async fn append_event<R: RngCore + CryptoRng>(
     for _ in 0..10 {
         state
             .check(me.public().sig_pk, event)
-            .map_err(|e| NodeError::Protocol(format!("event no longer valid: {e}")))?;
+            .map_err(NodeError::Invalid)?;
         let entry = LogEntry::create(
             me,
             &key,
@@ -932,79 +935,129 @@ fn members_by_pk(material: &VaultMaterial) -> BTreeMap<[u8; 32], IdentityPublic>
 }
 
 /// Builds a PCZT for `payments` from this member's wallet and logs it as a proposal.
+/// Notes that other live proposals spend are held back first; if another member's
+/// proposal takes the same notes meanwhile (the log accepts only the first), the PCZT is
+/// rebuilt from the notes left.
+#[allow(clippy::too_many_arguments)]
 pub async fn propose<P: Parameters + Clone + Send + Sync + 'static, R: RngCore + CryptoRng>(
     relay: &RelayClient,
     me: &Identity,
     material: &VaultMaterial,
     wallet: &mut VaultWallet<P>,
+    lightwalletd: &mut Client,
     payments: &[PaymentRequest],
     auto_send: bool,
     rng: &mut R,
 ) -> Result<ProposalId, NodeError> {
-    // Hold back every note an open proposal already spends, so this one picks others.
     let (mut chain, mut state) = load_state(relay, me, material).await?;
-    wallet.reserve(&note_holds(&state))?;
-    let pczt = wallet.propose(payments, material.descriptor.proposal_expiry_blocks)?;
-    let tip = wallet
-        .chain_height()
-        .map_err(proto)?
-        .ok_or_else(|| NodeError::NotReady("wallet not synced".into()))?;
-    let signing_spends = tx::spends_to_sign(&pczt, material.vault_keys()?.fvk())
-        .map_err(proto)?
-        .len() as u16;
-    let mut id = [0u8; 16];
-    rng.fill_bytes(&mut id);
-    let event = VaultEvent::Proposal {
-        id,
-        payments: payments
-            .iter()
-            .map(|p| ProposedPayment {
-                address: p.address.clone(),
-                amount_zat: p.amount_zat,
-                memo: p
-                    .memo
-                    .clone()
-                    .unwrap_or_else(zcash_protocol::memo::MemoBytes::empty)
-                    .as_array()
-                    .to_vec(),
-            })
-            .collect(),
-        pczt_hash: pczt_hash(&pczt).map_err(proto)?,
-        pczt: pczt.serialize().map_err(proto)?,
-        tip_height: tip,
-        created_at: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.as_secs()),
-        signing_spends,
-        auto_send,
-    };
-    append_event(relay, me, material, &mut chain, &mut state, &event, rng).await?;
-    Ok(id)
+    let fvk = material.vault_keys()?.fvk().clone();
+    for _ in 0..3 {
+        reserve_notes(&state, wallet, lightwalletd).await?;
+        let pczt = wallet.propose(payments, material.descriptor.proposal_expiry_blocks)?;
+        let tip = wallet
+            .chain_height()
+            .map_err(proto)?
+            .ok_or_else(|| NodeError::NotReady("wallet not synced".into()))?;
+        let signing_spends = tx::spends_to_sign(&pczt, &fvk).map_err(proto)?.len() as u16;
+        let mut id = [0u8; 16];
+        rng.fill_bytes(&mut id);
+        let event = VaultEvent::Proposal {
+            id,
+            payments: payments
+                .iter()
+                .map(|p| ProposedPayment {
+                    address: p.address.clone(),
+                    amount_zat: p.amount_zat,
+                    memo: p
+                        .memo
+                        .clone()
+                        .unwrap_or_else(zcash_protocol::memo::MemoBytes::empty)
+                        .as_array()
+                        .to_vec(),
+                })
+                .collect(),
+            pczt_hash: pczt_hash(&pczt).map_err(proto)?,
+            pczt: pczt.serialize().map_err(proto)?,
+            tip_height: tip,
+            created_at: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_secs()),
+            signing_spends,
+            auto_send,
+        };
+        match append_event(relay, me, material, &mut chain, &mut state, &event, rng).await {
+            Ok(_) => return Ok(id),
+            // `state` now includes the proposal that won the notes: hold them and rebuild.
+            Err(NodeError::Invalid(VaultError::NotesInUse(_))) => continue,
+            Err(e) => return Err(e),
+        }
+    }
+    Err(NodeError::NotReady(
+        "other proposals keep taking the same notes; try again".into(),
+    ))
 }
 
-/// The notes each proposal that may still reach the chain spends, in log order: open,
-/// approved and broadcast proposals, and cancelled ones whose signatures are complete
-/// (they stay sendable until expiry). Held until the transaction's expiry height.
-pub fn note_holds(state: &VaultState) -> Vec<crate::wallet::NoteHold> {
+/// Refreshes this member's note holds from the vault log (see [`note_holds`]), so its
+/// spendable balance and its next proposal leave out notes live proposals spend.
+///
+/// A broadcast transaction that isn't mined and isn't in lightwalletd's mempool any more
+/// (dropped) releases its notes. The whole mempool is fetched rather than looking up the
+/// txid, so lightwalletd doesn't learn which transaction belongs to the vault. If the
+/// chain moved past the wallet meanwhile, nothing is released this time (the transaction
+/// may just have been mined).
+pub async fn reserve_notes<P: Parameters + Clone + Send + Sync + 'static>(
+    state: &VaultState,
+    wallet: &mut VaultWallet<P>,
+    lightwalletd: &mut Client,
+) -> Result<usize, NodeError> {
+    let tip = wallet.chain_height()?.unwrap_or(0);
+    let mut pending = Vec::new();
+    for p in state.proposals.values() {
+        if let (ProposalStatus::Broadcast, Some(txid)) = (p.status, p.txid) {
+            if p.expiry_height > tip && !wallet.tx_mined(&txid)? {
+                pending.push((p.id, txid));
+            }
+        }
+    }
+    let mut dropped = BTreeSet::new();
+    if !pending.is_empty() {
+        let mempool = crate::wallet::mempool_txids(lightwalletd).await?;
+        let chain_tip = crate::wallet::latest_height(lightwalletd).await?;
+        if chain_tip <= tip {
+            dropped.extend(
+                pending
+                    .into_iter()
+                    .filter(|(_, txid)| !mempool.contains(txid))
+                    .map(|(id, _)| id),
+            );
+        }
+    }
+    Ok(wallet.reserve(&note_holds(state, &dropped))?)
+}
+
+/// The notes each live proposal spends, in log order, held until its transaction's expiry
+/// height: open and approved proposals, and broadcast ones except those in `dropped`.
+/// Cancelled proposals hold nothing, so a new proposal can respend (invalidate) their notes.
+pub fn note_holds(
+    state: &VaultState,
+    dropped: &BTreeSet<ProposalId>,
+) -> Vec<crate::wallet::NoteHold> {
     let mut proposals: Vec<_> = state
         .proposals
         .values()
         .filter(|p| match p.status {
-            ProposalStatus::Open | ProposalStatus::Approved | ProposalStatus::Broadcast => true,
-            ProposalStatus::Cancelled => p.ready_group.is_some(),
-            ProposalStatus::Rejected => false,
+            ProposalStatus::Open | ProposalStatus::Approved => true,
+            ProposalStatus::Broadcast => !dropped.contains(&p.id),
+            ProposalStatus::Cancelled | ProposalStatus::Rejected => false,
         })
         .collect();
     proposals.sort_by_key(|p| p.log_index);
     proposals
         .into_iter()
-        .filter_map(|p| {
-            let pczt = Pczt::parse(&p.pczt).ok()?;
-            Some(crate::wallet::NoteHold {
-                owner: p.pczt_hash,
-                nullifiers: tx::spent_nullifiers(&pczt).ok()?,
-                expiry_height: *pczt.global().expiry_height(),
-            })
+        .map(|p| crate::wallet::NoteHold {
+            owner: p.pczt_hash,
+            nullifiers: p.nullifiers.clone(),
+            expiry_height: p.expiry_height,
         })
         .collect()
 }

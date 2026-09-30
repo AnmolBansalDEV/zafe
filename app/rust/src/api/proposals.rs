@@ -318,7 +318,8 @@ pub fn propose_payment(
     let _guard = wallet_lock();
     let id = runtime().block_on(async {
         let mut wallet = open_wallet(&db_dir, &db_key, &lightwalletd_url, &m).await?;
-        wallet.sync(&mut connect(&lightwalletd_url).await?).await?;
+        let mut client = connect(&lightwalletd_url).await?;
+        wallet.sync(&mut client).await?;
         let relay = RelayClient::new(relay_url);
         Ok::<_, ZafeError>(
             node::propose(
@@ -326,6 +327,7 @@ pub fn propose_payment(
                 &me,
                 &m,
                 &mut wallet,
+                &mut client,
                 &requests,
                 auto_send,
                 &mut OsRng,

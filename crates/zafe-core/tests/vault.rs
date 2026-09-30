@@ -1,6 +1,7 @@
 //! Vault-log replay rules (spec §6.3, §9.6).
 
 use rand::{rngs::StdRng, SeedableRng};
+use zafe_core::node;
 use zafe_core::vault::{
     MemberInfo, ProposalStatus, ProposedPayment, VaultDescriptor, VaultError, VaultEvent,
     VaultState,
@@ -9,6 +10,8 @@ use zafe_proto::{
     version::{self, Format, UnsupportedVersion},
     Chain, Identity, LogEntry, LogKey,
 };
+
+mod common;
 
 const MAILBOX: [u8; 16] = [4; 16];
 
@@ -494,4 +497,103 @@ fn garbage_commitments_are_rejected() {
     let s = log.replay().unwrap();
     assert!(matches!(s.ignored[0].1, VaultError::BadCommitments(_)));
     assert!(s.pools.is_empty() || s.pools.values().all(|p| p.commitments.is_empty()));
+}
+
+/// A proposal event carrying a real PCZT, built on `tip`.
+fn proposal_with(id: u8, pczt: &pczt::Pczt, tip: u32) -> VaultEvent {
+    VaultEvent::Proposal {
+        id: [id; 16],
+        payments: vec![],
+        pczt: pczt.clone().serialize().unwrap(),
+        pczt_hash: [id; 32],
+        tip_height: tip,
+        created_at: 1_700_000_000,
+        signing_spends: 1,
+        auto_send: false,
+    }
+}
+
+#[test]
+fn a_proposal_respending_notes_of_a_live_one_is_ignored() {
+    use common::{build_pczt, outside_address, receive_ironwood_note, witness, Out};
+    use orchard::keys::{FullViewingKey, Scope, SpendingKey};
+
+    let fvk = FullViewingKey::from(&SpendingKey::from_bytes([3; 32]).unwrap());
+    let spend = |note: orchard::Note| {
+        let (anchor, path) = witness(&note);
+        build_pczt(
+            &fvk,
+            note,
+            path,
+            anchor,
+            vec![Out {
+                ovk: None,
+                recipient: outside_address(9),
+                // The whole note minus the ZIP 317 fee (2 actions): no change output.
+                value: 990_000,
+                memo: zcash_protocol::memo::MemoBytes::empty(),
+            }],
+        )
+    };
+    let note_a = receive_ironwood_note(&fvk, fvk.address_at(0u32, Scope::External), 1_000_000);
+    let note_b = receive_ironwood_note(&fvk, fvk.address_at(1u32, Scope::External), 1_000_000);
+    let (a1, a2, b) = (spend(note_a), spend(note_a), spend(note_b));
+    let tip = common::TARGET_HEIGHT - 1;
+    let expiry = *b.global().expiry_height();
+    assert!(expiry > tip);
+
+    let mut log = Log::new();
+    log.push(0, &log.created(&[0, 1, 2]));
+    log.push(0, &proposal_with(1, &a1, tip));
+    let state = log.replay().unwrap();
+    assert_eq!(state.proposals[&[1; 16]].expiry_height, expiry);
+    assert!(!state.proposals[&[1; 16]].nullifiers.is_empty());
+    // Members check before appending, so a raced proposal is caught before it's written.
+    assert_eq!(
+        state.check(log.ids[1].public().sig_pk, &proposal_with(2, &a2, tip)),
+        Err(VaultError::NotesInUse(2))
+    );
+
+    // Written anyway (two members raced): everyone ignores the second.
+    log.push(1, &proposal_with(2, &a2, tip));
+    log.push(1, &proposal_with(3, &b, tip));
+    let state = log.replay().unwrap();
+    assert!(!state.proposals.contains_key(&[2; 16]));
+    assert!(state.proposals.contains_key(&[3; 16]));
+    assert_eq!(state.ignored, vec![(2, VaultError::NotesInUse(2))]);
+
+    // Past the earlier proposal's expiry its notes are free again.
+    log.push(2, &proposal_with(4, &b, expiry));
+    assert!(log.replay().unwrap().proposals.contains_key(&[4; 16]));
+
+    // Wallet holds: live proposals in log order; a dropped broadcast releases its notes.
+    log.push(0, &vote(3, true));
+    log.push(2, &vote(3, true));
+    log.push(
+        0,
+        &VaultEvent::Broadcast {
+            proposal: [3; 16],
+            txid: [7; 32],
+        },
+    );
+    let state = log.replay().unwrap();
+    assert_eq!(state.proposals[&[3; 16]].status, ProposalStatus::Broadcast);
+    let owners = |dropped: &[u8]| {
+        let dropped = dropped.iter().map(|d| [*d; 16]).collect();
+        node::note_holds(&state, &dropped)
+            .iter()
+            .map(|h| h.owner[0])
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(owners(&[]), vec![1, 3, 4]);
+    assert_eq!(owners(&[3]), vec![1, 4]);
+
+    // A cancelled proposal holds nothing: its notes can be respent (to invalidate it).
+    log.push(0, &VaultEvent::Cancelled { proposal: [1; 16] });
+    log.push(1, &proposal_with(5, &a2, tip));
+    let state = log.replay().unwrap();
+    assert!(state.proposals.contains_key(&[5; 16]));
+    assert!(node::note_holds(&state, &Default::default())
+        .iter()
+        .all(|h| h.owner[0] != 1));
 }

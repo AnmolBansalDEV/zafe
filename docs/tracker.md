@@ -97,12 +97,18 @@ Open
       (`node::note_holds` → `VaultWallet::reserve`, upstream `OutputLockStore`, owner =
       PCZT hash). Works across members, not just on one device. Short of unheld funds →
       `WalletError::FundsReserved` / `ZafeErrorKind::FundsReserved`. Tested in `regtest_e2e`
-- [ ] Reservation follow-ups: (a) two members proposing within the same seconds can still
-      pick the same notes (load → append window); a deterministic replay rule ignoring a
-      proposal whose nullifiers overlap an earlier live one would close it; (b) other
-      members' "spendable" balance only reflects holds after they propose on this device
-      (also reserve on refresh, so Send's max is right); (c) a broadcast that never mines
-      keeps its notes held until expiry (7 days), with no "release" action
+- [x] Reservation follow-ups (done 2026-09-30): (a) **replay rule**: a `Proposal` that
+      spends a note of an earlier open/approved proposal not yet expired (as of the new
+      proposal's `tip_height`) is ignored by every member (`VaultError::NotesInUse`);
+      `node::propose` sees it at append time and rebuilds from the remaining notes (3 tries);
+      (b) `sync_vault` refreshes holds after every sync (`node::reserve_notes`), so every
+      member's spendable balance leaves out held notes; (c) a broadcast tx that isn't mined
+      and isn't in lightwalletd's mempool any more releases its notes (the whole mempool is
+      read, `wallet::mempool_txids`, so lightwalletd doesn't learn the txid). Cancelled
+      proposals hold nothing now, so a new proposal can respend (invalidate) their notes
+- [ ] Rebroadcast a dropped transaction instead of only releasing its notes (the
+      broadcaster doesn't keep the raw tx today; one-tap proposals could be rebuilt by
+      any member from the log)
 - [ ] Member names instead of hex keys (local labels, or part of the address book)
 - [ ] Endpoint settings editable (today: compile-time dart-defines, read-only)
 - [ ] iOS: build and run at all (only Android has been exercised)
@@ -203,7 +209,8 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 
 - [ ] **Cancel after completion**: a cancelled proposal whose signer group is complete can
       still be sent until expiry. Offer "invalidate now" (spend its notes to self) and
-      explain it in the cancel UI
+      explain it in the cancel UI. The log and wallet holds already allow it (cancelled
+      proposals hold no notes); what's missing is the UI and a self-send proposal
 - [ ] Delete pool nonces of **expired** proposals (today only sent/rejected/cancelled)
 - [ ] Surface "one-tap unavailable" when a proposal fell back to interactive (short pools,
       or C(n, t) > 64), and pre-warm pools right after keygen

@@ -261,6 +261,8 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
         dbDir: paths.dbDir,
         dbKey: dbKey,
         lightwalletdUrl: kZafeLightwalletdUrl,
+        relayUrl: kZafeRelayUrl,
+        seeds: seeds,
         material: material,
       );
       await VaultSummaries.write(v.id, balanceZat: balance.totalZat);

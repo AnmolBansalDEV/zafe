@@ -182,6 +182,8 @@ fn payment_flow_through_bridge() {
             m.db_dir.clone(),
             m.db_key.clone(),
             lwd.clone(),
+            relay.clone(),
+            m.seeds.clone(),
             m.material.clone(),
         )
         .unwrap()
@@ -232,6 +234,7 @@ fn payment_flow_through_bridge() {
     assert_eq!(proposals::parse_zec("1.000000001".into()), None);
 
     // A proposes 1 ZEC.
+    let b_before = sync(&members[1]);
     let a = &members[0];
     let id = proposals::propose_payment(
         relay.clone(),
@@ -257,6 +260,11 @@ fn payment_flow_through_bridge() {
         )
         .unwrap()
     };
+    // B's next sync holds back the notes A's open proposal spends: B's spendable balance
+    // (what B could propose) drops, the total doesn't.
+    let b_after = sync(&members[1]);
+    assert!(b_after.spendable_zat < b_before.spendable_zat);
+    assert_eq!(b_after.total_zat, b_before.total_zat);
     let p = &list(&members[1])[0];
     assert_eq!(p.id, id);
     assert_eq!(p.stage, ProposalStage::Open);

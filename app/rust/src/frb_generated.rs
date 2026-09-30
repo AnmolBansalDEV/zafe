@@ -997,6 +997,8 @@ fn wire__crate__api__vault__sync_vault_impl(
             let api_db_dir = <String>::sse_decode(&mut deserializer);
             let api_db_key = <Vec<u8>>::sse_decode(&mut deserializer);
             let api_lightwalletd_url = <String>::sse_decode(&mut deserializer);
+            let api_relay_url = <String>::sse_decode(&mut deserializer);
+            let api_seeds = <Vec<u8>>::sse_decode(&mut deserializer);
             let api_material = <Vec<u8>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
@@ -1005,6 +1007,8 @@ fn wire__crate__api__vault__sync_vault_impl(
                         api_db_dir,
                         api_db_key,
                         api_lightwalletd_url,
+                        api_relay_url,
+                        api_seeds,
                         api_material,
                     )?;
                     Ok(output_ok)

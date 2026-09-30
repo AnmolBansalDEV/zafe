@@ -250,6 +250,7 @@ async fn main() -> Result<()> {
                 &home.identity()?,
                 &material,
                 &mut wallet,
+                &mut connect(&cli.lightwalletd).await?,
                 &payments,
                 auto_send,
                 &mut rng,

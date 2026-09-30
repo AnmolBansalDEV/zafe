@@ -232,6 +232,8 @@ abstract class RustLibApi extends BaseApi {
     required String dbDir,
     required List<int> dbKey,
     required String lightwalletdUrl,
+    required String relayUrl,
+    required List<int> seeds,
     required List<int> material,
   });
 
@@ -1210,6 +1212,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String dbDir,
     required List<int> dbKey,
     required String lightwalletdUrl,
+    required String relayUrl,
+    required List<int> seeds,
     required List<int> material,
   }) {
     return handler.executeNormal(
@@ -1219,6 +1223,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(dbDir, serializer);
           sse_encode_list_prim_u_8_loose(dbKey, serializer);
           sse_encode_String(lightwalletdUrl, serializer);
+          sse_encode_String(relayUrl, serializer);
+          sse_encode_list_prim_u_8_loose(seeds, serializer);
           sse_encode_list_prim_u_8_loose(material, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
@@ -1232,7 +1238,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_zafe_error,
         ),
         constMeta: kCrateApiVaultSyncVaultConstMeta,
-        argValues: [dbDir, dbKey, lightwalletdUrl, material],
+        argValues: [dbDir, dbKey, lightwalletdUrl, relayUrl, seeds, material],
         apiImpl: this,
       ),
     );
@@ -1240,7 +1246,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiVaultSyncVaultConstMeta => const TaskConstMeta(
     debugName: "sync_vault",
-    argNames: ["dbDir", "dbKey", "lightwalletdUrl", "material"],
+    argNames: [
+      "dbDir",
+      "dbKey",
+      "lightwalletdUrl",
+      "relayUrl",
+      "seeds",
+      "material",
+    ],
   );
 
   @override

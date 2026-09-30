@@ -189,7 +189,9 @@ async fn vault_pays_on_regtest() {
         amount_zat: amount,
         memo: None,
     };
-    let unreserved = wallets[1].propose(&[other.clone()], 8064).unwrap();
+    let unreserved = wallets[1]
+        .propose(std::slice::from_ref(&other), 8064)
+        .unwrap();
     let overlap = |a: &pczt::Pczt, b: &pczt::Pczt| {
         let a = tx::spent_nullifiers(a).unwrap();
         tx::spent_nullifiers(b)
@@ -201,14 +203,16 @@ async fn vault_pays_on_regtest() {
         overlap(&pczt, &unreserved),
         "without reservation both members pick the same notes"
     );
-    let held = wallets[1].reserve(&[hold.clone()]).unwrap();
+    let held = wallets[1].reserve(std::slice::from_ref(&hold)).unwrap();
     assert!(held > 0, "the proposal's notes are held");
     assert_eq!(
-        wallets[1].reserve(&[hold.clone()]).unwrap(),
+        wallets[1].reserve(std::slice::from_ref(&hold)).unwrap(),
         held,
         "idempotent"
     );
-    let reserved = wallets[1].propose(&[other.clone()], 8064).unwrap();
+    let reserved = wallets[1]
+        .propose(std::slice::from_ref(&other), 8064)
+        .unwrap();
     assert!(!overlap(&pczt, &reserved), "reserved notes are skipped");
     let spendable = wallets[1].balance().unwrap().ironwood_spendable;
     assert!(
@@ -220,7 +224,7 @@ async fn vault_pays_on_regtest() {
         ..other.clone()
     };
     assert!(matches!(
-        wallets[1].propose(&[too_much.clone()], 8064),
+        wallets[1].propose(std::slice::from_ref(&too_much), 8064),
         Err(zafe_core::wallet::WalletError::FundsReserved)
     ));
     // Releasing (the proposal closed) makes the notes spendable again.
@@ -314,6 +318,22 @@ async fn vault_pays_on_regtest() {
         reply.error_message
     );
     println!("txid {}", transaction.txid());
+    // Dropped-broadcast detection reads the whole mempool (txids in protocol order).
+    let txid: [u8; 32] = *transaction.txid().as_ref();
+    let mut in_mempool = false;
+    for _ in 0..20 {
+        if zafe_core::wallet::mempool_txids(&mut client)
+            .await
+            .unwrap()
+            .contains(&txid)
+        {
+            in_mempool = true;
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+    assert!(in_mempool, "broadcast transaction not seen in the mempool");
+    assert!(!wallets[0].tx_mined(&txid).unwrap());
 
     chain.mine(2);
     wait_for_lightwalletd_height(&mut client, u64::from(tip) + 2).await;

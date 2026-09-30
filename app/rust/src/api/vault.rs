@@ -291,13 +291,18 @@ pub(crate) async fn open_wallet(
 /// Upper bound for one sync pass (see `sync_vault`).
 const SYNC_PASS_TIMEOUT: Duration = Duration::from_secs(300);
 
-/// Syncs the vault wallet (creating its database under `db_dir` on first use).
+/// Syncs the vault wallet (creating its database under `db_dir` on first use), then holds
+/// back the notes that live proposals spend, so `spendable_zat` is what a new proposal can
+/// use. Holds are best effort: if the relay can't be reached, the previous ones stay.
 pub fn sync_vault(
     db_dir: String,
     db_key: Vec<u8>,
     lightwalletd_url: String,
+    relay_url: String,
+    seeds: Vec<u8>,
     material: Vec<u8>,
 ) -> Result<Balance, ZafeError> {
+    let me = identity(&seeds)?;
     let m = self::material(&material)?;
     let _guard = wallet_lock();
     runtime().block_on(async {
@@ -313,6 +318,12 @@ pub fn sync_vault(
                     "sync took too long; it will continue on the next try",
                 )
             })??;
+        if wallet.chain_height()?.is_some() {
+            // Locks persist in the wallet database, so a failure keeps the last holds.
+            if let Ok((_, state)) = node::load_state(&RelayClient::new(relay_url), &me, &m).await {
+                let _ = node::reserve_notes(&state, &mut wallet, &mut client).await;
+            }
+        }
         let b = wallet.balance()?;
         // Before the vault's birthday block exists the wallet has no chain height yet.
         let height = match wallet.chain_height()? {
