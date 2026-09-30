@@ -37,24 +37,7 @@
   --value: #835A00;
   --warning: #A55115;
   --phone-edge: #D9DFDF;
-  color-scheme: light dark;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --window: #080B0B;
-    --ground: #111515;
-    --raised: #1E2323;
-    --line: #272E2D;
-    --text: #F1F5F5;
-    --text-secondary: #9DA9A7;
-    --brand: #51DDD2;
-    --brand-label: #001B19;
-    --card: #091312;
-    --value: #F3BA3C;
-    --warning: #FFAE81;
-    --phone-edge: #272E2D;
-  }
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -190,15 +173,6 @@ code { font-size: 0.95em; }
   --width: 70rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text-tertiary: #737F7D;
-    --stage: #111515;
-    --ink: #111515;
-    --ink-raised: #1E2323;
-  }
-}
-
 .home { font-size: 17px; line-height: 1.55; overflow-x: clip; }
 .home main { max-width: none; padding: 0; }
 .home h1, .home h2, .home h3, .statement, .foot-brand span, .ghost {
@@ -236,19 +210,21 @@ code { font-size: 0.95em; }
 .tag.dark { background: rgba(81, 221, 210, 0.12); color: #51DDD2; }
 .tag.plain.dark { background: none; }
 
-/* Nav: links either side of the mark. */
+/* Nav: links either side of the mark, the mark exactly centred (the intro lands on it). */
 .nav {
-  display: flex;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: 32px;
+  gap: 56px;
   padding: 36px 16px 0;
   font-size: 16px;
 }
+.nav-side { display: flex; gap: 32px; }
+.nav-side.left { justify-content: flex-end; }
+.nav-side.right { justify-content: flex-start; }
 .nav a { color: var(--text-secondary); text-decoration: none; }
 .nav a:hover { color: var(--text); }
-.nav-logo { margin: 0 24px; }
-.nav-logo img { display: block; }
+.nav-logo .mark { display: block; width: 44px; height: 44px; }
 
 /* Hero. */
 .hero {
@@ -570,10 +546,8 @@ code { font-size: 0.95em; }
 }
 
 @media (max-width: 600px) {
-  .nav { gap: 20px; font-size: 15px; padding-top: 24px; }
-  .nav a:not(.nav-logo):not(:last-child) { display: none; }
-  .nav-logo { margin: 0; margin-right: auto; }
-  .nav { justify-content: space-between; padding-left: 20px; padding-right: 20px; }
+  .nav { display: flex; justify-content: space-between; padding: 24px 20px 0; font-size: 15px; }
+  .nav-side.left, .nav-side.right a:first-child { display: none; }
   .hero { padding-top: 64px; }
   .hero .sub { font-size: 17px; }
   .notch { font-size: 12px; padding: 10px 20px 12px; }
@@ -586,4 +560,87 @@ code { font-size: 0.95em; }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
+}
+
+/* Intro (CSS only). The whole screen is the mark's tile: its two pieces lock together in
+   the middle, then the tile collapses in a circle up into the nav logo (the ripple) while
+   the pieces fly with it; the nav logo takes over, rings pulse out from it, and the page
+   rises in. */
+:root {
+  --land-x: 50vw;  /* centre of .nav-logo: the grid centres it */
+  --land-y: 58px;  /* nav padding-top 36 + half of 44 */
+  --big: 9;        /* the mark's size on arrival, as a multiple of 44 px */
+  --tile: #004A46; /* the mark's tile colour (public/assets/zafe.svg) */
+  --ease: cubic-bezier(0.7, 0, 0.2, 1);
+  --rise: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@media (max-width: 600px) {
+  :root { --land-x: 42px; --land-y: 46px; --big: 6; }  /* padding 20/24 + 22 */
+}
+
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  animation: intro-gone 0s linear 3.2s forwards;
+}
+.intro-veil {
+  position: absolute;
+  inset: 0;
+  background: var(--tile);
+  clip-path: circle(150vmax at var(--land-x) var(--land-y));
+  animation: veil-close 0.8s var(--ease) 1s forwards, gone 0s linear 1.8s forwards;
+}
+.intro-mark, .intro-ring {
+  position: absolute;
+  left: var(--land-x);
+  top: var(--land-y);
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+}
+.intro-mark {
+  transform: translate(calc(50vw - var(--land-x)), calc(50vh - var(--land-y))) scale(var(--big));
+  animation: mark-fly 0.8s var(--ease) 1s forwards, gone 0s linear 1.8s forwards;
+}
+.intro-mark .mark { display: block; width: 44px; height: 44px; animation: mark-in 0.5s var(--rise) both; }
+.intro-mark .mark-upper, .intro-mark .mark-lower { transform-box: fill-box; }
+/* On the teal field the tile is invisible; it fades in as the field shrinks onto it. */
+.intro-mark .mark-tile { animation: tile-in 0.3s ease 1.5s both; }
+.intro-mark .mark-upper { animation: upper-in 0.65s var(--rise) 0.15s both; }
+.intro-mark .mark-lower { animation: lower-in 0.65s var(--rise) 0.15s both; }
+.intro-ring {
+  border: 1.5px solid var(--brand);
+  border-radius: 30%;
+  opacity: 0;
+  animation: ring 1.2s ease-out 1.8s;
+}
+.intro-ring.second { animation-delay: 2s; }
+
+.home .nav-logo { animation: appear 0s linear 1.8s both; }
+.home .nav-side { animation: fade 0.6s ease 1.5s both; }
+.home .hero > * { animation: rise 0.8s var(--rise) both; }
+.home .hero > :nth-child(1) { animation-delay: 1.45s; }
+.home .hero > :nth-child(2) { animation-delay: 1.55s; }
+.home .hero > :nth-child(3) { animation-delay: 1.65s; }
+.home .hero > :nth-child(4) { animation-delay: 1.75s; }
+.home .stage { animation: rise 1s var(--rise) 1.85s both; }
+
+@keyframes mark-in { from { opacity: 0; transform: scale(0.8); } }
+@keyframes upper-in { from { opacity: 0; transform: translate(-22%, -38%); } }
+@keyframes lower-in { from { opacity: 0; transform: translate(22%, 38%); } }
+@keyframes mark-fly { to { transform: translate(0, 0) scale(1); } }
+@keyframes veil-close { to { clip-path: circle(31px at var(--land-x) var(--land-y)); } }
+@keyframes tile-in { from { opacity: 0; } }
+@keyframes ring { 0% { opacity: 0.6; transform: scale(1); } 100% { opacity: 0; transform: scale(4.5); } }
+@keyframes appear { from { opacity: 0; } to { opacity: 1; } }
+@keyframes gone { to { opacity: 0; } }
+@keyframes intro-gone { to { visibility: hidden; } }
+@keyframes fade { from { opacity: 0; } }
+@keyframes rise { from { opacity: 0; transform: translateY(28px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .intro { display: none; }
+  .home .nav-logo, .home .nav-side, .home .hero > *, .home .stage { animation: none; }
 }

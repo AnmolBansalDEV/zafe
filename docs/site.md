@@ -3,6 +3,20 @@
 The landing page (`infra/site/src/pages/index.astro`) follows this brief. Keep it current
 when the page changes.
 
+## Decisions (2026-10-01, third round)
+
+- **Light only.** No dark mode anywhere on the site (`color-scheme: light`); `assets.py`
+  makes light crops only, except the closing card's vault art, which is dark by design.
+- **Logo intro** (CSS only, `src/styles/site.css` "Intro"): the screen is the mark's
+  teal tile with the two Seam pieces locking in the middle; the tile collapses in a
+  circle up into the nav logo while the pieces fly with it; the nav logo takes over,
+  two rounded-square rings pulse out, the hero rises in. About 2 s; skipped with
+  `prefers-reduced-motion`. The landing point is the nav logo's centre (`--land-x/y`,
+  exact because the nav is a `1fr auto 1fr` grid). The mark is inlined by
+  `src/components/Mark.astro` so its tile and pieces can be animated.
+- **Less copy.** One line per idea; "Zcash" only in the meta description. H1 "The
+  multisig nobody can see".
+
 ## Decisions (2026-10-01, second round)
 
 The user rejected direction A below ("nah, sucks") and asked for inspiration from

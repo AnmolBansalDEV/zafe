@@ -1,112 +1,79 @@
 ---
 // Landing page, laid out after vizor.cash (centred hero, device showcase, illustrated
 // pillars, a dark feature panel with live UI cards, FAQ, closing card, dark footer) with
-// Zafe's brand, art and copy. Every claim must be something the app does today
-// (docs/tracker.md); the chain card is the real testnet payment from the 2026-09-30 dry
-// run. No JavaScript: the FAQ is <details>.
+// Zafe's brand, art and copy. Copy: short, and "Zcash" only where it's needed. Every
+// claim must be something the app does today (docs/tracker.md); the chain card is the
+// real testnet payment from the 2026-09-30 dry run. No JavaScript: the intro is CSS and
+// the FAQ is <details>.
 import Base from '../layouts/Base.astro';
 import Icon from '../components/Icon.astro';
+import Mark from '../components/Mark.astro';
 import { downloadUrl, sourceUrl } from '../config';
 
 const specUrl = `${sourceUrl}/blob/main/spec.md`;
 
 const pillars = [
-  {
-    art: 'art_gate',
-    width: 700,
-    height: 560,
-    title: 'Shared',
-    text: 'Choose how many must approve, from 2 of 2 up to 15 members. No single phone can move the money.',
-  },
-  {
-    art: 'art_seal',
-    width: 700,
-    height: 560,
-    title: 'Private',
-    text: 'Amounts, addresses and memos stay between members. The chain can’t even tell it’s a multisig.',
-  },
-  {
-    art: 'art_ledger',
-    width: 740,
-    height: 592,
-    title: 'Verifiable',
-    text: 'Open source, and every phone checks a payment itself before it signs.',
-  },
+  { art: 'art_gate', width: 700, height: 560, title: 'Shared', text: 'Pick how many must approve. Nobody moves money alone.' },
+  { art: 'art_seal', width: 700, height: 560, title: 'Private', text: 'The chain can’t even tell it’s a multisig.' },
+  { art: 'art_ledger', width: 740, height: 592, title: 'Verifiable', text: 'Open source. Every phone checks before it signs.' },
 ];
 
 const faq = [
-  {
-    q: 'Is Zafe safe to use?',
-    a: 'Zafe runs on Zcash testnet and hasn’t had an external security audit yet. Mainnet waits for one. The app, the relay and the protocol spec are open source, so anyone can read them. Don’t put real funds in it.',
-  },
-  {
-    q: 'Is it really a multisig?',
-    a: 'Zcash’s shielded pool has no smart contracts, so the rule can’t live on-chain. Zafe uses FROST threshold signatures instead: each phone holds a share of the spending key, and enough shares together make one ordinary signature. The rule is enforced by the key, not by a contract.',
-  },
-  {
-    q: 'What can the relay see?',
-    a: 'The relay passes sealed messages between phones. It sees mailbox ids, members’ public keys, IP addresses, and when and how large messages are. It can’t see balances, addresses, amounts, memos or keys, and it can’t sign or forge anything. Turn on Tor to hide your IP address from it.',
-  },
-  {
-    q: 'What if someone loses their phone?',
-    a: 'The vault keeps working as long as enough members still have theirs. The lost share comes back from its encrypted backup. If more members lose their phones and backups than the vault can spare, the funds are lost for good: nobody can recover them, Zafe included.',
-  },
-  {
-    q: 'Can we remove a member?',
-    a: 'Not within the same vault yet. Create a new vault without them and move the funds across. Every member, past and present, can see the old vault’s history.',
-  },
-  {
-    q: 'Which platforms does Zafe support?',
-    a: 'Android, on Zcash testnet. An iPhone app comes later.',
-  },
-  {
-    q: 'Is Zafe self-custodial?',
-    a: 'Yes. Key shares stay on the members’ phones. Neither Zafe nor the relay can move funds.',
-  },
+  { q: 'Is Zafe safe to use?', a: 'It’s on testnet and not yet audited. Everything is open source. Don’t use real funds yet.' },
+  { q: 'Is it really a multisig?', a: 'Yes, just not on-chain. Each phone holds a key share (FROST), and enough shares make one ordinary signature.' },
+  { q: 'What can the relay see?', a: 'Who messages whom, and when. Never amounts, addresses or keys. It can’t sign or move funds.' },
+  { q: 'What if someone loses their phone?', a: 'The vault keeps working while enough members have theirs, and the share comes back from its encrypted backup. Lose too many, and the funds are gone for good.' },
+  { q: 'Can we remove a member?', a: 'Not yet. Make a new vault and move the funds.' },
+  { q: 'Which platforms?', a: 'Android. iPhone later.' },
 ];
 ---
 
 <Base
-  title="Zafe: the Zcash multisig nobody can see"
-  description="One shielded vault for your team. Money moves only when enough of you approve, and the chain sees an ordinary payment."
+  title="Zafe: the multisig nobody can see"
+  description="A shielded Zcash multisig. One private vault for your team: nothing moves until enough of you approve."
   bodyClass="home"
 >
+  <!-- Intro (CSS only): the screen is the mark's tile, its two pieces lock, then it
+       collapses up into the nav logo while the page appears. Skipped with
+       prefers-reduced-motion. -->
+  <div class="intro" aria-hidden="true">
+    <div class="intro-veil"></div>
+    <div class="intro-ring"></div>
+    <div class="intro-ring second"></div>
+    <div class="intro-mark"><Mark /></div>
+  </div>
+
   <header class="nav">
-    <a href="#features">Features</a>
-    <a href="#faq">FAQ</a>
-    <a class="nav-logo" href="/" aria-label="Zafe home"><img src="/assets/zafe.svg" alt="" width="44" height="44" /></a>
-    <a href={sourceUrl} rel="noopener noreferrer">Source</a>
-    <a href={downloadUrl} rel="noopener noreferrer">Get Zafe</a>
+    <nav class="nav-side left" aria-label="Page">
+      <a href="#features">Features</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <a class="nav-logo" href="/" aria-label="Zafe home"><Mark /></a>
+    <nav class="nav-side right" aria-label="Links">
+      <a href={sourceUrl} rel="noopener noreferrer">Source</a>
+      <a href={downloadUrl} rel="noopener noreferrer">Get Zafe</a>
+    </nav>
   </header>
 
   <main>
     <section class="hero">
-      <p class="tag">Now on Zcash testnet</p>
-      <h1>The Zcash multisig<br />nobody can see</h1>
-      <p class="sub">One shielded vault for your team. Money moves only when enough of you approve, and the chain sees an ordinary payment.</p>
+      <p class="tag">Now on testnet</p>
+      <h1>The multisig<br />nobody can see</h1>
+      <p class="sub">One private vault for your team. Nothing moves until enough of you approve.</p>
       <a class="pill" href={downloadUrl} rel="noopener noreferrer">Get Zafe</a>
     </section>
 
     <div class="stage">
-      <p class="notch">Android <span>&middot;</span> Open source <span>&middot;</span> Shielded by default</p>
+      <p class="notch">Android <span>&middot;</span> Open source <span>&middot;</span> Shielded</p>
       <div class="phones">
         <figure class="phone side">
-          <picture>
-            <source srcset="/assets/screens/phone_home_dark.webp" media="(prefers-color-scheme: dark)" />
-            <img src="/assets/screens/phone_home_light.webp" width="390" height="844" alt="A member's home screen: 42.37 TAZ in the vault, 2 of 3 signers to send, a payment that needs their approval." />
-          </picture>
+          <img src="/assets/screens/phone_home_light.webp" width="390" height="844" alt="A member's home screen: the vault balance, 2 of 3 signers to send, a payment that needs their approval." />
         </figure>
         <figure class="phone front">
-          <picture>
-            <source srcset="/assets/screens/phone_review_dark.webp" media="(prefers-color-scheme: dark)" />
-            <img src="/assets/screens/phone_review_light.webp" width="390" height="844" alt="Reviewing a 12.50 TAZ payment: 1 approval of the 2 needed, and the list of signers." />
-          </picture>
+          <img src="/assets/screens/phone_review_light.webp" width="390" height="844" alt="Reviewing a 12.50 TAZ payment: 1 approval of the 2 needed, and the signers." />
         </figure>
         <figure class="phone side">
-          <picture>
-            <source srcset="/assets/screens/phone_sent_dark.webp" media="(prefers-color-scheme: dark)" />
-            <img src="/assets/screens/phone_sent_light.webp" width="390" height="844" alt="The same payment, sent: 2 approved, completed." />
-          </picture>
+          <img src="/assets/screens/phone_sent_light.webp" width="390" height="844" alt="The same payment, sent." />
         </figure>
       </div>
     </div>
@@ -114,10 +81,7 @@ const faq = [
     <section class="pillars">
       {pillars.map((p) => (
         <article>
-          <picture>
-            <source srcset={`/assets/screens/${p.art}_dark.webp`} media="(prefers-color-scheme: dark)" />
-            <img src={`/assets/screens/${p.art}_light.webp`} width={p.width} height={p.height} alt="" loading="lazy" />
-          </picture>
+          <img src={`/assets/screens/${p.art}_light.webp`} width={p.width} height={p.height} alt="" loading="lazy" />
           <h2>{p.title}</h2>
           <p>{p.text}</p>
         </article>
@@ -126,26 +90,24 @@ const faq = [
 
     <section class="vision">
       <p class="tag plain">The idea</p>
-      <p class="statement">A treasury your team holds together, that nobody else can see into.</p>
+      <p class="statement">Money your team holds together, and nobody else can see.</p>
     </section>
 
     <section id="features" class="panel">
       <header class="panel-head">
-        <p class="tag dark">Zafe features</p>
+        <p class="tag dark">Features</p>
         <h2>Your treasury,<br />held together</h2>
-        <p>Zafe handles the parts that make a multisig slow and nervous.</p>
+        <p>The hard parts of a multisig, handled.</p>
       </header>
 
       <div class="feature">
         <div class="copy">
           <h3>Propose and approve</h3>
-          <p>Any member can propose a payment. Everyone gets a notification, checks it on their own phone and approves with one tap. The approval that completes the threshold sends it.</p>
+          <p>Anyone can propose. Everyone checks on their own phone and approves with a tap. The last approval sends it.</p>
           <ul class="ticks">
             <li><Icon name="plus" />Batch payments</li>
             <li><Icon name="edit" />Memos</li>
             <li><Icon name="import_wallet" />CSV import</li>
-            <li><Icon name="time" />Approval window</li>
-            <li><Icon name="check" />One-tap signing</li>
             <li><Icon name="users" />Up to 15 members</li>
           </ul>
         </div>
@@ -165,12 +127,12 @@ const faq = [
       <div class="feature flip">
         <div class="copy">
           <h3>Checked on every phone</h3>
-          <p>Your phone takes the proposed transaction apart and checks it against the vault&rsquo;s own keys. A different recipient or amount, an extra output or an odd fee, and it won&rsquo;t sign. There&rsquo;s no web page in the signing path to tamper with.</p>
+          <p>Your phone checks each payment against the vault&rsquo;s own keys. If anything&rsquo;s off, it won&rsquo;t sign.</p>
           <ul class="ticks">
-            <li><Icon name="check" />Recipients and amounts</li>
-            <li><Icon name="edit" />Memos</li>
-            <li><Icon name="wallet" />Change back to the vault</li>
-            <li><Icon name="time" />Standard fee</li>
+            <li><Icon name="check" />Recipients</li>
+            <li><Icon name="edit" />Amounts and memos</li>
+            <li><Icon name="wallet" />Change</li>
+            <li><Icon name="time" />Fee</li>
           </ul>
         </div>
         <div class="widget">
@@ -187,14 +149,12 @@ const faq = [
       <div class="feature">
         <div class="copy">
           <h3>Invisible on-chain</h3>
-          <p>The members&rsquo; phones make one ordinary signature together, so a Zafe payment looks like any other shielded transaction. This is what Zcash testnet recorded for a real 0.01 TAZ payment from our trial, approved by two of three members.</p>
-          <p class="aside">Not on the chain: the amount, the recipient, the memo, or that it&rsquo;s a multisig.</p>
+          <p>The phones sign together as one. To the chain it&rsquo;s an ordinary shielded payment, like this real one from our testnet trial.</p>
         </div>
         <div class="widget">
           <dl class="card mono chain">
             <div><dt>tx</dt><dd>e6ccd6b707e8ee7e&hellip;1691e9eef0237</dd></div>
             <div><dt>block</dt><dd>4,422,289</dd></div>
-            <div><dt>format</dt><dd>v6 &middot; Ironwood</dd></div>
             <div><dt>size</dt><dd>9,166 bytes</dd></div>
             <div><dt>fee</dt><dd>0.0001 TAZ</dd></div>
             <div><dt>amount</dt><dd class="hidden">encrypted</dd></div>
@@ -206,14 +166,12 @@ const faq = [
       <div class="feature flip">
         <div class="copy">
           <h3>Private all the way</h3>
-          <p>Turn on Tor and every connection to the relay and the Zcash server goes through it, or doesn&rsquo;t happen. Keep an encrypted backup of your share. Give an auditor a viewing key instead of a phone.</p>
+          <p>Tor for every connection. Encrypted backups. Viewing keys for auditors.</p>
           <ul class="ticks">
-            <li><Icon name="tor" />Tor, fail-closed</li>
-            <li><Icon name="lock" />Encrypted backups</li>
+            <li><Icon name="tor" />Tor</li>
+            <li><Icon name="lock" />Backups</li>
             <li><Icon name="eye" />Viewing keys</li>
-            <li><Icon name="history" />CSV history</li>
             <li><Icon name="unlock" />Unlock to sign</li>
-            <li><Icon name="wallet" />Several vaults</li>
           </ul>
         </div>
         <div class="widget">
@@ -228,7 +186,7 @@ const faq = [
     </section>
 
     <section id="faq" class="faq">
-      <h2>Still got questions?</h2>
+      <h2>Questions?</h2>
       <div class="qa">
         {faq.map((item, i) => (
           <details open={i === 0}>
@@ -236,15 +194,15 @@ const faq = [
             <p>{item.a}</p>
           </details>
         ))}
-        <p class="more">The details are in the <a href={specUrl} rel="noopener noreferrer">protocol spec</a>.</p>
+        <p class="more">More in the <a href={specUrl} rel="noopener noreferrer">spec</a>.</p>
       </div>
     </section>
 
     <section class="closing">
       <div class="closing-copy">
-        <p class="tag plain dark">Ready when your team is</p>
+        <p class="tag plain dark">Ready when you are</p>
         <h2>Start a shared vault</h2>
-        <p>Two or three Android phones and a little testnet ZEC is all it takes.</p>
+        <p>Two phones and a few testnet coins.</p>
         <a class="pill" href={downloadUrl} rel="noopener noreferrer">Get Zafe</a>
       </div>
       <img class="closing-art" src="/assets/screens/art_vault_dark.webp" width="1080" height="1120" alt="" loading="lazy" />
@@ -255,15 +213,15 @@ const faq = [
     <div class="foot-top">
       <p class="foot-brand"><img src="/assets/zafe.svg" alt="" width="52" height="52" /><span>Privacy,<br />held together.</span></p>
       <ul>
-        <li><a href={downloadUrl} rel="noopener noreferrer">Zafe for Android</a></li>
-        <li><a href={sourceUrl} rel="noopener noreferrer">Source code</a></li>
-        <li><a href={specUrl} rel="noopener noreferrer">Protocol spec</a></li>
-        <li><a href={`${sourceUrl}/issues`} rel="noopener noreferrer">Get support</a></li>
+        <li><a href={downloadUrl} rel="noopener noreferrer">Android</a></li>
+        <li><a href={sourceUrl} rel="noopener noreferrer">Source</a></li>
+        <li><a href={specUrl} rel="noopener noreferrer">Spec</a></li>
+        <li><a href={`${sourceUrl}/issues`} rel="noopener noreferrer">Support</a></li>
       </ul>
     </div>
     <div class="foot-bottom">
-      <p>No cookies, no analytics, nothing loaded from other servers.</p>
-      <p>Zafe, 2026 &middot; MIT or Apache-2.0</p>
+      <p>No cookies. No analytics.</p>
+      <p>Zafe, 2026</p>
     </div>
     <p class="ghost" aria-hidden="true">zafe</p>
   </footer>

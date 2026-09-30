@@ -5,7 +5,7 @@
 
 Images: the app's own renders (fake data, app/build/screen_preview/) and illustrations
 (app/build/illustration_preview/), cropped to the part the page talks about and saved as
-WebP, light and dark. Fonts: the app's DM Sans, Space Grotesk and JetBrains Mono, subset
+WebP (light theme; the site has no dark mode). Fonts: the app's DM Sans, Space Grotesk and JetBrains Mono, subset
 to Latin and saved as WOFF2, with their OFL licences. The outputs are committed, so
 building or deploying the site doesn't need Flutter or Python packages.
 """
@@ -33,8 +33,9 @@ CROPS = [
     ("art_seal", "illustration_preview/backup_seal", (190, 0, 890, 560)),
     # Wider than 5:4, so it's padded at the top with its own sky colour (see screens()).
     ("art_ledger", "illustration_preview/empty_ledger", (170, 0, 910, 440)),
-    # The vault door with its keys, behind the closing call to action.
-    ("art_vault", "illustration_preview/welcome_vault", (0, 120, 1080, 1240)),
+    # The vault door with its keys, behind the closing call to action (a dark card, so
+    # the dark render).
+    ("art_vault", "illustration_preview/welcome_vault", (0, 120, 1080, 1240), "dark"),
 ]
 
 FONTS = [
@@ -54,8 +55,8 @@ def screens():
     if os.path.isdir(out):
         shutil.rmtree(out)  # drop crops that are no longer listed
     os.makedirs(out)
-    for name, source, box in CROPS:
-        for theme in ("light", "dark"):
+    for name, source, box, *theme in CROPS:
+        for theme in theme or ("light",):  # the site is light only
             src = os.path.join(BUILD, f"{source}_{theme}.png")
             if not os.path.exists(src):
                 raise SystemExit(f"missing {src}: run the render tests first (see the docstring)")

@@ -168,6 +168,8 @@ Open
         rebuilt on Vizor's structure (centred hero, three members' phones on a stage,
         illustrated pillars, dark feature panel with HTML UI cards, FAQ, closing card,
         ghost-wordmark footer) in Zafe's type, colours and art (`docs/site.md`)
+  - [x] Third round (2026-10-01): light only; CSS logo intro (the tile fills the
+        screen, pieces lock, it ripples up into the nav logo); much shorter copy
   - *(idea)* Show a second real payment (with a memo) once one is made; add a changelog
         or "last updated" to the site
   - [ ] **(you)** Pick and own the domain, deploy `infra/site` there with the release
