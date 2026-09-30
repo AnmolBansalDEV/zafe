@@ -233,6 +233,10 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       (`scripts/app-harness.sh` covers the backend side). Model: Vizor's app-level regtest
       E2E, `integration_test/payment_uri_prefill_test.dart` driven by
       `scripts/e2e/flutter-ios-regtest-mobile-*.sh`
+- [ ] Background check ANR (2026-09-30, emulator under heavy host load): Android reported
+      "No response to onStartJob" for the WorkManager vault check. Likely load, but check
+      that the job's startup (RustLib.init, Firebase, secure storage reads) doesn't block
+      the main thread before WorkManager gets its answer
 - [ ] Relay: rate limiting / abuse controls for the hosted tier; retention is 30 days
 
 ## Ideas (not decided)

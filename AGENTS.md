@@ -435,6 +435,13 @@ Toolchain (installed by `~/android/install-toolchain.sh`; `source ~/android/env.
 - COCKTAIL-DKG (frost#1033) not production-ready; Zafe uses frost-core DKG + own echo/transcript.
 - RedPallas FROST ciphersuite moving out of `reddsa` (frost#963); stay on 0.5.2 until then.
 
+## Machine hygiene
+
+- **Never run `docker system/volume/image prune` on this machine**: other projects' data
+  live in Docker here. Remove only the containers/volumes/images you created, by name.
+- `scripts/app-harness.sh` keeps its state in `~/.cache/zafe-harness` (not `/tmp`, which
+  a WSL restart wipes); after a restart run `scripts/app-harness.sh resume`.
+
 ## User preferences
 
 - Research primary sources (repos, ZIPs, issues) before asking the user or relying on memory;

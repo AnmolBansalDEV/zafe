@@ -9,12 +9,14 @@
 #   scripts/app-harness.sh keygen         B and C run keygen in the background (app joins in)
 #   scripts/app-harness.sh fund           regtest up, mining to the vault; 120 blocks
 #   scripts/app-harness.sh mine N         mine N blocks
+#   scripts/app-harness.sh resume         after a restart: containers, relay, adb reverse
 #   scripts/app-harness.sh cli WHO ARGS   run the zafe CLI as B or C (sync, approve, respond, ...)
 #   scripts/app-harness.sh stop           stop everything and delete the state
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-WORK=${ZAFE_HARNESS_DIR:-${TMPDIR:-/tmp}/zafe-harness}
+# Outside /tmp so a machine restart keeps the relay DB and the CLI members.
+WORK=${ZAFE_HARNESS_DIR:-$HOME/.cache/zafe-harness}
 export ZAFE_RELAY=http://127.0.0.1:8787 ZAFE_LIGHTWALLETD=http://127.0.0.1:9067
 ZAFE="$ROOT/target/debug/zafe"
 member() { local who=$1; shift; "$ZAFE" --home "$WORK/$who" "$@"; }
@@ -24,16 +26,20 @@ mine() {
     http://127.0.0.1:18232 >/dev/null
 }
 
+relay_up() {
+  ZAFE_RELAY_LISTEN=127.0.0.1:8787 ZAFE_RELAY_DB="$WORK/relay.sqlite" \
+    nohup "$ROOT/target/debug/zafe-relay" >> "$WORK/relay.log" 2>&1 &
+  echo $! > "$WORK/relay.pid"
+  for _ in $(seq 50); do (exec 3<>/dev/tcp/127.0.0.1/8787) 2>/dev/null && break; sleep 0.2; done
+  adb reverse tcp:8787 tcp:8787
+  adb reverse tcp:9067 tcp:9067
+}
+
 case "${1:-}" in
   start)
     mkdir -p "$WORK"
     cargo build -q -p zafe-cli -p zafe-relay
-    ZAFE_RELAY_LISTEN=127.0.0.1:8787 ZAFE_RELAY_DB="$WORK/relay.sqlite" \
-      nohup "$ROOT/target/debug/zafe-relay" > "$WORK/relay.log" 2>&1 &
-    echo $! > "$WORK/relay.pid"
-    for _ in $(seq 50); do (exec 3<>/dev/tcp/127.0.0.1/8787) 2>/dev/null && break; sleep 0.2; done
-    adb reverse tcp:8787 tcp:8787
-    adb reverse tcp:9067 tcp:9067
+    relay_up
     member B init >/dev/null
     member C init >/dev/null
     member B vault create --name "${ZAFE_VAULT_NAME:-Grants}" --threshold 2 --members 3 | tee "$WORK/invite"
@@ -51,6 +57,13 @@ case "${1:-}" in
     "$ROOT/infra/regtest/up.sh" "$ADDR"
     mine 120
     echo "funded $ADDR"
+    ;;
+  resume)
+    # After a machine or emulator restart: same relay DB, members and chain.
+    cargo build -q -p zafe-cli -p zafe-relay
+    docker start zafe-regtest-zakura zafe-regtest-lightwalletd >/dev/null
+    relay_up
+    echo "resumed (state in $WORK)"
     ;;
   mine) mine "${2:-1}" ;;
   cli) who=$2; shift 2; member "$who" "$@" ;;
