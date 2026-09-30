@@ -176,8 +176,16 @@ Open
       monochrome, legacy mipmaps, iOS AppIcon), label "Zafe", native splash in the window
       colour (Android 12+ and older, iOS LaunchScreen). Regenerate: `scripts/brand/icons.sh`.
       Needs a look on a real launcher (Android and iOS) once a device build is made
-- [ ] Release build + signing config; check size (debug APK ~200 MB with 2 ABIs). Reference:
-      Vizor `scripts/build-android-reproducible.sh`, `scripts/build-android-fdroid.sh`
+- [x] Release build + signing + GitHub Releases (2026-09-30): `.github/workflows/release.yml`
+      (tag `v*` or manual) builds a signed arm64 testnet APK (`--split-per-abi`: plugins
+      ship extra ABIs our Rust lib lacks, and Flutter's Gradle plugin overwrites buildType
+      abiFilters) and publishes a pre-release with SHA-256 + certificate fingerprint;
+      refuses without `ZAFE_RELAY_URL` or signing secrets. Gradle signs from
+      `android/key.properties`. Setup: `docs/releasing.md`. Local release builds checked:
+      arm64 61.8 MB (3 ABIs before the split), x86_64 split 57.8 MB launched on the
+      emulator, created a vault and shared the invite QR (R8 kept every plugin working).
+      **(you)** keystore, secrets, `ZAFE_RELAY_URL`; the workflow has not run on GitHub yet
+- [ ] Reproducible / F-Droid builds (Vizor `scripts/build-android-reproducible.sh`) *(idea)*
 
 ## Multiple vaults, import and export (requested 2026-09-30)
 

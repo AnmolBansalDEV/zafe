@@ -579,6 +579,13 @@ In a fresh git worktree, plain `flutter analyze` reports ~50 errors in
 `rust_builder/cargokit/build_tool` until `dart pub get` runs there; `flutter analyze lib
 test` checks the app alone.
 
+**Release APKs** (`docs/releasing.md`, `.github/workflows/release.yml`): always
+`--split-per-abi` with one `--target-platform`. Plugins (ML Kit) bundle
+armeabi-v7a/x86_64 libs our Rust library lacks, so an unsplit APK installs on those
+devices and crashes (`libflutter.so is for EM_AARCH64`), and Flutter's Gradle plugin
+clears any `buildTypes.*.ndk.abiFilters` you set. Signing reads `android/key.properties`
+(gitignored); without it release builds use the debug key.
+
 App commands (from `app/`, after `source ~/android/env.sh`):
 `flutter_rust_bridge_codegen generate` (after changing `app/rust/src/api`), `flutter analyze`
 (must be clean), `flutter build apk --debug --target-platform android-arm64`,
