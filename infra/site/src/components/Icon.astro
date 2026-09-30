@@ -1,0 +1,22 @@
+---
+// A Patina icon from the app (app/assets/icons/patina), inlined so it takes the text
+// colour in both themes. Like the app's PatinaColorMapper: black is the outline, magenta
+// the two-tone layer at kPatinaFillOpacity (0.38). Presentation attributes only: the CSP
+// forbids inline styles. Paths resolve from infra/site, where `astro build` runs.
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+interface Props {
+  name: string;
+  class?: string;
+}
+
+const { name, class: className = 'icon' } = Astro.props;
+const file = resolve(process.cwd(), '../../app/assets/icons/patina', `${name}.svg`);
+const svg = readFileSync(file, 'utf8')
+  .replaceAll('fill="#FF00FF"', 'fill="currentColor" fill-opacity="0.38"')
+  .replaceAll('#000000', 'currentColor')
+  .replace('<svg ', `<svg class="${className}" aria-hidden="true" focusable="false" `);
+---
+
+<Fragment set:html={svg} />

@@ -820,6 +820,11 @@ Learned while studying it:
   are the app's own renders (`tool/screens/*_render_test.dart` → `infra/site/assets.py`
   → WebP); fonts are the app's, subset to WOFF2. Landing copy must only claim shipped
   features. Look at it with agent-browser at 1280 and 390 wide, light and dark.
+  **Design** follows `docs/site.md` (research, brief, decisions, do-not list): teal only
+  for the action and "needs you", gold only for amounts, Space Grotesk only at display
+  sizes, hairlines not cards, real app crops (`assets.py` CROPS) not whole phones. The
+  chain-view numbers are a real testnet transaction: never replace them with invented
+  ones. Patina icons are inlined by `src/components/Icon.astro` (magenta → 38% layer).
   **Deploy**: `.github/workflows/site.yml` → Vercel with `vercel deploy --prebuilt` on
   `.vercel/output` from `vercel-output.sh` (Build Output API v3; headers read from
   `public/_headers`, `overrides` serve `join.html` at `/join`). `builds.json` isn't
