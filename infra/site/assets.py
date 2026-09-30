@@ -1,6 +1,6 @@
 """Regenerates the site's images and web fonts from the app (run from the repo root).
 
-    cd app && flutter test tool/screens/ && flutter test tool/illustrations/preview_test.dart
+    cd app && HOME_NOTICE=0 flutter test tool/screens/ && flutter test tool/illustrations/preview_test.dart
     python3 infra/site/assets.py          # needs: pip install pillow fonttools brotli
 
 Images: the app's own renders (fake data, app/build/screen_preview/) and illustrations
@@ -28,11 +28,6 @@ CROPS = [
     ("phone_home", "screen_preview/home", (0, 0, 780, 1688)),
     ("phone_review", "screen_preview/proposal_review", (0, 0, 780, 1688)),
     ("phone_sent", "screen_preview/proposal_sent", (0, 0, 780, 1688)),
-    # Pillar art (illustrations are 1080 wide), trimmed to the scene; shown as 5:4 tiles.
-    ("art_gate", "illustration_preview/create_stones", (190, 0, 890, 560)),
-    ("art_seal", "illustration_preview/backup_seal", (190, 0, 890, 560)),
-    # Wider than 5:4, so it's padded at the top with its own sky colour (see screens()).
-    ("art_ledger", "illustration_preview/empty_ledger", (170, 0, 910, 440)),
     # The vault door with its keys, behind the closing call to action (a dark card, so
     # the dark render).
     ("art_vault", "illustration_preview/welcome_vault", (0, 120, 1080, 1240), "dark"),

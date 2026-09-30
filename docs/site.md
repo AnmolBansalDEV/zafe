@@ -3,6 +3,19 @@
 The landing page (`infra/site/src/pages/index.astro`) follows this brief. Keep it current
 when the page changes.
 
+## Decisions (2026-10-01, fourth round)
+
+- The pillars are now the **one-tap flow** (Notified, One tap, Sent) as live HTML cards:
+  the app's real notification wording ("<vault>: payment needs your approval"), the
+  Approve button with a looping tap ripple, the sent state. The point is speed and
+  one-tap signing, Zafe's most distinctive feature. The onboarding illustrations went.
+- The Home mockup has no backup notice (`HOME_NOTICE=0` for the render).
+- **More motion**, CSS only: scroll-driven reveals where `animation-timeline` exists (side
+  phones fan out, flow cards rise, the idea fills with ink, the panel grows, feature copy
+  and cards meet, FAQ cascades, the vault drifts, the ghost wordmark rises); loops in the
+  live cards (a vote dot fills, switches flip, "encrypted" shimmers); hover lifts. All off
+  with `prefers-reduced-motion`; without scroll timelines everything is simply shown.
+
 ## Decisions (2026-10-01, third round)
 
 - **Light only.** No dark mode anywhere on the site (`color-scheme: light`); `assets.py`

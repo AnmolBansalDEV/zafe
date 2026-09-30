@@ -1,6 +1,6 @@
 ---
-// Landing page, laid out after vizor.cash (centred hero, device showcase, illustrated
-// pillars, a dark feature panel with live UI cards, FAQ, closing card, dark footer) with
+// Landing page, laid out after vizor.cash (centred hero, device showcase, the one-tap
+// flow as three live cards, a dark feature panel with live UI cards, FAQ, closing card, dark footer) with
 // Zafe's brand, art and copy. Copy: short, and "Zcash" only where it's needed. Every
 // claim must be something the app does today (docs/tracker.md); the chain card is the
 // real testnet payment from the 2026-09-30 dry run. No JavaScript: the intro is CSS and
@@ -11,12 +11,6 @@ import Mark from '../components/Mark.astro';
 import { downloadUrl, sourceUrl } from '../config';
 
 const specUrl = `${sourceUrl}/blob/main/spec.md`;
-
-const pillars = [
-  { art: 'art_gate', width: 700, height: 560, title: 'Shared', text: 'Pick how many must approve. Nobody moves money alone.' },
-  { art: 'art_seal', width: 700, height: 560, title: 'Private', text: 'The chain can’t even tell it’s a multisig.' },
-  { art: 'art_ledger', width: 740, height: 592, title: 'Verifiable', text: 'Open source. Every phone checks before it signs.' },
-];
 
 const faq = [
   { q: 'Is Zafe safe to use?', a: 'It’s on testnet and not yet audited. Everything is open source. Don’t use real funds yet.' },
@@ -78,14 +72,39 @@ const faq = [
       </div>
     </div>
 
-    <section class="pillars">
-      {pillars.map((p) => (
-        <article>
-          <img src={`/assets/screens/${p.art}_light.webp`} width={p.width} height={p.height} alt="" loading="lazy" />
-          <h2>{p.title}</h2>
-          <p>{p.text}</p>
-        </article>
-      ))}
+    <section class="flow" aria-label="How approving works">
+      <article>
+        <div class="flow-tile">
+          <div class="notif">
+            <p class="notif-app"><Mark class="notif-mark" /><span>Zafe</span><time>now</time></p>
+            <p class="notif-title">Ops fund: payment needs your approval</p>
+            <p class="notif-body">Bob proposed 12.50 TAZ to utest1k&hellip;f6d8s0a.</p>
+          </div>
+        </div>
+        <h2>Notified</h2>
+        <p>Every signer knows in seconds.</p>
+      </article>
+      <article>
+        <div class="flow-tile">
+          <div class="tap">
+            <p class="tap-button"><Icon name="check" />Approve and sign<i class="tap-ripple"></i></p>
+            <p class="tap-note">Your approval is your signature.</p>
+          </div>
+        </div>
+        <h2>One tap</h2>
+        <p>No second round. Nobody waits for anyone.</p>
+      </article>
+      <article>
+        <div class="flow-tile">
+          <div class="sent">
+            <p class="sent-check"><Icon name="check" /></p>
+            <p class="sent-amount">12.50 <span>TAZ</span></p>
+            <p class="sent-note">Sent &middot; 2 of 3 approved</p>
+          </div>
+        </div>
+        <h2>Sent</h2>
+        <p>The last approval sends it.</p>
+      </article>
     </section>
 
     <section class="vision">
@@ -118,7 +137,7 @@ const faq = [
             <p class="card-to"><span>To shielded address</span><code>utest1k .... f6d8s0a</code></p>
           </div>
           <div class="card votes">
-            <p><span class="dots"><i class="on"></i><i></i><b></b><i></i></span><span>1 approved &middot; needs 2 of 3</span></p>
+            <p><span class="dots"><i class="on"></i><i></i><b></b><i></i></span><span>Needs 2 of 3</span></p>
             <p class="approve"><Icon name="check" />Approve and sign</p>
           </div>
         </div>

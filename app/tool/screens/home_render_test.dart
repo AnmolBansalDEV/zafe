@@ -6,6 +6,7 @@
 //   flutter test tool/screens/home_render_test.dart
 //
 // Output (SCREEN_PREVIEW_OUT, default build/screen_preview/): home_{dark,light}.png.
+// HOME_NOTICE=0 leaves out the backup notice (the website's showcase uses that).
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -124,12 +125,14 @@ Widget _home() => Builder(
                     ),
                   ],
                 ),
-                const SizedBox(height: AppSpacing.md),
-                NoticeCard(
-                  title: 'Back up this vault',
-                  body: 'Save an encrypted backup so you can restore it.',
-                  onTap: () {},
-                ),
+                if (_showNotice) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  NoticeCard(
+                    title: 'Back up this vault',
+                    body: 'Save an encrypted backup so you can restore it.',
+                    onTap: () {},
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.md),
                 Text(
                   'Recent activity',
@@ -196,6 +199,8 @@ Widget _home() => Builder(
     );
   },
 );
+
+final _showNotice = Platform.environment['HOME_NOTICE'] != '0';
 
 void main() {
   testWidgets('render home parts', (tester) async {
