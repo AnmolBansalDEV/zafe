@@ -279,6 +279,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 /// signer dots along the bottom.
 class BalanceCard extends StatelessWidget {
   const BalanceCard({
+    super.key,
     required this.totalZat,
     required this.notes,
     required this.hidden,
@@ -444,9 +445,7 @@ class _ThresholdStrip extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           '$threshold of $members signers to send',
-          style: AppTypography.labelSmall.copyWith(
-            color: card.textSecondary,
-          ),
+          style: AppTypography.labelSmall.copyWith(color: card.textSecondary),
         ),
       ],
     );
@@ -469,12 +468,9 @@ class _VaultDialPainter extends CustomPainter {
       center,
       size.width * 0.75,
       Paint()
-        ..shader =
-            RadialGradient(
-              colors: [_a(0.25), _a(0)],
-            ).createShader(
-              Rect.fromCircle(center: center, radius: size.width * 0.75),
-            ),
+        ..shader = RadialGradient(colors: [_a(0.25), _a(0)]).createShader(
+          Rect.fromCircle(center: center, radius: size.width * 0.75),
+        ),
     );
     final ring = Paint()
       ..style = PaintingStyle.stroke
@@ -616,7 +612,12 @@ class _Payments extends StatelessWidget {
 /// Until this device's copy of the vault is backed up (spec §12.2 "backup health").
 /// Home entry card (backup reminder, update notice); a chevron when it opens a page.
 class NoticeCard extends StatelessWidget {
-  const NoticeCard({required this.title, required this.body, this.onTap});
+  const NoticeCard({
+    super.key,
+    required this.title,
+    required this.body,
+    this.onTap,
+  });
   final String title;
   final String body;
   final VoidCallback? onTap;
