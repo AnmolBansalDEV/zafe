@@ -68,14 +68,14 @@ class ReceivedRow extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: colors.background.brandAlpha,
+                  color: colors.background.utilitySuccessAlpha,
                   borderRadius: BorderRadius.circular(AppRadii.small),
                 ),
                 alignment: Alignment.center,
                 child: AppIcon(
                   AppIcons.arrowDown,
                   size: 18,
-                  color: colors.icon.brand,
+                  color: colors.text.positiveStrong,
                 ),
               ),
               const SizedBox(width: AppSpacing.xs),

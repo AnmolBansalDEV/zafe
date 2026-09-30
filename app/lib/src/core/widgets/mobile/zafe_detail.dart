@@ -34,9 +34,9 @@ class ZecCoin extends StatelessWidget {
 }
 
 // Payment card colours: the same theme-invariant ink card as the home vault card.
-const _cardInk = Color(0xFF0E131B);
-const _cardJade = Color(0xFF2EC4A6);
-const _cardText = Color(0xFFF2F4F8);
+const _cardInk = Color(0xFF111111);
+const _cardLime = Color(0xFFC9EE6E);
+const _cardText = Color(0xFFF4F4F2);
 
 /// The payment at the top of the review and proposal screens: amount in large type on
 /// the dark vault card, and the recipient (shielded address, compact) with a
@@ -76,7 +76,7 @@ class PaymentCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: _cardInk,
         borderRadius: BorderRadius.circular(AppRadii.large),
-        border: Border.all(color: const Color(0x1A2EC4A6), width: 1),
+        border: Border.all(color: const Color(0x1AC9EE6E), width: 1),
         boxShadow: appSurfaceShadow(colors),
       ),
       clipBehavior: Clip.antiAlias,
@@ -104,7 +104,7 @@ class PaymentCard extends StatelessWidget {
                     const AppIcon(
                       AppIcons.shieldKeyhole,
                       size: 14,
-                      color: _cardJade,
+                      color: _cardLime,
                     ),
                   ],
                 ),
@@ -133,7 +133,7 @@ class PaymentCard extends StatelessWidget {
                           fontFamily: 'Space Grotesk',
                           fontWeight: FontWeight.w500,
                           fontSize: 20,
-                          color: _cardJade.withValues(
+                          color: _cardLime.withValues(
                             alpha: strikethrough ? 0.55 : 1,
                           ),
                         ),
@@ -190,7 +190,7 @@ class _Recipient extends StatelessWidget {
                     const AppIcon(
                       AppIcons.shieldKeyhole,
                       size: 12,
-                      color: _cardJade,
+                      color: _cardLime,
                     ),
                     const SizedBox(width: 4),
                     Flexible(
@@ -268,18 +268,18 @@ class _PaymentDialPainter extends CustomPainter {
       glow,
       Paint()
         ..shader = const RadialGradient(
-          colors: [Color(0x332EC4A6), Color(0x002EC4A6)],
+          colors: [Color(0x33C9EE6E), Color(0x00C9EE6E)],
         ).createShader(Rect.fromCircle(center: center, radius: glow)),
     );
     final ring = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
     for (var i = 0; i < 4; i++) {
-      ring.color = Color.fromRGBO(46, 196, 166, 0.20 - i * 0.04);
+      ring.color = Color.fromRGBO(201, 238, 110, 0.20 - i * 0.04);
       canvas.drawCircle(center, 56.0 + i * 30, ring);
     }
     final tick = Paint()
-      ..color = const Color(0x552EC4A6)
+      ..color = const Color(0x55C9EE6E)
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
     const outer = 56.0 + 30;
@@ -352,7 +352,7 @@ class DetailDivider extends StatelessWidget {
 
 /// A member's tile: a rounded square with a mirrored 5 x 5 pattern and a hue both
 /// derived from the member key, so the same signer looks the same on every device.
-/// [me] adds a jade outline.
+/// [me] adds a brand outline.
 class SignerTile extends StatelessWidget {
   const SignerTile({
     super.key,
@@ -542,7 +542,7 @@ class SignerRow extends StatelessWidget {
 
 enum SignerMark { approved, rejected, waiting }
 
-/// One dot per signer, approvals first (jade), then open seats (outline), then
+/// One dot per signer, approvals first (brand), then open seats (outline), then
 /// rejections (muted, crossed). A short bar after the [threshold]-th dot marks how
 /// many approvals the payment needs.
 class ApprovalDots extends StatelessWidget {

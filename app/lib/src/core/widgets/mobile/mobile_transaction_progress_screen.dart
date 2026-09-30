@@ -11,7 +11,7 @@ import '../app_icon.dart';
 
 enum MobileTransactionProgressPhase { inProgress, pending, succeeded, failed }
 
-const _sendingCircleColor = Color(0xFF0F8C76);
+const _sendingCircleColor = Color(0xFF4F7A08);
 const _successCircleColor = Color(0xFF00A460);
 const _failureCircleColor = Color(0xFF9338A7);
 const _statusIconColor = Color(0xFFFFFFFF);

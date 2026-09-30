@@ -205,9 +205,12 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
 
 Vizor is the reference for **architecture and components**, but the user asked (2026-09-30)
 that Zafe **not look like a copy**. Zafe's visual identity, keep it when resyncing:
-- **Palette**: cool slate "ink" neutrals (`Primitives`), **jade** brand (`BrandPrimitives`,
-  formerly Vizor's crimson; tokens `brand`, `brandStrong`...), jade primary buttons (ink
-  label in dark mode, white in light), Zcash gold for coins/warnings. Window #080A0F / #F3F5F9.
+- **Palette ("Signal", chosen 2026-09-30)**: neutral charcoal (`Primitives`, no hue tint),
+  **lime** brand (`BrandPrimitives`: #C9EE6E dark, #4F7A08 light for text/borders), lime
+  primary buttons with a near-black label in **both** themes (light uses the softer
+  #B9DC61 fill; an olive fill read as "green" and lost the identity). Received money is
+  always the success green, never lime. Warnings amber. Window #0A0A0A / #F4F4F3.
+  Hardcoded card colours (`_BalanceCard`, `PaymentCard`) mirror these. Earlier: jade + slate.
 - **Type**: Space Grotesk (display, amounts, titles), DM Sans (body), JetBrains Mono (codes).
 - **Shapes**: rounded-rectangle buttons (`zafeButtonRadius`: 14 / 10 / 8), card radius 20,
   rounded-square icon tiles and avatars instead of circles.

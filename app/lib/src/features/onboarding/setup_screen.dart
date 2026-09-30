@@ -227,7 +227,7 @@ class _InviteCard extends StatelessWidget {
             child: PrettyQrView.data(
               data: link,
               decoration: const PrettyQrDecoration(
-                shape: DotQrShape(color: Color(0xFF0B0E14)),
+                shape: DotQrShape(color: Color(0xFF0C0C0C)),
               ),
             ),
           ),

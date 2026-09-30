@@ -229,7 +229,7 @@ class _VaultAvatar extends StatelessWidget {
   }
 }
 
-/// Zafe's vault card: the balance on a dark card with a jade glow and safe-dial rings,
+/// Zafe's vault card: the balance on a dark card with a lime glow and safe-dial rings,
 /// and the approval rule as signer dots along the bottom.
 class _BalanceCard extends StatelessWidget {
   const _BalanceCard({
@@ -248,8 +248,8 @@ class _BalanceCard extends StatelessWidget {
   final int threshold;
   final int members;
 
-  static const _ink = Color(0xFF0E131B);
-  static const _jade = Color(0xFF2EC4A6);
+  static const _ink = Color(0xFF111111);
+  static const _lime = Color(0xFFC9EE6E);
 
   @override
   Widget build(BuildContext context) {
@@ -262,14 +262,14 @@ class _BalanceCard extends StatelessWidget {
         (total != null && spendableZat != null && total > spendableZat!)
         ? ZecAmount.fromZatoshi(total - spendableZat!).balance.amountText
         : null;
-    const homeText = Color(0xFFF2F4F8);
+    const homeText = Color(0xFFF4F4F2);
 
     return Container(
       height: 216,
       decoration: BoxDecoration(
         color: _ink,
         borderRadius: BorderRadius.circular(AppRadii.large),
-        border: Border.all(color: const Color(0x1A2EC4A6), width: 1),
+        border: Border.all(color: const Color(0x1AC9EE6E), width: 1),
         boxShadow: appSurfaceShadow(colors),
       ),
       clipBehavior: Clip.antiAlias,
@@ -297,7 +297,7 @@ class _BalanceCard extends StatelessWidget {
                     const AppIcon(
                       AppIcons.shieldKeyhole,
                       size: 14,
-                      color: _jade,
+                      color: _lime,
                     ),
                     const Spacer(),
                     AppTappable(
@@ -341,7 +341,7 @@ class _BalanceCard extends StatelessWidget {
                           fontFamily: 'Space Grotesk',
                           fontWeight: FontWeight.w500,
                           fontSize: 22,
-                          color: _jade,
+                          color: _lime,
                         ),
                       ),
                     ],
@@ -368,7 +368,7 @@ class _BalanceCard extends StatelessWidget {
   }
 }
 
-/// The approval rule as dots: [threshold] filled jade dots out of [members].
+/// The approval rule as dots: [threshold] filled lime dots out of [members].
 class _ThresholdStrip extends StatelessWidget {
   const _ThresholdStrip({required this.threshold, required this.members});
   final int threshold;
@@ -385,11 +385,11 @@ class _ThresholdStrip extends StatelessWidget {
             margin: const EdgeInsets.only(right: 6),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: i < threshold ? _BalanceCard._jade : null,
+              color: i < threshold ? _BalanceCard._lime : null,
               border: Border.all(
                 color: i < threshold
-                    ? _BalanceCard._jade
-                    : const Color(0x66F2F4F8),
+                    ? _BalanceCard._lime
+                    : const Color(0x66F4F4F2),
                 width: 1.5,
               ),
             ),
@@ -398,7 +398,7 @@ class _ThresholdStrip extends StatelessWidget {
         Text(
           '$threshold of $members signers to send',
           style: AppTypography.labelSmall.copyWith(
-            color: const Color(0xB3F2F4F8),
+            color: const Color(0xB3F4F4F2),
           ),
         ),
       ],
@@ -407,7 +407,7 @@ class _ThresholdStrip extends StatelessWidget {
 }
 
 /// Concentric safe-dial rings with tick marks, off the card's top-right corner, over a
-/// soft jade glow.
+/// soft lime glow.
 class _VaultDialPainter extends CustomPainter {
   const _VaultDialPainter();
 
@@ -420,7 +420,7 @@ class _VaultDialPainter extends CustomPainter {
       Paint()
         ..shader =
             RadialGradient(
-              colors: const [Color(0x402EC4A6), Color(0x002EC4A6)],
+              colors: const [Color(0x40C9EE6E), Color(0x00C9EE6E)],
             ).createShader(
               Rect.fromCircle(center: center, radius: size.width * 0.75),
             ),
@@ -429,11 +429,11 @@ class _VaultDialPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
     for (var i = 0; i < 6; i++) {
-      ring.color = Color.fromRGBO(46, 196, 166, 0.22 - i * 0.03);
+      ring.color = Color.fromRGBO(201, 238, 110, 0.22 - i * 0.03);
       canvas.drawCircle(center, 44.0 + i * 26, ring);
     }
     final tick = Paint()
-      ..color = const Color(0x552EC4A6)
+      ..color = const Color(0x55C9EE6E)
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
     const outer = 44.0 + 2 * 26;

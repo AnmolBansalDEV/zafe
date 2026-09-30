@@ -65,7 +65,7 @@ class AppBackgroundColors {
   final Color homeCard;
 
   static const dark = AppBackgroundColors(
-    window: Color(0xFF080A0F),
+    window: Color(0xFF0A0A0A),
     ground: Primitives.p50Dark,
     base: Primitives.p100Dark,
     raised: Primitives.p150Dark,
@@ -88,7 +88,7 @@ class AppBackgroundColors {
   );
 
   static const light = AppBackgroundColors(
-    window: Color(0xFFF3F5F9),
+    window: Color(0xFFF4F4F3),
     ground: Primitives.p0Light,
     base: Primitives.p50Light,
     raised: Primitives.p100Light,

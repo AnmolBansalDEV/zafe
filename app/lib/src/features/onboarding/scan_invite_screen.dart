@@ -117,7 +117,7 @@ class _ScanInviteScreenState extends State<ScanInviteScreen>
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(AppRadii.xLarge),
                         child: ColoredBox(
-                          color: const Color(0xFF0B0E14),
+                          color: const Color(0xFF0C0C0C),
                           child: MobileScanner(
                             controller: _controller,
                             onDetect: _onDetect,

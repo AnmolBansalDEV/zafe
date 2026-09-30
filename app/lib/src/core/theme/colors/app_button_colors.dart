@@ -59,7 +59,7 @@ class AppPrimaryButtonColors {
   final Color label;
   final Color labelHover;
 
-  // Zafe: jade primary buttons (dark ink label in dark mode, white in light).
+  // Zafe: lime primary buttons with a near-black label in both themes.
   static const dark = AppPrimaryButtonColors(
     bg: BrandPrimitives.p400Dark,
     bgHover: BrandPrimitives.p500Dark,
@@ -72,14 +72,14 @@ class AppPrimaryButtonColors {
   );
 
   static const light = AppPrimaryButtonColors(
-    bg: BrandPrimitives.p300Light,
-    bgHover: BrandPrimitives.p400Light,
-    bgPressed: BrandPrimitives.p400Light,
-    border: Primitives.p0Alpha10Light,
-    borderHover: Primitives.p900Alpha5Light,
-    borderPressed: Primitives.p900Alpha5Light,
-    label: Primitives.p0Light,
-    labelHover: Primitives.p0Light,
+    bg: BrandPrimitives.p150Light,
+    bgHover: BrandPrimitives.p200Light,
+    bgPressed: BrandPrimitives.p200Light,
+    border: Primitives.p900Alpha10Light,
+    borderHover: Primitives.p900Alpha10Light,
+    borderPressed: Primitives.p900Alpha10Light,
+    label: BrandPrimitives.p900Light,
+    labelHover: BrandPrimitives.p900Light,
   );
 }
 
