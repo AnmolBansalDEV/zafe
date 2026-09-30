@@ -104,6 +104,11 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   DB). Locked notes leave `spendable_value`, stay in `total`. Wallet errors from
   `node::propose` are `NodeError::Wallet`, so `InsufficientFunds` / `FundsReserved` stay
   typed; `append_event`'s check failure is `NodeError::Invalid(VaultError)`.
+- **Sent transactions** (`node::SentTxs`): `finalize` / `send_ready` return `Sent { txid,
+  raw }`; callers keep the raw bytes (bridge `sent_txs(db_dir, m)`, CLI `<home>/sent`) so
+  `reserve_notes` can resend a transaction that dropped out of the mempool. Regtest
+  gotcha: Zakura (like Zebra) keeps the last ~100 blocks in memory, so restarting the
+  node rewinds the chain as well as the mempool; don't use it to simulate a drop.
 - **Nonce storage**: `nonce_store::FileNonceStore` (atomic write+rename; `put` returns an
   error so a failed write never publishes an approval). The directory must be excluded from
   backups/device transfer: the Android app disables both (`allowBackup=false`,

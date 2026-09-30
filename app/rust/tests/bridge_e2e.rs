@@ -450,6 +450,17 @@ fn payment_flow_through_bridge() {
     let txid = txid.unwrap();
     println!("broadcast {txid}");
 
+    // The leader kept the raw transaction so it can resend it if it drops out of the
+    // mempool; it goes away once mined (checked after mining below).
+    let sent_file = std::path::Path::new(&a.db_dir)
+        .join(format!("sent-{}", summary.vault_id))
+        .join(format!("{}.tx", {
+            let mut b = hex::decode(&txid).unwrap();
+            b.reverse(); // display order -> protocol order
+            hex::encode(b)
+        }));
+    assert!(sent_file.exists(), "leader keeps {}", sent_file.display());
+
     let p = &list(&members[2])[0];
     assert_eq!(p.stage, ProposalStage::Sent);
     assert_eq!(p.txid.as_deref(), Some(txid.as_str()));
@@ -460,6 +471,11 @@ fn payment_flow_through_bridge() {
     thread::sleep(Duration::from_secs(3));
     let after = sync(&members[2]);
     println!("after: height {} total {}", after.height, after.total_zat);
+    sync(a);
+    assert!(
+        !sent_file.exists(),
+        "the kept transaction is deleted once mined"
+    );
     // The vault's own payment (and its change) is not an incoming payment.
     let incoming_after = received_list(&members[2]);
     assert!(incoming_after.iter().all(|r| r.txid != txid));

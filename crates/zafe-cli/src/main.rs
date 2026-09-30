@@ -251,6 +251,7 @@ async fn main() -> Result<()> {
                 &material,
                 &mut wallet,
                 &mut connect(&cli.lightwalletd).await?,
+                &node::SentTxs::in_dir(home.path("sent")),
                 &payments,
                 auto_send,
                 &mut rng,
@@ -337,7 +338,7 @@ async fn main() -> Result<()> {
             let material = home.material()?;
             let tip = tip(&home, &material, &cli.lightwalletd).await?;
             let mut client = connect(&cli.lightwalletd).await?;
-            let txid = node::send_ready(
+            let sent = node::send_ready(
                 &relay,
                 &home.identity()?,
                 &material,
@@ -348,7 +349,8 @@ async fn main() -> Result<()> {
                 &mut rng,
             )
             .await?;
-            println!("broadcast txid {}", hex_txid(&txid));
+            node::SentTxs::in_dir(home.path("sent")).put(&sent);
+            println!("broadcast txid {}", hex_txid(&sent.txid));
         }
         Command::Reject { proposal } => {
             node::reject(
@@ -443,7 +445,7 @@ async fn main() -> Result<()> {
                     .map(|b| node::decode_own_shares(&b))
                     .transpose()?;
             let mut client = connect(&cli.lightwalletd).await?;
-            let txid = node::finalize(
+            let sent = node::finalize(
                 &relay,
                 &home.identity()?,
                 &material,
@@ -455,7 +457,8 @@ async fn main() -> Result<()> {
                 &mut rng,
             )
             .await?;
-            println!("broadcast txid {}", hex_txid(&txid));
+            node::SentTxs::in_dir(home.path("sent")).put(&sent);
+            println!("broadcast txid {}", hex_txid(&sent.txid));
         }
     }
     Ok(())

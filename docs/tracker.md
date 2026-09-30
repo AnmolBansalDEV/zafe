@@ -138,9 +138,16 @@ Open
       and isn't in lightwalletd's mempool any more releases its notes (the whole mempool is
       read, `wallet::mempool_txids`, so lightwalletd doesn't learn the txid). Cancelled
       proposals hold nothing now, so a new proposal can respend (invalidate) their notes
-- [ ] Rebroadcast a dropped transaction instead of only releasing its notes (the
-      broadcaster doesn't keep the raw tx today; one-tap proposals could be rebuilt by
-      any member from the log)
+- [x] Rebroadcast a dropped transaction (2026-09-30): the broadcaster keeps the raw tx
+      (`node::SentTxs`, `<db_dir>/sent-<vault>/<txid>.tx`, CLI `<home>/sent`) until it is
+      mined or expires; `reserve_notes` resends it when it's neither mined nor in the
+      mempool (and releases the notes only if the node refuses it or no bytes exist). It
+      now acts only when lightwalletd's tip **equals** the wallet's (a restarting node
+      reports 0). `bridge_e2e` checks the file is kept and deleted once mined. The resend
+      itself has no automated test: Zakura keeps its last ~100 blocks in memory, so a node
+      restart rewinds the chain too and can't simulate a dropped transaction
+- [ ] Other members can't resend (only the broadcaster has signatures + proof); one-tap
+      proposals could be rebuilt by anyone from the log *(idea)*
 - [x] Member names (local labels, 2026-09-30): tap a signer on Home to name them; the
       name (`<vaultDir>/names.json`, `memberNamesProvider`) shows in signer rows (short
       key below) and as "Proposed by". Local to this device: not synced, not in backups,

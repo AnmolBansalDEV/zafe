@@ -945,6 +945,7 @@ pub async fn propose<P: Parameters + Clone + Send + Sync + 'static, R: RngCore +
     material: &VaultMaterial,
     wallet: &mut VaultWallet<P>,
     lightwalletd: &mut Client,
+    sent: &SentTxs,
     payments: &[PaymentRequest],
     auto_send: bool,
     rng: &mut R,
@@ -963,7 +964,7 @@ pub async fn propose<P: Parameters + Clone + Send + Sync + 'static, R: RngCore +
     }
     let (mut chain, mut state) = load_state(relay, me, material).await?;
     for _ in 0..3 {
-        reserve_notes(&state, wallet, lightwalletd).await?;
+        reserve_notes(&state, wallet, lightwalletd, sent).await?;
         let pczt = wallet.propose(payments, material.descriptor.proposal_expiry_blocks)?;
         let tip = wallet
             .chain_height()
@@ -1012,7 +1013,8 @@ pub async fn propose<P: Parameters + Clone + Send + Sync + 'static, R: RngCore +
 /// spendable balance and its next proposal leave out notes live proposals spend.
 ///
 /// A broadcast transaction that isn't mined and isn't in lightwalletd's mempool any more
-/// (dropped) releases its notes. The whole mempool is fetched rather than looking up the
+/// (dropped) is sent again when this device broadcast it and kept its bytes (`sent`);
+/// otherwise, or if the node refuses it now, it releases its notes. The whole mempool is fetched rather than looking up the
 /// txid, so lightwalletd doesn't learn which transaction belongs to the vault. If the
 /// chain moved past the wallet meanwhile, nothing is released this time (the transaction
 /// may just have been mined).
@@ -1020,6 +1022,7 @@ pub async fn reserve_notes<P: Parameters + Clone + Send + Sync + 'static>(
     state: &VaultState,
     wallet: &mut VaultWallet<P>,
     lightwalletd: &mut Client,
+    sent: &SentTxs,
 ) -> Result<usize, NodeError> {
     let tip = wallet.chain_height()?.unwrap_or(0);
     let mut pending = Vec::new();
@@ -1027,6 +1030,8 @@ pub async fn reserve_notes<P: Parameters + Clone + Send + Sync + 'static>(
         if let (ProposalStatus::Broadcast, Some(txid)) = (p.status, p.txid) {
             if p.expiry_height > tip && !wallet.tx_mined(&txid)? {
                 pending.push((p.id, txid));
+            } else {
+                sent.remove(&txid); // mined or expired: nothing left to resend
             }
         }
     }
@@ -1034,13 +1039,25 @@ pub async fn reserve_notes<P: Parameters + Clone + Send + Sync + 'static>(
     if !pending.is_empty() {
         let mempool = crate::wallet::mempool_txids(lightwalletd).await?;
         let chain_tip = crate::wallet::latest_height(lightwalletd).await?;
-        if chain_tip <= tip {
-            dropped.extend(
-                pending
-                    .into_iter()
-                    .filter(|(_, txid)| !mempool.contains(txid))
-                    .map(|(id, _)| id),
-            );
+        // Only when lightwalletd agrees with the wallet's tip: behind (a restarting node
+        // reports 0) or ahead (the transaction may just have been mined) proves nothing.
+        if chain_tip == tip {
+            for (id, txid) in pending {
+                if mempool.contains(&txid) {
+                    continue;
+                }
+                // Dropped from the mempool. The broadcaster still has the bytes: send
+                // them again; otherwise, or if the node refuses them now, let the notes go.
+                // The bytes stay until the transaction is mined or expires: a refusal can be
+                // temporary, and resending a transaction that lost its notes is harmless.
+                let resent = match sent.get(&txid) {
+                    Some(raw) => send_raw(&raw, lightwalletd).await?.is_ok(),
+                    None => false,
+                };
+                if !resent {
+                    dropped.insert(id);
+                }
+            }
         }
     }
     Ok(wallet.reserve(&note_holds(state, &dropped))?)
@@ -1401,7 +1418,7 @@ pub async fn send_ready<P: Parameters, R: RngCore + CryptoRng>(
     proposal: ProposalId,
     lightwalletd: &mut Client,
     rng: &mut R,
-) -> Result<[u8; 32], NodeError> {
+) -> Result<Sent, NodeError> {
     let (mut chain, mut state) = load_state(relay, me, material).await?;
     let p = state
         .proposals
@@ -1463,7 +1480,8 @@ pub async fn send_ready<P: Parameters, R: RngCore + CryptoRng>(
     .await
     .map_err(|e| NodeError::Protocol(format!("proving task: {e}")))??;
     let signed = tx::apply_signatures(proved, &signatures).map_err(proto)?;
-    let txid = broadcast(signed, lightwalletd).await?;
+    let sent = broadcast(signed, lightwalletd).await?;
+    let txid = sent.txid;
     let event = VaultEvent::Broadcast { proposal, txid };
     if let Err(e) = append_event(relay, me, material, &mut chain, &mut state, &event, rng).await {
         // Another member may have sent it first; the transaction is the same either way.
@@ -1477,32 +1495,91 @@ pub async fn send_ready<P: Parameters, R: RngCore + CryptoRng>(
             )));
         }
     }
-    Ok(txid)
+    Ok(sent)
 }
 
-/// Extracts (fully verifying) and broadcasts a signed, proved PCZT. Returns the txid.
-async fn broadcast(signed: Pczt, lightwalletd: &mut Client) -> Result<[u8; 32], NodeError> {
+/// A transaction this device broadcast: its id and raw bytes (kept to resend it).
+#[derive(Clone, Debug)]
+pub struct Sent {
+    pub txid: [u8; 32],
+    pub raw: Vec<u8>,
+}
+
+/// Extracts (fully verifying) and broadcasts a signed, proved PCZT.
+async fn broadcast(signed: Pczt, lightwalletd: &mut Client) -> Result<Sent, NodeError> {
     let transaction = TransactionExtractor::new(signed)
         .with_orchard(verifying_key())
         .extract()
         .map_err(proto)?;
     let mut raw = Vec::new();
     transaction.write(&mut raw).map_err(proto)?;
+    send_raw(&raw, lightwalletd)
+        .await?
+        .map_err(|m| NodeError::Protocol(format!("broadcast rejected: {m}")))?;
+    Ok(Sent {
+        txid: *transaction.txid().as_ref(),
+        raw,
+    })
+}
+
+/// Submits raw transaction bytes. `Ok(Err(message))` when the node refused it.
+async fn send_raw(raw: &[u8], lightwalletd: &mut Client) -> Result<Result<(), String>, NodeError> {
     let reply = lightwalletd
         .send_transaction(zcash_client_backend::proto::service::RawTransaction {
-            data: raw,
+            data: raw.to_vec(),
             height: 0,
         })
         .await
         .map_err(|e| NodeError::Protocol(e.to_string()))?
         .into_inner();
-    if reply.error_code != 0 {
-        return Err(NodeError::Protocol(format!(
-            "broadcast rejected: {}",
-            reply.error_message
-        )));
+    Ok(if reply.error_code == 0 {
+        Ok(())
+    } else {
+        Err(reply.error_message)
+    })
+}
+
+/// Raw transactions this device broadcast, one file per txid, kept until mined or expired
+/// so a transaction that drops out of the mempool can be sent again (`reserve_notes`).
+/// Only the broadcaster has the bytes: signatures and proof aren't in the vault log.
+pub struct SentTxs(Option<std::path::PathBuf>);
+
+impl SentTxs {
+    pub fn in_dir(dir: impl Into<std::path::PathBuf>) -> Self {
+        Self(Some(dir.into()))
     }
-    Ok(*transaction.txid().as_ref())
+
+    /// Keeps nothing (nothing is resent).
+    pub fn none() -> Self {
+        Self(None)
+    }
+
+    fn file(&self, txid: &[u8; 32]) -> Option<std::path::PathBuf> {
+        self.0
+            .as_ref()
+            .map(|d| d.join(format!("{}.tx", hex::encode(txid))))
+    }
+
+    /// Best effort: losing the file only means the transaction can't be resent.
+    pub fn put(&self, sent: &Sent) {
+        if let (Some(dir), Some(file)) = (&self.0, self.file(&sent.txid)) {
+            let _ = std::fs::create_dir_all(dir);
+            let tmp = file.with_extension("tmp");
+            if std::fs::write(&tmp, &sent.raw).is_ok() {
+                let _ = std::fs::rename(&tmp, &file);
+            }
+        }
+    }
+
+    pub fn get(&self, txid: &[u8; 32]) -> Option<Vec<u8>> {
+        std::fs::read(self.file(txid)?).ok()
+    }
+
+    pub fn remove(&self, txid: &[u8; 32]) {
+        if let Some(file) = self.file(txid) {
+            let _ = std::fs::remove_file(file);
+        }
+    }
 }
 
 /// Votes Reject.
@@ -1900,7 +1977,7 @@ pub async fn finalize<R: RngCore + CryptoRng>(
     timeout: Duration,
     mut on_progress: impl FnMut(ShareProgress),
     rng: &mut R,
-) -> Result<[u8; 32], NodeError> {
+) -> Result<Sent, NodeError> {
     let deadline = Instant::now() + timeout;
     let (mut chain, mut state) = load_state(relay, me, material).await?;
     let (pczt, _) = proposal_pczt(&state, &request.proposal)?;
@@ -1955,7 +2032,8 @@ pub async fn finalize<R: RngCore + CryptoRng>(
         .await
         .map_err(|e| NodeError::Protocol(format!("proving task: {e}")))??;
     let signed = tx::apply_signatures(proved, &signatures).map_err(proto)?;
-    let txid = broadcast(signed, lightwalletd).await?;
+    let sent = broadcast(signed, lightwalletd).await?;
+    let txid = sent.txid;
     // The transaction is on its way regardless; if the log entry is no longer valid (e.g.
     // the author cancelled meanwhile), report the txid anyway.
     let event = VaultEvent::Broadcast {
@@ -1968,7 +2046,7 @@ pub async fn finalize<R: RngCore + CryptoRng>(
             hex::encode(txid)
         )));
     }
-    Ok(txid)
+    Ok(sent)
 }
 
 /// Serializes a signing request (versioned; the leader also keeps it as `<id>.req`).
@@ -2026,6 +2104,27 @@ pub fn decode_used_commitments(bytes: &[u8]) -> Result<BTreeSet<[u8; 32]>, NodeE
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn sent_transactions_are_kept_until_removed() {
+        let dir = std::env::temp_dir().join(format!("zafe-sent-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let sent = super::SentTxs::in_dir(&dir);
+        let tx = super::Sent {
+            txid: [7; 32],
+            raw: vec![1, 2, 3],
+        };
+        assert_eq!(sent.get(&tx.txid), None);
+        sent.put(&tx);
+        assert_eq!(sent.get(&tx.txid), Some(vec![1, 2, 3]));
+        sent.remove(&tx.txid);
+        assert_eq!(sent.get(&tx.txid), None);
+        // Keeping nothing is allowed (CLI tests, callers without a directory).
+        let none = super::SentTxs::none();
+        none.put(&tx);
+        assert_eq!(none.get(&tx.txid), None);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
     use super::*;
 
     /// The app embeds invites in `zafe://join?invite=...` links and QR codes unescaped,

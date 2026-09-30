@@ -251,6 +251,14 @@ fn remove_wallet_files(path: &std::path::Path) {
     }
 }
 
+/// Raw transactions this device broadcast for the vault (resent if they drop out of the
+/// mempool), next to its wallet database.
+pub(crate) fn sent_txs(db_dir: &str, m: &VaultMaterial) -> node::SentTxs {
+    node::SentTxs::in_dir(
+        PathBuf::from(db_dir).join(format!("sent-{}", hex::encode(m.descriptor.vault_id))),
+    )
+}
+
 pub(crate) fn wallet_path(db_dir: &str, m: &VaultMaterial) -> PathBuf {
     PathBuf::from(db_dir).join(format!(
         "vault-{}.sqlite",
@@ -321,7 +329,8 @@ pub fn sync_vault(
         if wallet.chain_height()?.is_some() {
             // Locks persist in the wallet database, so a failure keeps the last holds.
             if let Ok((_, state)) = node::load_state(&RelayClient::new(relay_url), &me, &m).await {
-                let _ = node::reserve_notes(&state, &mut wallet, &mut client).await;
+                let sent = sent_txs(&db_dir, &m);
+                let _ = node::reserve_notes(&state, &mut wallet, &mut client, &sent).await;
             }
         }
         let b = wallet.balance()?;

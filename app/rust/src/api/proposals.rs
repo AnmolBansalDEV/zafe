@@ -20,7 +20,7 @@ use zcash_protocol::memo::{Memo, MemoBytes};
 
 use super::{
     error::{ZafeError, ZafeErrorKind},
-    vault::{identity, material, network, open_wallet, runtime, wallet_lock},
+    vault::{identity, material, network, open_wallet, runtime, sent_txs, wallet_lock},
 };
 use crate::frb_generated::StreamSink;
 
@@ -417,6 +417,7 @@ pub fn propose_payment(
                 &m,
                 &mut wallet,
                 &mut client,
+                &sent_txs(&db_dir, &m),
                 &requests,
                 auto_send,
                 &mut OsRng,
@@ -741,9 +742,13 @@ pub fn send_with_progress(
         });
         let txid = runtime().block_on(async {
             let mut client = connect(&lightwalletd_url).await?;
-            Ok::<_, ZafeError>(
-                node::send_ready(&relay, &me, &m, &net, tip, id, &mut client, &mut OsRng).await?,
-            )
+            Ok::<_, ZafeError>({
+                let sent =
+                    node::send_ready(&relay, &me, &m, &net, tip, id, &mut client, &mut OsRng)
+                        .await?;
+                sent_txs(&db_dir, &m).put(&sent);
+                sent.txid
+            })
         })?;
         let mut display = txid;
         display.reverse();
@@ -801,7 +806,7 @@ pub fn send_with_progress(
             }
         };
         let mut client = connect(&lightwalletd_url).await?;
-        let txid = node::finalize(
+        let sent = node::finalize(
             &relay,
             &me,
             &m,
@@ -821,6 +826,8 @@ pub fn send_with_progress(
             &mut OsRng,
         )
         .await?;
+        sent_txs(&db_dir, &m).put(&sent);
+        let txid = sent.txid;
         let _ = fs::remove_file(&req_path);
         let _ = fs::remove_file(&own_path);
         let mut display = txid;
