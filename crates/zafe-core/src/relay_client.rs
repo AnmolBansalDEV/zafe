@@ -7,7 +7,7 @@ use zafe_proto::{
     relay::{
         decode_body, join_token_hash, AppendResult, CreateMailbox, InboxRead, InboxResponse, Join,
         LogRead, LogResponse, MembersRead, MembersResponse, PushPlatform, RegisterPush, Remove,
-        Seal, Signed, UNSUPPORTED_VERSION_HEADER,
+        Seal, Signed, WaitRequest, WaitResponse, MAX_WAIT_SECS, UNSUPPORTED_VERSION_HEADER,
     },
     version::{Format, UnsupportedVersion},
     Envelope, Identity, LogEntry, MailboxId, ProtoError,
@@ -94,8 +94,12 @@ fn transport(e: impl std::error::Error + 'static) -> RelayClientError {
 
 /// Time to establish a connection to the relay.
 pub const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
-/// Whole request, response included (relay answers are small and never held open).
+/// Whole request, response included (relay answers are small; only `/v1/wait` is held
+/// open, for at most [`MAX_WAIT_SECS`]).
 pub const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+/// How much longer than the relay's wait a long poll may take before the client gives up
+/// (network latency, a slow proxy).
+pub const WAIT_GRACE: std::time::Duration = std::time::Duration::from_secs(15);
 
 fn http_builder() -> reqwest::ClientBuilder {
     reqwest::Client::builder()
@@ -161,14 +165,24 @@ impl RelayClient {
     }
 
     async fn post(&self, path: &str, body: Vec<u8>) -> Result<Vec<u8>, RelayClientError> {
-        let response = self
+        self.post_with_timeout(path, body, None).await
+    }
+
+    async fn post_with_timeout(
+        &self,
+        path: &str,
+        body: Vec<u8>,
+        timeout: Option<std::time::Duration>,
+    ) -> Result<Vec<u8>, RelayClientError> {
+        let mut request = self
             .http
             .post(format!("{}{path}", self.base))
             .header("content-type", "application/octet-stream")
-            .body(body)
-            .send()
-            .await
-            .map_err(transport)?;
+            .body(body);
+        if let Some(timeout) = timeout {
+            request = request.timeout(timeout);
+        }
+        let response = request.send().await.map_err(transport)?;
         let status = response.status();
         if status.as_u16() == 426 {
             let format = body_format(path);
@@ -363,5 +377,43 @@ impl RelayClient {
             )
             .await?;
         response.decoded().map_err(decoding)
+    }
+
+    /// Long poll: returns as soon as the vault log has more than `log_len` entries or an
+    /// envelope for `who` is delivered past cursor `inbox_after`, or after `max_wait`
+    /// (the relay caps it at [`MAX_WAIT_SECS`]) with where things are. `Ok(None)`: this
+    /// relay has no long polls (older than the endpoint, HTTP 404); poll instead.
+    pub async fn wait_for_activity(
+        &self,
+        who: &Identity,
+        mailbox: MailboxId,
+        log_len: u64,
+        inbox_after: u64,
+        max_wait: std::time::Duration,
+    ) -> Result<Option<WaitResponse>, RelayClientError> {
+        let max_wait_secs = u32::try_from(max_wait.as_secs())
+            .unwrap_or(u32::MAX)
+            .min(MAX_WAIT_SECS);
+        let payload = WaitRequest {
+            mailbox,
+            log_len,
+            inbox_after,
+            max_wait_secs,
+            timestamp: now(),
+        };
+        let body = Signed::new(who, payload)
+            .and_then(|s| s.to_bytes())
+            .map_err(|_| RelayClientError::Encoding)?;
+        let timeout = std::time::Duration::from_secs(max_wait_secs.into()) + WAIT_GRACE;
+        match self
+            .post_with_timeout("/v1/wait", body, Some(timeout))
+            .await
+        {
+            Ok(bytes) => decode_body(&bytes).map(Some).map_err(decoding),
+            // The relay answers 403 (never 404) for an unknown mailbox here, so a 404 is a
+            // relay without the route.
+            Err(RelayClientError::Status { status: 404, .. }) => Ok(None),
+            Err(e) => Err(e),
+        }
     }
 }

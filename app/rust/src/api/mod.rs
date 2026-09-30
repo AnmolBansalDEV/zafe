@@ -7,3 +7,4 @@ pub mod names;
 pub mod proposals;
 pub mod received;
 pub mod vault;
+pub mod watch;

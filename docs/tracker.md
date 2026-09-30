@@ -92,6 +92,15 @@ Open
       env-tunable, proxy header for Fly/Caddy), 1 MiB body cap; client
       `RelayClientError::RateLimited` → `NotReady` ("the relay is busy"). Keygen
       (`node_keygen`) and the whole payment flow (`bridge_e2e`) run under the hosted limits
+- [x] Live activity while the app is open (2026-09-30): relay long poll `POST /v1/wait`
+      (up to 25 s, woken by log appends and deliveries, 2 waits per key / 4096 total),
+      client `wait_for_activity`, bridge `watch_vault` stream, Home refreshes proposals on
+      each event and relaxes its poll to 60 s while live. Fallback: a relay without the
+      endpoint (404) or a failing watch leaves the 15 s poll as before; background stays
+      on FCM + WorkManager. Tests: `zafe-relay/tests/wait.rs`,
+      `zafe-core/tests/relay_wait.rs`, `app/rust/tests/vault_watch.rs`,
+      `app/test/live_vault_watch_test.dart`. Not yet checked on a device. *(idea)* the
+      leader's share collection (inbox polled twice a second) could use the same wait
 - [ ] Relay follow-ups: off-site backups (Litestream) *(idea)*; a cap on mailboxes
       created per key/IP (creation is free, so quotas per mailbox don't bound the whole
       DB). Done: dead FCM tokens (404 `UNREGISTERED`) are deleted

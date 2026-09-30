@@ -33,6 +33,13 @@ Runtime contract (both paths):
   or every client shares the proxy's address. Never point it at a header clients can set
   directly.
 - Request bodies are capped at 1 MiB (`413` above it).
+- Long polls (`POST /v1/wait`): an open app holds one request for up to **25 s** so other
+  members' activity reaches it at once. Any proxy in front must let a response take
+  longer than that: Caddy's `reverse_proxy` has no response timeout by default (keep it
+  that way, or set it above 40 s), and Fly's proxy idles out after 60 s. Each open app
+  counts as one concurrent request on Fly, so `fly.toml` sets the concurrency limits to
+  1000/1500. The relay caps waits at 2 per signing key and 4096 in total (over them:
+  `429`); an older relay without the endpoint just makes apps fall back to polling.
 - Storage quotas per vault (on by default): 10,000 undelivered envelopes per member,
   256 MiB of undelivered envelopes and 512 MiB of vault log. A write over a quota is
   refused whole with `507 Insufficient Storage`, and the app says the relay's storage for

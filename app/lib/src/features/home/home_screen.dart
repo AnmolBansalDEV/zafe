@@ -15,6 +15,8 @@ import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/app_tappable.dart';
 import '../../core/widgets/app_toast.dart';
 import '../../notifications/vault_watch.dart';
+import '../../providers/endpoints_provider.dart';
+import '../../services/live_vault_watch.dart';
 import '../backup/backup_prompt_screen.dart' show backupStatusProvider;
 import '../vaults/vault_switcher_sheet.dart';
 import '../../providers/privacy_mode_provider.dart';
@@ -37,27 +39,72 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     with WidgetsBindingObserver {
   Timer? _poll;
 
+  /// Other members' activity as it happens (relay long poll); the poll is the fallback.
+  late final LiveVaultWatch _live = LiveVaultWatch(
+    onRefresh: () => ref.read(proposalsProvider.notifier).refreshSoon(),
+    onPollIntervalChanged: (_) {
+      if (_poll != null) _startPoll();
+    },
+  );
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     Future.microtask(_refresh);
-    _poll = Timer.periodic(const Duration(seconds: 15), (_) => _refresh());
+    _startPoll();
     // A vault exists from here on: notifications, background checks, push.
     unawaited(startVaultWatch());
+    Future.microtask(_startLive);
+    // Another vault or relay: watch that one instead.
+    ref.listenManual(
+      vaultProvider.select((v) => v.activeId),
+      (_, _) => _startLive(),
+    );
+    ref.listenManual(
+      endpointsProvider.select((e) => e.relayUrl),
+      (_, _) => _startLive(),
+    );
+  }
+
+  /// (Re)starts the poll at the interval the live watch allows.
+  void _startPoll() {
+    _poll?.cancel();
+    _poll = Timer.periodic(_live.pollInterval, (_) => _refresh());
+  }
+
+  /// Watches the active vault while the app is in the foreground.
+  void _startLive() {
+    if (!mounted) return;
+    final vault = ref.read(vaultProvider);
+    final foreground =
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.paused &&
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.hidden &&
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.detached;
+    if (!foreground || !vault.hasVault) {
+      _live.stop();
+      return;
+    }
+    _live.start(
+      relayUrl: ref.read(endpointsProvider).relayUrl,
+      seeds: vault.identity!,
+      material: vault.material!,
+    );
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
-      // Stop polling while in the background (the process may stay alive): background
-      // checks and pushes take over, and only they may announce new activity.
+      // Stop polling and watching while in the background (the process may stay alive):
+      // background checks and pushes take over, and only they may announce new activity.
+      _live.stop();
       _poll?.cancel();
       _poll = null;
       unawaited(scheduleSoonCheck());
     }
     if (state == AppLifecycleState.resumed) {
-      _poll ??= Timer.periodic(const Duration(seconds: 15), (_) => _refresh());
+      if (_poll == null) _startPoll();
+      if (!_live.running) _startLive();
       unawaited(_refresh(force: true));
     }
   }
@@ -74,7 +121,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _live.stop();
     _poll?.cancel();
+    _poll = null;
     super.dispose();
   }
 

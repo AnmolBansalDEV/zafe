@@ -13,7 +13,8 @@
 //! version is `PRAGMA user_version` ([`version::RELAY_DB`]); a newer database is refused.
 //!
 //! Limits: request rates per key and IP ([`limits`]) and storage per mailbox ([`quota`]),
-//! both off in [`Relay::new`] and on in the `zafe-relay` binary.
+//! both off in [`Relay::new`] and on in the `zafe-relay` binary. Long polls
+//! (`/v1/wait`, [`wait`]) are capped per key and in total, always.
 
 use std::{
     path::Path,
@@ -34,16 +35,19 @@ use rusqlite::{params, Connection, OptionalExtension};
 pub mod fcm;
 pub mod limits;
 pub mod quota;
+pub mod wait;
 
 use limits::{Buckets, Limits};
 use quota::{Quota, Quotas, Usage};
+use wait::Waiters;
 
 use zafe_proto::{
     log::GENESIS_PREV_HASH,
     relay::{
         encode_body, join_token_hash, AppendResult, CreateMailbox, InboxRead, InboxResponse, Join,
         LogRead, LogResponse, MembersRead, MembersResponse, PushPlatform, RegisterPush, Remove,
-        Seal, Signed, MAX_REQUEST_SKEW_SECS, UNSUPPORTED_VERSION_HEADER,
+        Seal, Signed, WaitRequest, WaitResponse, MAX_REQUEST_SKEW_SECS, MAX_WAIT_SECS,
+        UNSUPPORTED_VERSION_HEADER,
     },
     version::{self, UnsupportedVersion},
     Envelope, IdentityPublic, LogEntry, MailboxId, ProtoError, Recipient,
@@ -85,6 +89,7 @@ pub struct Relay {
     per_ip: Option<Arc<Buckets<std::net::IpAddr>>>,
     client_ip_header: Option<String>,
     quotas: Quotas,
+    waiters: Arc<Waiters>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -286,7 +291,18 @@ impl Relay {
             per_ip: None,
             client_ip_header: None,
             quotas: Quotas::none(),
+            waiters: Arc::new(Waiters::new(
+                wait::DEFAULT_WAITS_PER_KEY,
+                wait::DEFAULT_WAITS_TOTAL,
+            )),
         })
+    }
+
+    /// Caps concurrent long polls per signing key and in total (defaults:
+    /// [`wait::DEFAULT_WAITS_PER_KEY`], [`wait::DEFAULT_WAITS_TOTAL`]).
+    pub fn with_wait_caps(mut self, per_key: usize, total: usize) -> Self {
+        self.waiters = Arc::new(Waiters::new(per_key, total));
+        self
     }
 
     /// Sets storage quotas (none by default; `zafe-relay` uses [`Quotas::hosted`]).
@@ -360,6 +376,7 @@ impl Relay {
             .route("/v1/inbox", post(inbox))
             .route("/v1/log/append", post(log_append))
             .route("/v1/log/read", post(log_read))
+            .route("/v1/wait", post(wait))
             .layer(middleware::from_fn_with_state(self.clone(), limit_ip))
             .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
             .with_state(self)
@@ -755,6 +772,7 @@ async fn post_envelope(State(relay): State<Relay>, body: Bytes) -> RelayResult {
     let pushes = push_tokens(&tx, &h.mailbox, recipients.iter())?;
     tx.commit()?;
     drop(db);
+    relay.waiters.signal(&h.mailbox);
     for (platform, token) in pushes {
         relay.notifier.notify(platform, &token);
     }
@@ -880,6 +898,7 @@ async fn log_append(State(relay): State<Relay>, body: Bytes) -> RelayResult {
     let pushes = push_tokens(&tx, &h.mailbox, others.iter())?;
     tx.commit()?;
     drop(db);
+    relay.waiters.signal(&h.mailbox);
     for (platform, token) in pushes {
         relay.notifier.notify(platform, &token);
     }
@@ -918,4 +937,67 @@ async fn log_read(State(relay): State<Relay>, body: Bytes) -> RelayResult {
     // Stored as appended (`LogEntry::to_bytes`); clients decode and verify the chain.
     let entries = rows.collect::<Result<Vec<_>, _>>()?;
     ok(&LogResponse { entries })
+}
+
+/// Where `mailbox` is for member `who` (log length, newest delivery cursor). Unknown
+/// mailboxes and non-members are both 403, so a 404 on `/v1/wait` only ever means a relay
+/// without the endpoint.
+fn activity(
+    relay: &Relay,
+    mailbox: &MailboxId,
+    who: &[u8; 32],
+) -> Result<WaitResponse, RelayError> {
+    let db = relay.db.lock().expect("lock");
+    let exists: bool = db.query_row(
+        "SELECT EXISTS (SELECT 1 FROM mailboxes WHERE id = ?1)",
+        params![&mailbox[..]],
+        |r| r.get(0),
+    )?;
+    if !exists || member(&db, mailbox, who)?.is_none() {
+        return Err(RelayError::Forbidden);
+    }
+    let log_len: i64 = db.query_row(
+        "SELECT COALESCE(MAX(idx) + 1, 0) FROM log_entries WHERE mailbox = ?1",
+        params![&mailbox[..]],
+        |r| r.get(0),
+    )?;
+    let inbox_cursor: i64 = db.query_row(
+        "SELECT COALESCE(MAX(cursor), 0) FROM deliveries WHERE mailbox = ?1 AND recipient = ?2",
+        params![&mailbox[..], &who[..]],
+        |r| r.get(0),
+    )?;
+    Ok(WaitResponse {
+        log_len: log_len as u64,
+        inbox_cursor: inbox_cursor as u64,
+    })
+}
+
+/// Long poll (see [`WaitRequest`] and the [`wait`] module).
+async fn wait(State(relay): State<Relay>, body: Bytes) -> RelayResult {
+    let req = verified::<WaitRequest>(&relay, &body)?;
+    relay.check_fresh(req.payload.timestamp)?;
+    let p = &req.payload;
+    let who = req.signer.sig_pk;
+    let deadline = tokio::time::Instant::now()
+        + std::time::Duration::from_secs(u64::from(p.max_wait_secs.min(MAX_WAIT_SECS)));
+    // Subscribe before reading, so a write right after the read still wakes this wait.
+    let mut signals = relay.waiters.subscribe(p.mailbox);
+    let mut now = activity(&relay, &p.mailbox, &who)?;
+    if now.is_news(p.log_len, p.inbox_after) || p.max_wait_secs == 0 {
+        return ok(&now);
+    }
+    let _slot = relay
+        .waiters
+        .acquire(who)
+        .ok_or(RelayError::RateLimited(wait::WAIT_RETRY_SECS))?;
+    loop {
+        let woken = tokio::time::timeout_at(deadline, signals.changed())
+            .await
+            .is_ok();
+        // A signal may be for another member's inbox: check what changed for this one.
+        now = activity(&relay, &p.mailbox, &who)?;
+        if !woken || now.is_news(p.log_len, p.inbox_after) {
+            return ok(&now);
+        }
+    }
 }

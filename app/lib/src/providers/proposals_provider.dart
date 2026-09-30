@@ -92,6 +92,9 @@ class ProposalsState {
 class ProposalsNotifier extends Notifier<ProposalsState> {
   bool _refreshing = false;
 
+  /// A refresh was asked for while one was running (see [refreshSoon]).
+  bool _again = false;
+
   /// The proving key is built once per process (see `_prewarm`).
   static bool _prewarmed = false;
   final _subscriptions = <String, StreamSubscription<rust.SendProgress>>{};
@@ -119,6 +122,16 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
 
   /// Synced chain tip of the active vault (null before the first sync).
   int? get _height => _vault.balance?.height;
+
+  /// Refreshes now, or right after the running refresh if there is one: news that
+  /// arrives during a refresh may not be in it. For live activity events.
+  void refreshSoon() {
+    if (_refreshing) {
+      _again = true;
+      return;
+    }
+    unawaited(refresh());
+  }
 
   Future<void> refresh() async {
     final vault = _vault;
@@ -164,6 +177,10 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
       state = state.copyWith(error: e);
     } finally {
       _refreshing = false;
+      if (_again) {
+        _again = false;
+        unawaited(refresh());
+      }
     }
   }
 

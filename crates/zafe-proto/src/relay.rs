@@ -122,6 +122,43 @@ pub struct MembersRead {
     pub timestamp: u64,
 }
 
+/// The longest a relay holds a [`WaitRequest`] open; longer requests are cut to this. It
+/// stays below common proxy idle timeouts (Caddy, Fly.io), so a quiet wait ends with an
+/// answer rather than a dropped connection.
+pub const MAX_WAIT_SECS: u32 = 25;
+
+/// Long poll (`POST /v1/wait`): answers as soon as the vault log is longer than `log_len`
+/// or an envelope for the signer is delivered past cursor `inbox_after`, and otherwise
+/// after `max_wait_secs` (at most [`MAX_WAIT_SECS`]). Signed by a member. The answer says
+/// only where the log and the inbox are now; the client reads them as usual. A relay
+/// without this endpoint answers 404 (clients fall back to polling); an unknown mailbox
+/// gets 403 here, never 404, so the two can't be confused.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WaitRequest {
+    pub mailbox: MailboxId,
+    pub log_len: u64,
+    pub inbox_after: u64,
+    pub max_wait_secs: u32,
+    pub timestamp: u64,
+}
+
+/// Where the mailbox is when a [`WaitRequest`] returns.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WaitResponse {
+    /// Entries in the vault log.
+    pub log_len: u64,
+    /// The newest delivery cursor for the signer (0: none stored).
+    pub inbox_cursor: u64,
+}
+
+impl WaitResponse {
+    /// Whether this is news for a client that has `log_len` entries and read its inbox up
+    /// to `inbox_after`.
+    pub fn is_news(&self, log_len: u64, inbox_after: u64) -> bool {
+        self.log_len > log_len || self.inbox_cursor > inbox_after
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MembersResponse {
     pub members: Vec<IdentityPublic>,
