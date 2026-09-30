@@ -494,8 +494,11 @@ class _SignersCard extends StatelessWidget {
   }
 }
 
-/// "Recent activity": header with "See all", up to 10 rows 12 apart, and
-/// the empty state.
+/// Rows shown on Home; everything else is one tap away under "See all".
+const kRecentActivityLimit = 4;
+
+/// "Recent activity": header with "See all", the newest [kRecentActivityLimit] rows 12
+/// apart, and the empty state.
 class _Payments extends StatelessWidget {
   const _Payments({
     required this.proposals,
@@ -512,7 +515,7 @@ class _Payments extends StatelessWidget {
     final items = mergeActivity(
       proposals.items,
       received.items,
-    ).take(10).toList();
+    ).take(kRecentActivityLimit).toList();
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.xs,
