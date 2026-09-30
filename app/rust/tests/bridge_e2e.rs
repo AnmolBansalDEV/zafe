@@ -276,6 +276,7 @@ fn payment_flow_through_bridge() {
             m.state_dir.clone(),
             m.seeds.clone(),
             m.material.clone(),
+            None,
         )
         .unwrap()
         .items

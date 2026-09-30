@@ -283,6 +283,7 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
       stateDir: stateDir,
       seeds: seeds,
       material: material,
+      tipHeight: height,
     )).items;
     try {
       await rust.answerSigningRequests(
@@ -325,6 +326,7 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
       stateDir: stateDir,
       seeds: seeds,
       material: material,
+      tipHeight: height,
     )).items;
     await VaultSummaries.write(
       v.id,

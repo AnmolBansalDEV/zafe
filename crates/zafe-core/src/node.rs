@@ -1321,14 +1321,22 @@ pub async fn top_up_pool<R: RngCore + CryptoRng>(
 }
 
 /// Deletes this device's nonces for commitments assigned to proposals that are closed
-/// (sent, rejected, cancelled): they can never be used. Returns how many were deleted.
-pub fn forget_closed(state: &VaultState, me: &[u8; 32], pool: &mut impl PoolStore) -> usize {
+/// (sent, rejected, cancelled, or expired as of the synced tip `tip_height`): they can
+/// never be used. Returns how many were deleted.
+pub fn forget_closed(
+    state: &VaultState,
+    me: &[u8; 32],
+    tip_height: Option<u32>,
+    pool: &mut impl PoolStore,
+) -> usize {
     let mut n = 0;
     for p in state.proposals.values() {
-        let closed = matches!(
-            p.status,
-            ProposalStatus::Broadcast | ProposalStatus::Rejected | ProposalStatus::Cancelled
-        );
+        let expired = p.expiry_height > 0 && tip_height.is_some_and(|tip| tip >= p.expiry_height);
+        let closed = expired
+            || matches!(
+                p.status,
+                ProposalStatus::Broadcast | ProposalStatus::Rejected | ProposalStatus::Cancelled
+            );
         let Some(pre) = p.preprocessed.as_ref().filter(|_| closed) else {
             continue;
         };

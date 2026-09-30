@@ -232,7 +232,10 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       still be sent until expiry. Offer "invalidate now" (spend its notes to self) and
       explain it in the cancel UI. The log and wallet holds already allow it (cancelled
       proposals hold no notes); what's missing is the UI and a self-send proposal
-- [ ] Delete pool nonces of **expired** proposals (today only sent/rejected/cancelled)
+- [x] Delete pool nonces of **expired** proposals (2026-09-30): `forget_closed` takes the
+      synced tip (bridge `list_proposals(tip_height)`, passed by the app and background
+      check); tested in `tests/vault.rs`. Interactive nonces (`FileNonceStore`) of closed
+      or expired proposals are still never deleted
 - [ ] Surface "one-tap unavailable" when a proposal fell back to interactive (short pools,
       or C(n, t) > 64), and pre-warm pools right after keygen
 - [ ] A member whose device lost its pool nonces approves interactively (fallback works);

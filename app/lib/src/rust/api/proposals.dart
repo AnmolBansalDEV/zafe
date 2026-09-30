@@ -30,17 +30,20 @@ int memoLength({required String memo}) =>
 
 /// Every proposal in the vault log, newest first. Also keeps this device ready for
 /// one-tap signing: tops up its pre-published commitments when they run low, and deletes
-/// nonces of proposals that closed.
+/// nonces of proposals that closed or expired (as of `tip_height`, the synced tip, when
+/// known).
 Future<ProposalList> listProposals({
   required String relayUrl,
   required String stateDir,
   required List<int> seeds,
   required List<int> material,
+  int? tipHeight,
 }) => RustLib.instance.api.crateApiProposalsListProposals(
   relayUrl: relayUrl,
   stateDir: stateDir,
   seeds: seeds,
   material: material,
+  tipHeight: tipHeight,
 );
 
 /// Syncs, builds the transaction from the vault's notes, and logs it as a proposal. Returns

@@ -522,6 +522,7 @@ fn wire__crate__api__proposals__list_proposals_impl(
             let api_state_dir = <String>::sse_decode(&mut deserializer);
             let api_seeds = <Vec<u8>>::sse_decode(&mut deserializer);
             let api_material = <Vec<u8>>::sse_decode(&mut deserializer);
+            let api_tip_height = <Option<u32>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, crate::api::error::ZafeError>((move || {
@@ -530,6 +531,7 @@ fn wire__crate__api__proposals__list_proposals_impl(
                         api_state_dir,
                         api_seeds,
                         api_material,
+                        api_tip_height,
                     )?;
                     Ok(output_ok)
                 })())

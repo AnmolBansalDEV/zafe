@@ -597,3 +597,63 @@ fn a_proposal_respending_notes_of_a_live_one_is_ignored() {
         .iter()
         .all(|h| h.owner[0] != 1));
 }
+
+/// Counts the nonces `forget_closed` deletes (every commitment counts as held here).
+#[derive(Default)]
+struct CountingPool(usize);
+
+impl zafe_core::session::PoolStore for CountingPool {
+    fn put(
+        &mut self,
+        _: &[u8],
+        _: reddsa::frost::redpallas::round1::SigningNonces,
+    ) -> Result<(), zafe_core::session::SessionError> {
+        Ok(())
+    }
+    fn contains(&self, _: &[u8]) -> bool {
+        true
+    }
+    fn take(&mut self, _: &[u8]) -> Option<reddsa::frost::redpallas::round1::SigningNonces> {
+        None
+    }
+    fn forget(&mut self, _: &[u8]) {
+        self.0 += 1;
+    }
+}
+
+#[test]
+fn nonces_of_expired_one_tap_proposals_are_forgotten() {
+    use common::{build_pczt, outside_address, receive_ironwood_note, witness, Out};
+    use orchard::keys::{FullViewingKey, Scope, SpendingKey};
+
+    let fvk = FullViewingKey::from(&SpendingKey::from_bytes([3; 32]).unwrap());
+    let note = receive_ironwood_note(&fvk, fvk.address_at(0u32, Scope::External), 1_000_000);
+    let (anchor, path) = witness(&note);
+    let pczt = build_pczt(
+        &fvk,
+        note,
+        path,
+        anchor,
+        vec![Out {
+            ovk: None,
+            recipient: outside_address(9),
+            value: 990_000,
+            memo: zcash_protocol::memo::MemoBytes::empty(),
+        }],
+    );
+    let expiry = *pczt.global().expiry_height();
+
+    let mut log = pooled_log(2);
+    log.push(0, &proposal_with(1, &pczt, common::TARGET_HEIGHT - 1));
+    let state = log.replay().unwrap();
+    assert!(state.proposals[&[1; 16]].preprocessed.is_some());
+    let me = log.ids[0].public().sig_pk;
+    let forgotten = |tip: Option<u32>| {
+        let mut pool = CountingPool::default();
+        node::forget_closed(&state, &me, tip, &mut pool)
+    };
+    assert_eq!(forgotten(None), 0, "tip unknown: keep");
+    assert_eq!(forgotten(Some(expiry - 1)), 0, "still open");
+    // Member 0 is in two of the three 2-of-3 groups, one spend each.
+    assert_eq!(forgotten(Some(expiry)), 2);
+}

@@ -155,6 +155,7 @@ abstract class RustLibApi extends BaseApi {
     required String stateDir,
     required List<int> seeds,
     required List<int> material,
+    int? tipHeight,
   });
 
   Future<List<ReceivedInfo>> crateApiReceivedListReceived({
@@ -720,6 +721,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String stateDir,
     required List<int> seeds,
     required List<int> material,
+    int? tipHeight,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -729,6 +731,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(stateDir, serializer);
           sse_encode_list_prim_u_8_loose(seeds, serializer);
           sse_encode_list_prim_u_8_loose(material, serializer);
+          sse_encode_opt_box_autoadd_u_32(tipHeight, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -741,7 +744,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_zafe_error,
         ),
         constMeta: kCrateApiProposalsListProposalsConstMeta,
-        argValues: [relayUrl, stateDir, seeds, material],
+        argValues: [relayUrl, stateDir, seeds, material, tipHeight],
         apiImpl: this,
       ),
     );
@@ -750,7 +753,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiProposalsListProposalsConstMeta =>
       const TaskConstMeta(
         debugName: "list_proposals",
-        argNames: ["relayUrl", "stateDir", "seeds", "material"],
+        argNames: ["relayUrl", "stateDir", "seeds", "material", "tipHeight"],
       );
 
   @override

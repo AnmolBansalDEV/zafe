@@ -273,12 +273,14 @@ pub struct ProposalList {
 
 /// Every proposal in the vault log, newest first. Also keeps this device ready for
 /// one-tap signing: tops up its pre-published commitments when they run low, and deletes
-/// nonces of proposals that closed.
+/// nonces of proposals that closed or expired (as of `tip_height`, the synced tip, when
+/// known).
 pub fn list_proposals(
     relay_url: String,
     state_dir: String,
     seeds: Vec<u8>,
     material: Vec<u8>,
+    tip_height: Option<u32>,
 ) -> Result<ProposalList, ZafeError> {
     let me = identity(&seeds)?;
     let m = self::material(&material)?;
@@ -289,7 +291,7 @@ pub fn list_proposals(
         let (_, state) = node::load_state(&relay, &me, &m).await?;
         Ok::<_, ZafeError>(state)
     })?;
-    node::forget_closed(&state, &me.public().sig_pk, &mut pool);
+    node::forget_closed(&state, &me.public().sig_pk, tip_height, &mut pool);
     Ok(ProposalList {
         items: info(&state, me.public().sig_pk, &state_dir),
         newer_version_entries: state.newer_version_entries() as u32,
