@@ -427,55 +427,14 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       children: [
-        MobileReviewInfoRow(
-          label: 'Amount',
-          value: '${amount.amountText} $kZcashDefaultCurrencyTicker',
-          leading: const ZecCoin(),
-        ),
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: MobileReviewFlowArrow(),
-          ),
-        ),
-        MobileReviewInfoRow(
-          label: 'To',
-          value: 'Shielded address',
-          leading: MobileReviewIconBadge(
-            child: AppIcon(
-              AppIcons.wallet,
-              size: 20,
-              color: colors.icon.regular,
-            ),
-          ),
-          bottom: Row(
-            children: [
-              AppIcon(
-                AppIcons.shieldKeyhole,
-                size: 16,
-                color: colors.icon.brand,
-              ),
-              const SizedBox(width: AppSpacing.xxs),
-              Text(
-                compactAddress(address),
-                style: AppTypography.labelMedium.copyWith(
-                  color: colors.text.secondary,
-                ),
-              ),
-              const Spacer(),
-              AppButton(
-                variant: AppButtonVariant.ghost,
-                size: AppButtonSize.small,
-                leading: const AppIcon(AppIcons.eye, size: 16),
-                onPressed: () => showMobileAddressVerifySheet(
-                  context,
-                  title: 'Full address',
-                  address: address,
-                ),
-                child: const Text('Full address'),
-              ),
-            ],
+        PaymentCard(
+          label: 'NEW PAYMENT',
+          amountText: amount.amountText,
+          address: address,
+          onFullAddress: () => showMobileAddressVerifySheet(
+            context,
+            title: 'Full address',
+            address: address,
           ),
         ),
         const SizedBox(height: AppSpacing.lg),

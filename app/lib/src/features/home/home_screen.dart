@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/config/network_config.dart';
 import '../../core/feedback/app_haptics.dart';
-import '../../core/formatting/member_label.dart';
 import '../../core/formatting/zec_amount.dart';
 import '../../core/layout/mobile/mobile_top_nav.dart';
 import '../../core/layout/mobile/mobile_top_scroll_fade.dart';
@@ -23,6 +22,7 @@ import '../../providers/proposals_provider.dart';
 import '../../core/privacy/privacy_mask.dart';
 import '../proposals/proposal_status.dart';
 import '../../core/widgets/mobile/mobile_surface_card.dart';
+import '../../core/widgets/mobile/zafe_detail.dart';
 import '../../providers/vault_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -485,22 +485,7 @@ class _SignersCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
-          for (final m in members)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
-              child: Row(
-                children: [
-                  AppIcon(AppIcons.user, size: 16, color: colors.icon.muted),
-                  const SizedBox(width: AppSpacing.s),
-                  Text(
-                    memberLabel(m, me: me),
-                    style: AppTypography.labelLarge.copyWith(
-                      color: colors.text.primary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          for (final m in members) SignerRow(keyHex: m, me: me),
         ],
       ),
     );

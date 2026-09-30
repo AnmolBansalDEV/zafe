@@ -90,7 +90,10 @@ Open
 - [ ] SQLCipher for the wallet DB (spec §14; an improvement over Vizor)
 - [ ] Pre-warm the proving key when a proposal becomes Approved (2–4 s on a phone)
 - [ ] Low-end device benchmark (V7 still open: Cortex-A55-class phone)
-- [ ] App icon, launcher name/branding (still the Flutter default icon)
+- [x] App icon, launcher name/branding: original vault-dial icon (adaptive + themed
+      monochrome, legacy mipmaps, iOS AppIcon), label "Zafe", native splash in the window
+      colour (Android 12+ and older, iOS LaunchScreen). Regenerate: `scripts/brand/icons.sh`.
+      Needs a look on a real launcher (Android and iOS) once a device build is made
 - [ ] Release build + signing config; check size (debug APK ~200 MB with 2 ABIs). Reference:
       Vizor `scripts/build-android-reproducible.sh`, `scripts/build-android-fdroid.sh`
 
@@ -207,8 +210,11 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 - [x] Zafe visual identity (2026-09-30): slate + jade palette, Space Grotesk / DM Sans /
       JetBrains Mono, rounded-rect buttons, vault-dial home card, left-aligned page titles,
       Vizor references removed from code comments; illustrations redrawn in the palette
-- [ ] Identity follow-ups: proposal review hero (amount → recipient) and signer rows still
-      use Vizor's layout; launcher icon and splash are still defaults
+- [x] Identity follow-ups: proposal page and send review use the payment card (dark vault
+      card, amount + compact recipient), approvals block with signer dots, and signer rows
+      with key-derived tiles (also on the home Signers card); icon and splash done.
+      Previews without a device: `flutter test tool/screens/proposal_render_test.dart`
+- [ ] Member tiles are derived from keys only; switch to names/colours once member names land
 - [ ] iOS: `xyz.zafe/modal_corners` has no Swift handler yet (Dart falls back to fixed
       corners); port Vizor's `NativeModalCorners` when iOS work starts
 - [x] CI: `.github/workflows/ci.yml` runs `cargo fmt --check`, clippy `-D warnings`,
