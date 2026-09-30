@@ -1,0 +1,16 @@
+# /etc/caddy/Caddyfile
+# Caddy obtains and renews the Let's Encrypt certificate by itself once the domain's
+# A/AAAA record points at this server and ports 80 and 443 are open.
+
+relay.example.com {                 # CHANGE ME: the relay's domain
+	# Relay requests are small signed postcard bodies; refuse anything large early.
+	request_body {
+		max_size 4MB
+	}
+	reverse_proxy 127.0.0.1:8787 {
+		health_uri /health
+		health_interval 30s
+	}
+	# No access log on purpose: the relay keeps as little metadata as it can, and client
+	# IPs with timestamps would undo part of that. Add a `log` block only to debug.
+}

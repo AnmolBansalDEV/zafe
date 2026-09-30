@@ -6,7 +6,7 @@ finished ones, tick them and add the commit. Spec references are to `spec.md`.
 
 Legend: `[ ]` open · `[x]` done · **(you)** needs the user · *(idea)* not yet decided
 
-Last updated: 2026-09-30 (incoming payments in activity; earlier: Vizor core resynced to `4bff2e7`)
+Last updated: 2026-09-30 (relay TLS + packaging; incoming payments in activity; earlier: Vizor core resynced to `4bff2e7`)
 
 ---
 
@@ -29,8 +29,8 @@ Last updated: 2026-09-30 (incoming payments in activity; earlier: Vizor core res
    opens the payment on tap. FCM is configured (project `zafe-18c4d`) and verified end to
    end on the emulator (relay → Google → device → background check → notification).
    Next: confirm latency on a real phone.
-   Open: APNs sender + iOS (NSE), pruning dead FCM tokens (404 UNREGISTERED), relay-client
-   TLS (the app's reqwest has no TLS features, so it can't reach an https relay yet).
+   Open: APNs sender + iOS (NSE), pruning dead FCM tokens (404 UNREGISTERED).
+   Done: relay-client TLS (2026-09-30, see M1 "Hosted relay").
 3. [ ] **Tor** (as in Vizor `rust/src/network_privacy.rs`): `zcash_client_backend` `tor`
    feature (arti), process-wide fail-closed route policy, bootstrap timeout, dormant when
    backgrounded; route both lightwalletd and the relay (relay client moves off reqwest).
@@ -64,7 +64,20 @@ Done
 Open
 - [ ] Auto-submit (see Next up)
 - [ ] Push notifications (see Next up)
-- [ ] Hosted relay deployment (testnet); relay is SQLite today, Postgres for the hosted tier
+- [x] Clients speak TLS (2026-09-30): relay client (reqwest `rustls-tls`) and lightwalletd
+      (tonic `tls-ring` + `tls-webpki-roots`, explicit `ClientTlsConfig` for `https`), both
+      with the bundled Mozilla roots; `crates/zafe-core/tests/tls.rs` (local rustls server:
+      trusted cert works, untrusted and wrong-hostname refused; ignored live test against
+      `testnet.zec.rocks:443` passed). App `ZAFE_NETWORK=test` preset (TLS lightwalletd,
+      placeholder relay URL). `cargo ndk` check for arm64 passes with ring
+- [x] Relay packaging (2026-09-30): `infra/relay/Dockerfile` (non-root, `/data` volume,
+      `$PORT`), `GET /health`, SIGTERM shutdown, FCM key from a file or secret env var;
+      Fly.io template, VPS recipe (systemd + Caddy), nightly backup timer, README
+- [ ] **(you)** Hosted relay deployment (testnet): waiting on the host choice (Fly.io or a
+      VPS) and account/DNS; steps in `infra/relay/README.md`. Then build the testnet app
+      with `ZAFE_RELAY_URL`. Relay is SQLite today, Postgres for the hosted tier
+- [ ] Relay hardening before public testers: rate limits per IP/key, request size limits
+      tuned to real envelope sizes, off-site backups (Litestream) *(idea)*
 - [x] Invite by link: `zafe://join?invite=...` custom scheme (see Next up 5)
 - [ ] Universal/App Links (`https://…/join#invite`) so a link works for people without
       Zafe installed (landing page + `assetlinks.json` / AASA). Put the invite in the URL

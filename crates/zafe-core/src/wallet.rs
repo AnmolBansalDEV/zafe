@@ -14,7 +14,7 @@ use std::{
 use async_trait::async_trait;
 use pczt::Pczt;
 use rand::rngs::OsRng;
-use tonic::transport::Channel;
+use tonic::transport::{Channel, ClientTlsConfig};
 use zcash_address::ZcashAddress;
 use zcash_client_backend::{
     data_api::{
@@ -85,14 +85,31 @@ pub fn regtest_network() -> LocalNetwork {
     }
 }
 
-/// Connects to a lightwalletd gRPC endpoint (e.g. `http://127.0.0.1:9067`).
+/// Connects to a lightwalletd gRPC endpoint (e.g. `http://127.0.0.1:9067`, or
+/// `https://testnet.zec.rocks:443`). `https` endpoints use rustls with the bundled Mozilla
+/// roots (webpki-roots). TLS must be configured explicitly: `Channel::from_shared` with an
+/// `https` URI otherwise fails with "Connecting to HTTPS without TLS enabled".
 pub async fn connect(endpoint: &str) -> Result<Client, WalletError> {
-    let channel = Channel::from_shared(endpoint.to_owned())
-        .map_err(|e| WalletError::Remote(e.to_string()))?
-        .connect()
-        .await
-        .map_err(|e| WalletError::Remote(e.to_string()))?;
+    let mut channel = Channel::from_shared(endpoint.to_owned()).map_err(|e| remote_error(&e))?;
+    if endpoint.starts_with("https://") {
+        channel = channel
+            .tls_config(ClientTlsConfig::new().with_webpki_roots())
+            .map_err(|e| remote_error(&e))?;
+    }
+    let channel = channel.connect().await.map_err(|e| remote_error(&e))?;
     Ok(CompactTxStreamerClient::new(channel))
+}
+
+/// tonic's errors say only "transport error"; keep the causes (e.g. a certificate error).
+fn remote_error(e: &dyn std::error::Error) -> WalletError {
+    let mut message = e.to_string();
+    let mut source = e.source();
+    while let Some(cause) = source {
+        message.push_str(": ");
+        message.push_str(&cause.to_string());
+        source = cause.source();
+    }
+    WalletError::Remote(message)
 }
 
 /// The chain tip height lightwalletd reports.

@@ -28,6 +28,19 @@ pub struct RelayClient {
     http: reqwest::Client,
 }
 
+/// A transport error with its causes, so "invalid peer certificate: UnknownIssuer" isn't
+/// hidden behind reqwest's "error sending request".
+fn transport(e: impl std::error::Error) -> RelayClientError {
+    let mut message = e.to_string();
+    let mut source = e.source();
+    while let Some(cause) = source {
+        message.push_str(": ");
+        message.push_str(&cause.to_string());
+        source = cause.source();
+    }
+    RelayClientError::Transport(message)
+}
+
 fn now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -36,12 +49,32 @@ fn now() -> u64 {
 }
 
 impl RelayClient {
-    /// `base` is the relay URL, e.g. `http://127.0.0.1:8787`.
+    /// `base` is the relay URL, e.g. `http://127.0.0.1:8787` or `https://relay.example`.
+    /// `https` uses rustls with the bundled Mozilla root store (webpki-roots), so it works
+    /// the same on Android, iOS and desktop without the platform's certificate store.
     pub fn new(base: impl Into<String>) -> Self {
         Self {
             base: base.into().trim_end_matches('/').to_owned(),
             http: reqwest::Client::new(),
         }
+    }
+
+    /// Like [`RelayClient::new`], but also trusts `root_der` (a DER CA certificate) on top
+    /// of the bundled roots: for a self-hosted relay behind a private CA, and for tests.
+    /// Certificate and hostname verification stay fully on.
+    pub fn with_extra_root(
+        base: impl Into<String>,
+        root_der: &[u8],
+    ) -> Result<Self, RelayClientError> {
+        let root = reqwest::Certificate::from_der(root_der).map_err(transport)?;
+        let http = reqwest::Client::builder()
+            .add_root_certificate(root)
+            .build()
+            .map_err(transport)?;
+        Ok(Self {
+            base: base.into().trim_end_matches('/').to_owned(),
+            http,
+        })
     }
 
     async fn post(&self, path: &str, body: Vec<u8>) -> Result<Vec<u8>, RelayClientError> {
@@ -52,12 +85,9 @@ impl RelayClient {
             .body(body)
             .send()
             .await
-            .map_err(|e| RelayClientError::Transport(e.to_string()))?;
+            .map_err(transport)?;
         let status = response.status();
-        let bytes = response
-            .bytes()
-            .await
-            .map_err(|e| RelayClientError::Transport(e.to_string()))?;
+        let bytes = response.bytes().await.map_err(transport)?;
         if !status.is_success() {
             return Err(RelayClientError::Status {
                 status: status.as_u16(),

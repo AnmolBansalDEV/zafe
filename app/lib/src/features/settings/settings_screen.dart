@@ -159,7 +159,9 @@ class SettingsScreen extends ConsumerWidget {
                         row(
                           icon: AppIcons.endpoint,
                           label: 'Relay',
-                          value: _host(kZafeRelayUrl),
+                          value: kZafeRelayIsPlaceholder
+                              ? 'Not configured'
+                              : _host(kZafeRelayUrl),
                         ),
                         row(
                           icon: AppIcons.endpoint,

@@ -461,3 +461,22 @@ async fn member_cap_and_creator_removal() {
     .await;
     assert_eq!(joined.0, StatusCode::OK);
 }
+
+#[tokio::test]
+async fn health_answers_get() {
+    let app = Relay::new().router();
+    let response = app
+        .clone()
+        .oneshot(Request::get("/health").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(&body[..], b"ok");
+    // GET only: the API itself is POST.
+    let response = app
+        .oneshot(Request::post("/health").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+}
