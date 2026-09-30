@@ -9,9 +9,10 @@ import '../../core/widgets/app_toast.dart';
 import '../../providers/privacy_mode_provider.dart';
 import '../../providers/proposals_provider.dart';
 import '../../rust/api/proposals.dart' as rust;
+import '../onboarding/onboarding_art.dart';
 import 'proposal_status.dart';
 
-/// Every payment in the vault, grouped like Vizor's activity feed (4.7): "This week", then
+/// Every payment in the vault, grouped into sections: "This week", then
 /// month and year, then "Earlier"; one card per section.
 class ActivityScreen extends ConsumerWidget {
   const ActivityScreen({super.key});
@@ -35,14 +36,14 @@ class ActivityScreen extends ConsumerWidget {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(4, 12, 4, 112),
                     children: [
-                      if (sections.isEmpty)
+                      if (sections.isEmpty && proposals.loaded)
+                        const _EmptyCard()
+                      else if (sections.isEmpty)
                         _MessageCard(
-                          text: proposals.error != null && !proposals.loaded
+                          text: proposals.error != null
                               ? 'Couldn\'t load activity. Try again in a moment.'
-                              : proposals.loaded
-                              ? 'No activity yet'
                               : 'Loading activity...',
-                          error: proposals.error != null && !proposals.loaded,
+                          error: proposals.error != null,
                         ),
                       for (final (title, rows) in sections) ...[
                         _SectionCard(
@@ -70,7 +71,7 @@ class ActivityScreen extends ConsumerWidget {
   }
 }
 
-/// Newest first (the provider's order), grouped by Vizor's section titles.
+/// Newest first (the provider's order), grouped by section title.
 List<(String, List<rust.ProposalInfo>)> activitySections(
   List<rust.ProposalInfo> items,
 ) {
@@ -165,6 +166,35 @@ class _MessageCard extends StatelessWidget {
         style: AppTypography.labelLarge.copyWith(
           color: error ? colors.text.destructive : colors.text.secondary,
         ),
+      ),
+    );
+  }
+}
+
+/// Empty state: a quiet shelf with a blank ledger, and the message below it.
+class _EmptyCard extends StatelessWidget {
+  const _EmptyCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
+      decoration: BoxDecoration(
+        color: colors.background.ground,
+        borderRadius: BorderRadius.circular(AppRadii.large),
+      ),
+      child: Column(
+        children: [
+          const OnboardingBanner('empty_ledger', aspectRatio: 1080 / 440),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            'No activity yet',
+            style: AppTypography.labelLarge.copyWith(
+              color: colors.text.secondary,
+            ),
+          ),
+        ],
       ),
     );
   }

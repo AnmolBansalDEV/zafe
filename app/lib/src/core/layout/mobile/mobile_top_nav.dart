@@ -22,7 +22,7 @@ const double kMobileTopNavHeight = 72;
 /// Metrics come from Figma node 4237:92733 (393×72; not tokenized as
 /// variables yet, so they live here as constants). The Back-variant
 /// title uses [AppTypography.headlineLarge], which on mobile resolves to
-/// Young Serif 32 px (Headline L) — the size the shared Mobile Top Nav
+/// Space Grotesk 32 px (Headline L) — the size the shared Mobile Top Nav
 /// component's Back variant uses across the mobile screen frames.
 class MobileTopNav extends StatelessWidget {
   const MobileTopNav.account({
@@ -265,44 +265,47 @@ class MobileTopNav extends StatelessWidget {
     );
   }
 
+  // Zafe: a boxed back button with the title left-aligned beside it.
   Widget _buildBack(BuildContext context) {
     final colors = context.colors;
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        Center(
-          child: Padding(
-            // Keep the centered title clear of the back button on both
-            // sides so it stays optically centered.
-            padding: const EdgeInsets.symmetric(
-              horizontal: _backButtonSize + AppSpacing.s,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+      child: Row(
+        children: [
+          if (onBack != null) ...[
+            _BackButton(
+              size: 40,
+              onTap: onBack,
+              iconName: backIcon,
+              color: foregroundColor,
+              boxed: true,
             ),
+            const SizedBox(width: AppSpacing.s),
+          ],
+          Expanded(
             child: Text(
               title,
               maxLines: titleMaxLines,
               overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: (titleStyle ?? AppTypography.headlineLarge).copyWith(
+              style: (titleStyle ?? _zafeTitleStyle).copyWith(
                 color: foregroundColor ?? colors.text.accent,
               ),
             ),
           ),
-        ),
-        if (onBack != null)
-          Positioned(
-            left: AppSpacing.s,
-            child: _BackButton(
-              size: _backButtonSize,
-              onTap: onBack,
-              iconName: backIcon,
-              color: foregroundColor,
-            ),
-          ),
-        if (trailing != null) Positioned(right: AppSpacing.s, child: trailing!),
-      ],
+          ?trailing,
+        ],
+      ),
     );
   }
 }
+
+const _zafeTitleStyle = TextStyle(
+  fontFamily: 'Space Grotesk',
+  fontWeight: FontWeight.w600,
+  fontSize: 24,
+  height: 1.2,
+  letterSpacing: -0.5,
+);
 
 enum _MobileTopNavVariant { account, steps, back }
 
@@ -312,12 +315,14 @@ class _BackButton extends StatelessWidget {
     this.onTap,
     this.iconName = AppIcons.chevronBackward,
     this.color,
+    this.boxed = false,
   });
 
   final double size;
   final VoidCallback? onTap;
   final String iconName;
   final Color? color;
+  final bool boxed;
 
   @override
   Widget build(BuildContext context) {
@@ -327,13 +332,20 @@ class _BackButton extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: SizedBox(
+        child: Container(
           width: size,
           height: size,
+          decoration: boxed
+              ? BoxDecoration(
+                  color: context.colors.background.base,
+                  borderRadius: BorderRadius.circular(AppRadii.small),
+                  border: Border.all(color: context.colors.border.subtle),
+                )
+              : null,
           child: Center(
             child: AppIcon(
               iconName,
-              size: 24,
+              size: boxed ? 20 : 24,
               color: color ?? context.colors.icon.accent,
             ),
           ),

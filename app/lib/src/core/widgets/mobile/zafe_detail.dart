@@ -3,10 +3,10 @@ import 'package:flutter/widgets.dart';
 import '../../theme/app_theme.dart';
 import '../app_icon.dart';
 
-// Detail-card vocabulary shared by the review and proposal screens (Vizor's send review and
+// Detail-card vocabulary shared by the review and proposal screens (send review and
 // status detail cards).
 
-/// Vizor's 40px ZEC coin (fixed Zcash yellow).
+/// 40px ZEC coin (fixed Zcash yellow).
 class ZecCoin extends StatelessWidget {
   const ZecCoin({super.key});
 

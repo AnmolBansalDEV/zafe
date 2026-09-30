@@ -11,11 +11,12 @@ import 'src/rust/frb_generated.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Shown on the licenses page (Settings > Open-source licenses): bundled fonts and the
-  // Vizor-derived code.
+  // third-party code (NOTICE).
   LicenseRegistry.addLicense(() async* {
     for (final (packages, asset) in const [
-      (['Geist', 'Geist Mono'], 'assets/fonts/licenses/Geist-OFL.txt'),
-      (['Young Serif'], 'assets/fonts/licenses/YoungSerif-OFL.txt'),
+      (['Space Grotesk'], 'assets/fonts/licenses/SpaceGrotesk-OFL.txt'),
+      (['DM Sans'], 'assets/fonts/licenses/DMSans-OFL.txt'),
+      (['JetBrains Mono'], 'assets/fonts/licenses/JetBrainsMono-OFL.txt'),
       (['Vizor (chainapsis/vizor-wallet)'], 'NOTICE'),
     ]) {
       yield LicenseEntryWithLineBreaks(

@@ -15,6 +15,7 @@ import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/app_toast.dart';
 import '../../core/widgets/mobile_text_field.dart';
 import '../../providers/vault_provider.dart';
+import '../onboarding/onboarding_art.dart';
 import '../../rust/api/backup.dart' as rust;
 
 /// Restore a vault from a backup file or its text form (spec §12.3).
@@ -125,6 +126,8 @@ class _RestoreScreenState extends ConsumerState<RestoreScreen> {
         child: Text(_busy ? 'Decrypting...' : 'Restore vault'),
       ),
       children: [
+        const OnboardingBanner('restore_key'),
+        const SizedBox(height: AppSpacing.md),
         Text(
           'Restore your seat in a vault from a backup made in Zafe. You need the backup and '
           'its passphrase.',
@@ -164,7 +167,7 @@ class _RestoreScreenState extends ConsumerState<RestoreScreen> {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: colors.background.neutralSubtleOpacity,
-                borderRadius: BorderRadius.circular(AppRadii.full),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
                 'Paste',

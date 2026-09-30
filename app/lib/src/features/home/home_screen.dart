@@ -124,6 +124,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         spendableZat: vault.balance?.spendableZat,
                         totalZat: vault.balance?.totalZat,
                         hidden: ref.watch(privacyModeProvider),
+                        threshold: summary.threshold,
+                        members: summary.members.length,
                         onToggle: () {
                           AppHaptics.privacyToggle();
                           ref.read(privacyModeProvider.notifier).toggle();
@@ -208,14 +210,16 @@ class _VaultAvatar extends StatelessWidget {
       width: 40,
       height: 40,
       decoration: BoxDecoration(
-        color: colors.background.homeCard,
-        shape: BoxShape.circle,
+        color: colors.background.brandAlpha,
+        borderRadius: BorderRadius.circular(AppRadii.small),
+        border: Border.all(color: colors.border.brandStrong, width: 1.5),
       ),
       alignment: Alignment.center,
       child: Text(
         '$threshold/$members',
         style: AppTypography.labelMedium.copyWith(
-          color: colors.text.homeCard,
+          fontFamily: 'Space Grotesk',
+          color: colors.text.primary,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -223,18 +227,27 @@ class _VaultAvatar extends StatelessWidget {
   }
 }
 
+/// Zafe's vault card: the balance on a dark card with a jade glow and safe-dial rings,
+/// and the approval rule as signer dots along the bottom.
 class _BalanceCard extends StatelessWidget {
   const _BalanceCard({
     required this.spendableZat,
     required this.totalZat,
     required this.hidden,
     required this.onToggle,
+    required this.threshold,
+    required this.members,
   });
 
   final BigInt? spendableZat;
   final BigInt? totalZat;
   final bool hidden;
   final VoidCallback onToggle;
+  final int threshold;
+  final int members;
+
+  static const _ink = Color(0xFF0E131B);
+  static const _jade = Color(0xFF2EC4A6);
 
   @override
   Widget build(BuildContext context) {
@@ -247,99 +260,191 @@ class _BalanceCard extends StatelessWidget {
         (total != null && spendableZat != null && total > spendableZat!)
         ? ZecAmount.fromZatoshi(total - spendableZat!).balance.amountText
         : null;
-    final homeText = colors.text.homeCard;
+    const homeText = Color(0xFFF2F4F8);
 
     return Container(
+      height: 216,
       decoration: BoxDecoration(
-        color: colors.background.ground,
+        color: _ink,
         borderRadius: BorderRadius.circular(AppRadii.large),
+        border: Border.all(color: const Color(0x1A2EC4A6), width: 1),
         boxShadow: appSurfaceShadow(colors),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Container(
-        height: 200,
-        padding: const EdgeInsets.all(AppSpacing.sm),
-        decoration: BoxDecoration(
-          color: colors.background.homeCard,
-          borderRadius: BorderRadius.circular(AppRadii.large),
-          border: Border.all(color: const Color(0x12FFFFFF), width: 1.5),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      child: Stack(
+        children: [
+          const Positioned.fill(
+            child: CustomPaint(painter: _VaultDialPainter()),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 16, 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                AppIcon(AppIcons.shieldKeyhole, size: 20, color: homeText),
-                const SizedBox(width: AppSpacing.xs),
-                Text(
-                  'Shielded vault balance',
-                  style: AppTypography.bodySmall.copyWith(color: homeText),
+                Row(
+                  children: [
+                    Text(
+                      'VAULT BALANCE',
+                      style: AppTypography.labelSmall.copyWith(
+                        color: homeText.withValues(alpha: 0.7),
+                        letterSpacing: 1.6,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpacing.xs),
+                    const AppIcon(
+                      AppIcons.shieldKeyhole,
+                      size: 14,
+                      color: _jade,
+                    ),
+                    const Spacer(),
+                    AppTappable(
+                      onTap: onToggle,
+                      semanticsLabel: hidden ? 'Show balance' : 'Hide balance',
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: const Color(0x14FFFFFF),
+                          borderRadius: BorderRadius.circular(AppRadii.xSmall),
+                        ),
+                        alignment: Alignment.center,
+                        child: AppIcon(
+                          hidden ? AppIcons.eyeClosed : AppIcons.eye,
+                          size: 16,
+                          color: homeText,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const Spacer(),
-                AppTappable(
-                  onTap: onToggle,
-                  semanticsLabel: hidden ? 'Show balance' : 'Hide balance',
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    decoration: const BoxDecoration(
-                      color: Color(0x0DFFFFFF),
-                      shape: BoxShape.circle,
-                    ),
-                    alignment: Alignment.center,
-                    child: AppIcon(
-                      hidden ? AppIcons.eyeClosed : AppIcons.eye,
-                      size: 16,
-                      color: homeText,
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: hidden ? fixedPrivacyMask() : amount,
+                        style: const TextStyle(
+                          fontFamily: 'Space Grotesk',
+                          fontWeight: FontWeight.w500,
+                          fontSize: 46,
+                          height: 1.05,
+                          letterSpacing: -1.8,
+                          color: homeText,
+                        ),
+                      ),
+                      const TextSpan(
+                        text: ' $kZcashDefaultCurrencyTicker',
+                        style: TextStyle(
+                          fontFamily: 'Space Grotesk',
+                          fontWeight: FontWeight.w500,
+                          fontSize: 22,
+                          color: _jade,
+                        ),
+                      ),
+                    ],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                if (pending != null && !hidden)
+                  Text(
+                    '+$pending $kZcashDefaultCurrencyTicker confirming',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: homeText.withValues(alpha: 0.7),
                     ),
                   ),
-                ),
+                const SizedBox(height: AppSpacing.sm),
+                _ThresholdStrip(threshold: threshold, members: members),
               ],
             ),
-            const Spacer(),
-            if (pending != null && !hidden)
-              Padding(
-                padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                child: Text(
-                  '$pending $kZcashDefaultCurrencyTicker confirming',
-                  style: AppTypography.bodySmall.copyWith(
-                    color: homeText.withValues(alpha: 0.8),
-                  ),
-                ),
-              ),
-            Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: hidden ? fixedPrivacyMask() : amount,
-                    style: TextStyle(
-                      fontFamily: 'Young Serif',
-                      fontSize: 45,
-                      height: 48 / 45,
-                      letterSpacing: -1.35,
-                      color: homeText,
-                      fontFeatures: const [FontFeature.liningFigures()],
-                    ),
-                  ),
-                  TextSpan(
-                    text: ' $kZcashDefaultCurrencyTicker',
-                    style: TextStyle(
-                      fontFamily: 'Young Serif',
-                      fontSize: 32,
-                      height: 33 / 32,
-                      color: homeText,
-                    ),
-                  ),
-                ],
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
+}
+
+/// The approval rule as dots: [threshold] filled jade dots out of [members].
+class _ThresholdStrip extends StatelessWidget {
+  const _ThresholdStrip({required this.threshold, required this.members});
+  final int threshold;
+  final int members;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (var i = 0; i < members; i++)
+          Container(
+            width: 10,
+            height: 10,
+            margin: const EdgeInsets.only(right: 6),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: i < threshold ? _BalanceCard._jade : null,
+              border: Border.all(
+                color: i < threshold
+                    ? _BalanceCard._jade
+                    : const Color(0x66F2F4F8),
+                width: 1.5,
+              ),
+            ),
+          ),
+        const SizedBox(width: 4),
+        Text(
+          '$threshold of $members signers to send',
+          style: AppTypography.labelSmall.copyWith(
+            color: const Color(0xB3F2F4F8),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Concentric safe-dial rings with tick marks, off the card's top-right corner, over a
+/// soft jade glow.
+class _VaultDialPainter extends CustomPainter {
+  const _VaultDialPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width - 36, 20);
+    canvas.drawCircle(
+      center,
+      size.width * 0.75,
+      Paint()
+        ..shader =
+            RadialGradient(
+              colors: const [Color(0x402EC4A6), Color(0x002EC4A6)],
+            ).createShader(
+              Rect.fromCircle(center: center, radius: size.width * 0.75),
+            ),
+    );
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    for (var i = 0; i < 6; i++) {
+      ring.color = Color.fromRGBO(46, 196, 166, 0.22 - i * 0.03);
+      canvas.drawCircle(center, 44.0 + i * 26, ring);
+    }
+    final tick = Paint()
+      ..color = const Color(0x552EC4A6)
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+    const outer = 44.0 + 2 * 26;
+    for (var i = 0; i < 60; i++) {
+      final angle = i * 6 * 3.141592653589793 / 180;
+      final len = i % 5 == 0 ? 8.0 : 4.0;
+      final dir = Offset.fromDirection(angle);
+      canvas.drawLine(center + dir * (outer - len), center + dir * outer, tick);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _SignersCard extends StatelessWidget {
@@ -402,7 +507,7 @@ class _SignersCard extends StatelessWidget {
   }
 }
 
-/// Vizor's "Recent activity" (4.4): header with "See all", up to 10 rows 12 apart, and
+/// "Recent activity": header with "See all", up to 10 rows 12 apart, and
 /// the empty state.
 class _Payments extends StatelessWidget {
   const _Payments({required this.proposals, required this.hideAmounts});
@@ -508,7 +613,7 @@ class _BackupReminder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    // Vizor's home entry card (the coinholder-voting card): ground, radius 24, 1.5px
+    // Home entry card: ground, radius 24, 1.5px
     // white @ 7% border, icon + title/chevron + body.
     return AppTappable(
       onTap: () => context.push('/export'),
@@ -532,11 +637,7 @@ class _BackupReminder extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AppIcon(
-                AppIcons.warning,
-                size: 20,
-                color: colors.icon.brandCrimson,
-              ),
+              AppIcon(AppIcons.warning, size: 20, color: colors.icon.warning),
               const SizedBox(width: AppSpacing.s),
               Expanded(
                 child: Column(

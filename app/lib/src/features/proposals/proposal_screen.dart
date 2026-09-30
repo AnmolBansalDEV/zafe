@@ -178,7 +178,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
                 AppIcon(
                   AppIcons.shieldKeyhole,
                   size: 16,
-                  color: colors.icon.brandCrimson,
+                  color: colors.icon.brand,
                 ),
                 const SizedBox(width: AppSpacing.xxs),
                 Text(

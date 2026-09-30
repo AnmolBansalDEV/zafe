@@ -7,7 +7,7 @@ import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/app_tappable.dart';
 import '../../rust/api/proposals.dart' as rust;
 
-/// Title for a proposal from this member's point of view (sentence case, Vizor's tone).
+/// Title for a proposal from this member's point of view (sentence case).
 String proposalTitle(rust.ProposalInfo p) => switch (p.stage) {
   rust.ProposalStage.open =>
     p.myVote == rust.MyVote.none
@@ -42,7 +42,7 @@ const _months = [
   'Dec',
 ];
 
-/// "May 29, 13:40" (Vizor's activity timestamp).
+/// "May 29, 13:40" (activity timestamp).
 String formatTimestamp(BigInt unixSeconds) {
   final t = DateTime.fromMillisecondsSinceEpoch(unixSeconds.toInt() * 1000);
   String two(int n) => n.toString().padLeft(2, '0');
@@ -101,7 +101,7 @@ class ProposalStatusChip extends StatelessWidget {
   }
 }
 
-/// Vizor's 44px activity row, for a proposal.
+/// 44px activity row for a proposal.
 class ProposalRow extends StatelessWidget {
   const ProposalRow({
     super.key,
@@ -138,15 +138,15 @@ class ProposalRow extends StatelessWidget {
                 height: 40,
                 decoration: BoxDecoration(
                   color: needsMe
-                      ? colors.background.homeCard
+                      ? colors.background.brandAlpha
                       : colors.background.neutralSubtleOpacity,
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(AppRadii.small),
                 ),
                 alignment: Alignment.center,
                 child: AppIcon(
                   _icon(p),
                   size: 18,
-                  color: needsMe ? colors.text.homeCard : colors.icon.regular,
+                  color: needsMe ? colors.icon.brand : colors.icon.regular,
                 ),
               ),
               const SizedBox(width: AppSpacing.xs),
@@ -177,7 +177,7 @@ class ProposalRow extends StatelessWidget {
                   amountWithTicker(
                     ZecAmount.fromZatoshi(p.totalZat).activity.amountText,
                     hide: hideAmount,
-                    maskLength: 3, // Vizor's activity-row mask
+                    maskLength: 3, // short mask for list rows
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,

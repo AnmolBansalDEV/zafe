@@ -5,7 +5,7 @@ import 'vault_provider.dart';
 
 const kPrivacyModeKey = 'zafe_privacy_mode_enabled';
 
-/// App-wide "hide amounts" (Vizor's privacy mode): the home eye toggles it, and every
+/// App-wide "hide amounts": the home eye toggles it, and every
 /// amount display (balance, payment rows, proposal details, send) masks while it is on.
 /// A UI preference, so plain prefs; read in the bootstrap to avoid a flash of amounts.
 class PrivacyModeNotifier extends Notifier<bool> {

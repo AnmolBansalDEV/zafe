@@ -185,6 +185,11 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       Also adopted: transaction progress screen (`/proposal/:id/send`), activity screen
       with Vizor's sections (`/activity`), entry-card backup reminder, destructive error
       toasts, `DecimalAmountInputFormatter`, full-address verify sheet
+- [x] Zafe visual identity (2026-09-30): slate + jade palette, Space Grotesk / DM Sans /
+      JetBrains Mono, rounded-rect buttons, vault-dial home card, left-aligned page titles,
+      Vizor references removed from code comments; illustrations redrawn in the palette
+- [ ] Identity follow-ups: proposal review hero (amount → recipient) and signer rows still
+      use Vizor's layout; launcher icon and splash are still defaults
 - [ ] iOS: `xyz.zafe/modal_corners` has no Swift handler yet (Dart falls back to fixed
       corners); port Vizor's `NativeModalCorners` when iOS work starts
 - [ ] No CI: add GitHub Actions for `cargo fmt/clippy/test` and `flutter analyze`

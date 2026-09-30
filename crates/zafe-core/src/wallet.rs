@@ -1,6 +1,6 @@
 //! The vault wallet on a member's device (spec §4.1, §8, §9.2).
 //!
-//! Like a Keystone account in Zodl or Vizor: the device imports the vault UFVK, syncs from
+//! Like a hardware-signer (Keystone) account: the device imports the vault UFVK, syncs from
 //! lightwalletd, shows balance and history, and builds PCZTs. Spend authorization comes
 //! from FROST, never from a local key. The account is imported as `Spending` with no ZIP 32
 //! derivation, so the wallet tracks note witnesses (a `ViewOnly` account would not).

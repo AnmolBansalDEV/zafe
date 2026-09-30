@@ -11,7 +11,7 @@ import '../app_icon.dart';
 
 enum MobileTransactionProgressPhase { inProgress, pending, succeeded, failed }
 
-const _sendingCircleColor = Color(0xFF2E3232);
+const _sendingCircleColor = Color(0xFF0F8C76);
 const _successCircleColor = Color(0xFF00A460);
 const _failureCircleColor = Color(0xFF9338A7);
 const _statusIconColor = Color(0xFFFFFFFF);
@@ -59,7 +59,7 @@ class MobileTransactionProgressScreen extends StatelessWidget {
   final VoidCallback? onSecondaryAction;
   final double? bodyMaxWidth;
 
-  /// Zafe: optional full-page background (Vizor's illustration is not copied).
+  /// Optional full-page background (e.g. an illustration).
   final Widget? background;
   final Key? titleKey;
   final Key? bodyKey;

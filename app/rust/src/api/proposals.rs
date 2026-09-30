@@ -63,7 +63,7 @@ pub fn check_address(network_name: String, address: String) -> AddressCheck {
                     .iter()
                     .any(|other| *other != network_name && decodes_on(other))
                 {
-                    // Vizor's wording (send recipient step).
+                    // Same wording as the send recipient step.
                     "This address is for a different Zcash network".into()
                 } else {
                     "Invalid address".into()

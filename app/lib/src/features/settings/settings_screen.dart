@@ -20,7 +20,7 @@ import '../../providers/vault_provider.dart';
 const _rowHeight = 44.0;
 const _appVersion = '0.1.0';
 
-/// Settings, laid out like Vizor's mobile settings (grouped surface cards of 44px rows).
+/// Settings: grouped surface cards of 44px rows.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -329,7 +329,7 @@ class _Group extends StatelessWidget {
   }
 }
 
-/// Vizor's theme modal: option cards with a radio mark, committed with Update.
+/// Theme picker: option cards with a radio mark, committed with Update.
 class _ThemeSheet extends StatefulWidget {
   const _ThemeSheet({required this.current});
   final ThemeMode current;

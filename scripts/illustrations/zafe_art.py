@@ -1,7 +1,7 @@
 """Shared toolkit for Zafe's illustrations (original work; see docs/illustrations.md).
 
 Style: ink-engraving line art with hatch and stipple texture, a muted neutral stone
-palette, crimson brand accents and Zcash-gold highlights. Every scene is a function
+palette, jade brand accents and Zcash-gold highlights. Every scene is a function
 `scene(p) -> str` that takes one of PALETTES and returns a complete SVG document.
 
 Texture fills (`fill="url(#hatch)"`, `hatch2`, `dots`, `fine`, `grit`) are written like
@@ -14,18 +14,20 @@ import random
 import re
 
 PALETTES = {
+    # Values follow app/lib/src/core/theme (Primitives: cool slate "ink" ladder;
+    # BrandPrimitives: jade; GoldPrimitives: Zcash gold). sky1 = background.window.
     "dark": dict(
-        sky0="#1B1F1F", sky1="#0F0F0F", stone="#2D3232", stone2="#393E3E",
-        stone3="#232828", light="#626767", hi="#858686", ink="#060808",
-        crimson="#A83861", crimson2="#6D243F", gold="#F4B728", gold2="#B8841A",
-        gold3="#FFE39A", metal="#4D5252", metal2="#626767", dot="#000000",
-        glow="#F4B728", paper="#C2C3C3", texop="0.35", dark=True,
+        sky0="#11151D", sky1="#080A0F", stone="#202633", stone2="#2A3140",
+        stone3="#181D27", light="#545D70", hi="#7C8496", ink="#04060A",
+        jade="#2EC4A6", jade2="#178270", jade3="#0F4A40", gold="#F4B728", gold2="#B8841A",
+        gold3="#FFE39A", metal="#3A4254", metal2="#545D70", dot="#000000",
+        glow="#F4B728", paper="#A2A9B8", texop="0.35", dark=True,
     ),
     "light": dict(
-        sky0="#FFFFFF", sky1="#F7F7F7", stone="#E1E1E1", stone2="#EBEBEB",
-        stone3="#D4D4D4", light="#F7F7F7", hi="#FFFFFF", ink="#2E3232",
-        crimson="#A83861", crimson2="#862D4E", gold="#F4B728", gold2="#C98A10",
-        gold3="#FFF1C4", metal="#D4D4D4", metal2="#EBEBEB", dot="#4D5252",
+        sky0="#FFFFFF", sky1="#F3F5F9", stone="#DDE2EA", stone2="#E8ECF2",
+        stone3="#CDD3DD", light="#F3F5F9", hi="#FFFFFF", ink="#2C3342",
+        jade="#0F8C76", jade2="#0B6E5E", jade3="#9BE7D6", gold="#F4B728", gold2="#C98A10",
+        gold3="#FFF1C4", metal="#CDD3DD", metal2="#E8ECF2", dot="#5A6273",
         glow="#F4B728", paper="#FFFFFF", texop="0.22", dark=False,
     ),
 }
@@ -48,7 +50,7 @@ def defs(p, extra=""):
     return f"""<defs>
 <radialGradient id="vig" cx="50%" cy="42%" r="70%"><stop offset="55%" stop-color="{p['sky1']}" stop-opacity="0"/><stop offset="100%" stop-color="{p['dot']}" stop-opacity="{'0.55' if p['dark'] else '0.10'}"/></radialGradient>
 <radialGradient id="glow"><stop offset="0%" stop-color="{p['glow']}" stop-opacity="0.75"/><stop offset="45%" stop-color="{p['glow']}" stop-opacity="0.22"/><stop offset="100%" stop-color="{p['glow']}" stop-opacity="0"/></radialGradient>
-<radialGradient id="glowc"><stop offset="0%" stop-color="{p['crimson']}" stop-opacity="0.6"/><stop offset="100%" stop-color="{p['crimson']}" stop-opacity="0"/></radialGradient>
+<radialGradient id="glowj"><stop offset="0%" stop-color="{p['jade']}" stop-opacity="0.55"/><stop offset="100%" stop-color="{p['jade']}" stop-opacity="0"/></radialGradient>
 <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{p['sky0']}"/><stop offset="1" stop-color="{p['sky1']}"/></linearGradient>
 <linearGradient id="goldg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="{p['gold3']}"/><stop offset=".45" stop-color="{p['gold']}"/><stop offset="1" stop-color="{p['gold2']}"/></linearGradient>
 {extra}</defs>"""
@@ -182,3 +184,62 @@ def coin(p, cx, cy, rx, ry, rot=0):
             "</g>")
 
 
+
+
+def dial(p, cx, cy, r, ticks=60, major=5, color=None, width=2.5, op=".5", rings=(0, 34)):
+    """The vault-dial motif (as on the home screen): concentric rings with tick marks.
+
+    Rings at `r - k` for k in `rings`; minor ticks every 360/ticks degrees, a long one every
+    `major` ticks. One <path> for the ticks, so it stays cheap.
+    """
+    c = color or (p["hi"] if p["dark"] else p["ink"])
+    out = [f'<g fill="none" stroke="{c}" opacity="{op}">']
+    for k in rings:
+        out.append(f'<circle cx="{f(cx)}" cy="{f(cy)}" r="{f(r - k)}" stroke-width="{width}"/>')
+    d = []
+    for i in range(ticks):
+        a = math.radians(i * 360 / ticks - 90)
+        l = 22 if i % major == 0 else 11
+        d.append(f"M{f(cx + (r - 6) * math.cos(a))} {f(cy + (r - 6) * math.sin(a))}"
+                 f"L{f(cx + (r - 6 - l) * math.cos(a))} {f(cy + (r - 6 - l) * math.sin(a))}")
+    out.append(f'<path d="{"".join(d)}" stroke-width="{width}" stroke-linecap="round"/></g>')
+    return "".join(out)
+
+
+def key(p, x, y, s=1.0, rot=0, gem=True, ghost=False):
+    """A small gold key (a member's key share): bow on the left at (x, y), pointing right.
+
+    `ghost` draws only a dashed outline (True: neutral, or a colour string).
+    """
+    ink = p["ink"]
+    if ghost:
+        fill, extra, sw = "none", ' stroke-dasharray="7 9"', 3
+        ink = ghost if isinstance(ghost, str) else (p["hi"] if p["dark"] else p["ink"])
+    else:
+        fill, extra, sw = "url(#goldg)", "", 4
+    g = [f'<g transform="translate({f(x)} {f(y)}) rotate({rot}) scale({s})" stroke-linejoin="round">',
+         f'<path d="M24 -9H176V9H164V34H146V9H132V26H116V9H24Z" fill="{fill}" stroke="{ink}" stroke-width="{sw}"{extra}/>',
+         f'<circle r="38" fill="{fill}" stroke="{ink}" stroke-width="{sw}"{extra}/>']
+    if not ghost:
+        g.append(f'<path d="M-24 -14a28 28 0 0 1 18 -18M40 -3H170" fill="none" stroke="{p["gold3"]}" stroke-width="4" stroke-linecap="round"/>')
+        g.append(f'<path d="M26 4H174" stroke="{p["gold2"]}" stroke-width="3" opacity=".8"/>')
+        if gem:
+            g.append(f'<circle r="15" fill="{p["jade"]}" stroke="{ink}" stroke-width="4"/>')
+            g.append(f'<path d="M-7 -4a8 8 0 0 1 7 -6" fill="none" stroke="{p["hi"] if p["dark"] else "#FFFFFF"}" stroke-width="3" stroke-linecap="round"/>')
+        else:
+            g.append(f'<circle r="14" fill="{p["sky1"]}" stroke="{ink}" stroke-width="4"/>')
+    g.append("</g>")
+    return "".join(g)
+
+
+def sparks(p, rnd, n, x0, y0, x1, y1, lo=4, hi_=10, color=None, avoid=None):
+    """Four-point gold glints, merged into one path. `avoid` = (cx, cy, r) keeps an area clear."""
+    d = []
+    while n > 0:
+        x, y = rnd.uniform(x0, x1), rnd.uniform(y0, y1)
+        if avoid and math.hypot(x - avoid[0], y - avoid[1]) < avoid[2]:
+            continue
+        s = rnd.randint(lo, hi_)
+        d.append(f"M{f(x)} {f(y - s)}L{f(x + s / 3)} {f(y)}L{f(x)} {f(y + s)}L{f(x - s / 3)} {f(y)}Z")
+        n -= 1
+    return f'<path d="{"".join(d)}" fill="{color or p["gold"]}"/>'

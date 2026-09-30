@@ -1,4 +1,4 @@
-//! Typed errors for the Dart side (improves on Vizor's substring matching): Dart switches on
+//! Typed errors for the Dart side (no substring matching): Dart switches on
 //! `kind` for copy and recovery actions, and shows `message` only as detail.
 
 use zafe_core::{node::NodeError, relay_client::RelayClientError, wallet::WalletError};

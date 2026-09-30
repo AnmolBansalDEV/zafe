@@ -18,17 +18,27 @@ screen edge and dissolves into the background.
 
 | token | dark | light | use |
 |---|---|---|---|
-| `sky0` / `sky1` | `#1B1F1F` / `#0F0F0F` | `#FFFFFF` / `#F7F7F7` | background gradient; `sky1` = `background.window` |
-| `stone` / `stone2` / `stone3` | `#2D3232` / `#393E3E` / `#232828` | `#E1E1E1` / `#EBEBEB` / `#D4D4D4` | masonry, ground, faces (neutral primitives p150/p200/p100) |
-| `metal` / `metal2` | `#4D5252` / `#626767` | `#D4D4D4` / `#EBEBEB` | vault door, fittings |
-| `hi` | `#858686` | `#FFFFFF` | highlight strokes on top-left edges |
-| `ink` | `#060808` | `#2E3232` | outlines |
-| `dot` | `#000000` | `#4D5252` | texture (hatch, stipple), vignette |
-| `crimson` / `crimson2` | `#A83861` / `#6D243F` | `#A83861` / `#862D4E` | members and brand marks (CrimsonPrimitives) |
+| `sky0` / `sky1` | `#11151D` / `#080A0F` | `#FFFFFF` / `#F3F5F9` | background gradient; `sky1` = `background.window` (must match exactly) |
+| `stone` / `stone2` / `stone3` | `#202633` / `#2A3140` / `#181D27` | `#DDE2EA` / `#E8ECF2` / `#CDD3DD` | masonry, ground, faces (slate primitives p150/p200/p100) |
+| `metal` / `metal2` | `#3A4254` / `#545D70` | `#CDD3DD` / `#E8ECF2` | vault doors, fittings |
+| `hi` | `#7C8496` | `#FFFFFF` | highlight strokes on top-left edges |
+| `ink` | `#04060A` | `#2C3342` | outlines |
+| `dot` | `#000000` | `#5A6273` | texture (hatch, stipple), vignette |
+| `paper` / `light` | `#A2A9B8` / `#545D70` | `#FFFFFF` / `#F3F5F9` | envelopes, pages, word cards |
+| `jade` / `jade2` / `jade3` | `#2EC4A6` / `#178270` / `#0F4A40` | `#0F8C76` / `#0B6E5E` / `#9BE7D6` | members and brand marks (BrandPrimitives); `jade3` for large jade areas (the join door leaf) |
 | `gold` / `gold2` / `gold3` | `#F4B728` / `#B8841A` / `#FFE39A` | `#F4B728` / `#C98A10` / `#FFF1C4` | Zcash gold: keys, coins, light (`goldg` gradient) |
 
-Colour meaning: **gold is what matters** (keys, funds, light), **crimson marks members**
-(one gem/grip per member), neutrals carry everything else. Keep gold to a few focal areas.
+Colour meaning: **gold is what matters** (keys, funds, light), **jade marks members** and
+the brand (one gem/grip per member), neutrals carry everything else. Keep gold to a few
+focal areas. No crimson anywhere (it was the pre-rebrand accent).
+
+**Motif**: the vault dial from the home screen, concentric rings with tick marks
+(`dial()` in `zafe_art.py`). Use it as a quiet backdrop or on doors and locks.
+
+**Toolkit helpers** (`zafe_art.py`): `stone_wall`, `coin`, `dial`, `key` (a small gold key
+share with a jade gem, or a dashed `ghost`), `sparks` (gold glints in one path). Scene-level
+props in `scenes.py`: `envelope`, `dial_lock` (combination padlock = passphrase),
+`word_tiles`, `ledge`.
 
 **Shapes and line**: bold closed silhouettes with 3-5 px ink outlines (`stroke-linejoin:
 round`) at 1080 px width; 2-3 px for secondary detail; highlights as short `hi` strokes on
@@ -41,7 +51,7 @@ shape with an `opacity`. These look like SVG patterns but `svg()` bakes them int
 geometry: **flutter_svg renders `<pattern>` fills as vertical stripes over the whole shape**.
 Paths that use a texture need a `bb="x0 y0 x1 y1"` attribute.
 
-**Light**: radial gradients only (`#glow` gold, `#glowc` crimson), no filters or blur.
+**Light**: radial gradients only (`#glow` gold, `#glowj` jade), no filters or blur.
 Finish every scene with the `#vig` vignette.
 
 **flutter_svg limits**: no `<pattern>`, `<polyline>`, `<line>`, `<text>`, filters, blur or
@@ -54,6 +64,9 @@ a browser shows things the app won't.
   above y ~620; the bottom 60 % fades out, and the top 10 % sits under a status-bar scrim.
 - Banner (top of a form): 1080 x 560, shown with rounded corners (`AppRadii.large`), full
   content width. Keep the subject inside the middle 80 %.
+- Small banner (empty states inside a card): 1080 x 440.
+- Full-page background: 1080 x 2340, drawn with `BoxFit.cover` behind centred content.
+  Put detail at the top and bottom edges; keep y ~800-1700 empty.
 - No text in the art. One idea per piece.
 
 **Light/dark**: every piece ships as `<name>_light.svg` and `<name>_dark.svg`, same geometry,
@@ -68,10 +81,14 @@ density low.
 
 | file | used in | concept |
 |---|---|---|
-| `welcome_vault_*` | Welcome (hero) | A round vault door in a stone wall. Five keyholes (five members) around a five-spoke hand wheel with crimson grips; three gold keys are turned and a gold arc joins them: 3 of 5 opens it. Coins on the floor. |
+| `welcome_vault_*` | Welcome (hero) | A round vault door in a stone wall, its face ringed with dial ticks. Five keyholes (five members) around a five-spoke hand wheel with jade grips; three gold keys are turned and a gold arc joins them: 3 of 5 opens it. Coins on the floor. |
 | `create_stones_*` | New vault (banner) | A ring of standing stones at moonrise; the lit stones (two uprights and a lintel) form the arch, the others stay dark: enough members complete it. |
-| `join_doorway_*` | Join a vault (banner) | An arched doorway with warm light spilling out, a crimson keystone, and a sealed invitation waiting on the step. |
-| `key_shards_*` | "Creating your vault keys" (hero) | One ornate gold key broken into five pieces, each with a member's crimson gem, held apart around a dashed outline of the whole key: the full key never exists in one place. |
+| `join_doorway_*` | Join a vault (banner) | An arched doorway with warm light spilling out, a jade keystone and door leaf, and a sealed invitation waiting on the step. |
+| `key_shards_*` | "Creating your vault keys" (hero) | One ornate gold key broken into five pieces, each with a member's jade gem, held apart around a dashed outline of the whole key: the full key never exists in one place. |
+| `backup_seal_*` | Back up vault prompt and the export form (banner) | An envelope in front of a large dial, the key share inside (dashed gold ghost), sealed by a combination lock with a jade dial; blank word cards (the passphrase) are threaded to it. |
+| `restore_key_*` | Restore vault (banner) | The envelope open and its lock unlocked; the gold key flies along a dotted arc back to a safe's round door, whose keyhole glows jade. |
+| `sent_slot_*` | Sending screen (full-page background) | A vault door bleeding off the top edge; light pours from its slot, flanked by jade member marks, and coins drift out to the edges along dotted trails. Faint dial ripples rise from the bottom. The middle is empty for the status circle and text. |
+| `empty_ledger_*` | Activity, empty state (small banner, 1080 x 440) | A quiet shelf: a shut little safe, an open blank ledger with a jade ribbon, one coin. |
 
 ## In the app
 
@@ -87,7 +104,12 @@ density low.
   `AppRadii.large`; use it as the first child of a `ZafeScreen`, followed by
   `SizedBox(height: AppSpacing.md)`.
 
-Both are wrapped in `ExcludeSemantics` (decorative).
+- `OnboardingBanner('name', aspectRatio: 1080 / 440)` for the small banners
+  (`empty_ledger`, inside the Activity empty card).
+- `IllustrationBackground('name')`: full-page `BoxFit.cover` art, passed as
+  `MobileTransactionProgressScreen(background: ...)` (the sending screen).
+
+All are wrapped in `ExcludeSemantics` (decorative).
 
 ## Recipe: a new illustration
 
@@ -97,7 +119,8 @@ Both are wrapped in `ExcludeSemantics` (decorative).
 3. Iterate: `scripts/illustrations/preview.sh <name>` regenerates the SVGs and renders
    them with flutter_svg into `app/build/illustration_preview/` (`<name>_light.png`,
    `<name>_dark.png`, `<name>_*_hero.png` for heroes with the in-app fade,
-   `contact_sheet.png` for everything). Look at both themes.
+   `<name>_*_screen.png` for full-page backgrounds with a stand-in status circle,
+   `contact_sheet.png` for everything, four per row). Look at both themes.
 4. Use it: `OnboardingHero('<name>')` or `OnboardingBanner('<name>')` (assets in
    `app/assets/illustrations/` are already registered in `pubspec.yaml`).
 5. Check the real app: `scripts/illustrations/device-shots.sh` (builds the x64 debug APK,

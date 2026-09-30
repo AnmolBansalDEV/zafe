@@ -5,7 +5,7 @@ import '../../theme/app_theme.dart';
 import '../../widgets/app_toast.dart';
 import 'mobile_top_nav.dart';
 
-/// Vizor's pushed full-screen route pattern: back nav, scrollable body, pinned CTA area.
+/// Pushed full-screen route: back nav, scrollable body, pinned CTA area.
 class ZafeScreen extends StatelessWidget {
   const ZafeScreen({
     super.key,

@@ -10,19 +10,16 @@ import 'package:flutter/foundation.dart';
 /// only), so the form factor never affects `AppColors`.
 ///
 /// The form factor is a **build-time** constant driven by
-/// `--dart-define=VIZOR_FORM_FACTOR=desktop|mobile` (default: desktop).
+/// `--dart-define=ZAFE_FORM_FACTOR=desktop|mobile` (default: mobile; Zafe is a phone app).
 /// Token selectors like `AppTypography.bodyMedium` are const
 /// conditionals over [kAppFormFactor], so each binary embeds exactly one
 /// token set and the unused branch is tree-shaken in release builds.
-/// Desktop builds (macOS, the daily `fvm flutter run` loop, widgetbook,
-/// `flutter test`) need no flag; mobile builds must pass
-/// `--dart-define=VIZOR_FORM_FACTOR=mobile`. A mismatched debug build
-/// fails fast via [debugCheckFormFactorMatchesPlatform].
+/// A future desktop build passes `--dart-define=ZAFE_FORM_FACTOR=desktop`.
 enum AppFormFactor { desktop, mobile }
 
 const String _formFactorDefine = String.fromEnvironment(
-  'VIZOR_FORM_FACTOR',
-  defaultValue: 'desktop',
+  'ZAFE_FORM_FACTOR',
+  defaultValue: 'mobile',
 );
 
 /// The token form factor this binary was built for.
@@ -49,8 +46,8 @@ bool get isDesktopLayoutPlatform {
 bool debugCheckFormFactorMatchesPlatform() {
   if (_formFactorDefine != 'desktop' && _formFactorDefine != 'mobile') {
     throw StateError(
-      'Unknown VIZOR_FORM_FACTOR value "$_formFactorDefine". '
-      'Use --dart-define=VIZOR_FORM_FACTOR=desktop or =mobile.',
+      'Unknown ZAFE_FORM_FACTOR value "$_formFactorDefine". '
+      'Use --dart-define=ZAFE_FORM_FACTOR=desktop or =mobile.',
     );
   }
   final expected = isDesktopLayoutPlatform
@@ -60,7 +57,7 @@ bool debugCheckFormFactorMatchesPlatform() {
     throw StateError(
       'This binary was built with the ${kAppFormFactor.name} design-token '
       'set but is running on a ${expected.name} platform. '
-      'Rebuild with --dart-define=VIZOR_FORM_FACTOR=${expected.name}.',
+      'Rebuild with --dart-define=ZAFE_FORM_FACTOR=${expected.name}.',
     );
   }
   return true;

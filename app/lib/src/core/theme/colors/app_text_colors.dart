@@ -17,7 +17,7 @@ import '../primitives.dart';
 /// * [destructive] — Destructive utility copy.
 /// * [destructiveLight] — Softer destructive copy for secondary error text.
 /// * [success] — Positive / success utility copy.
-/// * [brandCrimson] — Brand-colored inline text accent.
+/// * [brand] — Brand-colored inline text accent.
 /// * [homeCard] — Exception text used on the home balance card. Theme-invariant.
 class AppTextColors {
   const AppTextColors({
@@ -32,7 +32,7 @@ class AppTextColors {
     required this.destructive,
     required this.destructiveLight,
     required this.success,
-    required this.brandCrimson,
+    required this.brand,
     required this.homeCard,
   });
 
@@ -47,7 +47,7 @@ class AppTextColors {
   final Color destructive;
   final Color destructiveLight;
   final Color success;
-  final Color brandCrimson;
+  final Color brand;
   final Color homeCard;
 
   static const dark = AppTextColors(
@@ -62,7 +62,7 @@ class AppTextColors {
     destructive: PlumPrimitives.p500Dark,
     destructiveLight: PlumPrimitives.p400Dark,
     success: GoldPrimitives.p500Dark,
-    brandCrimson: CrimsonPrimitives.p400Dark,
+    brand: BrandPrimitives.p400Dark,
     homeCard: Primitives.p800Dark,
   );
 
@@ -80,7 +80,7 @@ class AppTextColors {
     destructive: PlumPrimitives.p300Light,
     destructiveLight: PlumPrimitives.p150Light,
     success: GoldPrimitives.p400Light,
-    brandCrimson: CrimsonPrimitives.p300Light,
+    brand: BrandPrimitives.p300Light,
     homeCard: Primitives.p0Light,
   );
 }

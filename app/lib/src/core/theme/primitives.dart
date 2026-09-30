@@ -17,178 +17,176 @@ import 'package:flutter/painting.dart';
 /// categories in [AppColors] so roles stay decoupled from the palette.
 abstract final class Primitives {
   // Primitive/0 — darkest anchor / inverse of lightest.
-  static const p0Dark = Color(0xFF141818);
+  static const p0Dark = Color(0xFF0B0E14);
   static const p0Light = Color(0xFFFFFFFF);
 
   // Primitive/50 — base surface.
-  static const p50Dark = Color(0xFF1B1F1F);
-  static const p50Light = Color(0xFFF7F7F7);
+  static const p50Dark = Color(0xFF11151D);
+  static const p50Light = Color(0xFFF3F5F9);
 
   // Primitive/100 — raised surface.
-  static const p100Dark = Color(0xFF232828);
-  static const p100Light = Color(0xFFEBEBEB);
+  static const p100Dark = Color(0xFF181D27);
+  static const p100Light = Color(0xFFE8ECF2);
 
   // Primitive/150 — overlay / accent surface.
-  static const p150Dark = Color(0xFF2D3232);
-  static const p150Light = Color(0xFFE1E1E1);
+  static const p150Dark = Color(0xFF202633);
+  static const p150Light = Color(0xFFDDE2EA);
 
   // Primitive/200 — subtle border.
-  static const p200Dark = Color(0xFF393E3E);
-  static const p200Light = Color(0xFFD4D4D4);
+  static const p200Dark = Color(0xFF2A3140);
+  static const p200Light = Color(0xFFCDD3DD);
 
   // Primitive/300 — default border / disabled icon.
-  static const p300Dark = Color(0xFF4D5252);
-  static const p300Light = Color(0xFFB8B8B8);
+  static const p300Dark = Color(0xFF3A4254);
+  static const p300Light = Color(0xFFAEB5C2);
 
   // Primitive/400 — strong border / disabled text.
-  static const p400Dark = Color(0xFF626767);
-  static const p400Light = Color(0xFF9A9A9A);
+  static const p400Dark = Color(0xFF545D70);
+  static const p400Light = Color(0xFF8C94A3);
 
   // Primitive/500 — mid-gray. Identical in both modes by design.
-  static const p500Dark = Color(0xFF858686);
-  static const p500Light = Color(0xFF858686);
+  static const p500Dark = Color(0xFF7C8496);
+  static const p500Light = Color(0xFF7C8496);
 
   // Primitive/600 — secondary text.
-  static const p600Dark = Color(0xFFA3A4A4);
-  static const p600Light = Color(0xFF626767);
+  static const p600Dark = Color(0xFFA2A9B8);
+  static const p600Light = Color(0xFF5A6273);
 
   // Primitive/700 — primary text.
-  static const p700Dark = Color(0xFFC2C3C3);
-  static const p700Light = Color(0xFF4D5252);
+  static const p700Dark = Color(0xFFC9CEDA);
+  static const p700Light = Color(0xFF3F4757);
 
   // Primitive/800 — accent / primary button fill.
-  static const p800Dark = Color(0xFFF7F7F7);
-  static const p800Light = Color(0xFF2E3232);
+  static const p800Dark = Color(0xFFF2F4F8);
+  static const p800Light = Color(0xFF161C28);
 
   // Primitive/900 — lightest / inverse of ground.
   static const p900Dark = Color(0xFFFFFFFF);
-  static const p900Light = Color(0xFF141818);
+  static const p900Light = Color(0xFF0B0E14);
 
   // Primitive/Gray/Alpha tokens. These are explicit Figma exports, not
   // derived at runtime, because a few semantic alpha tokens intentionally
   // point at different ladder steps per mode.
-  static const p0Alpha0Dark = Color(0x00141818);
+  static const p0Alpha0Dark = Color(0x000B0E14);
   static const p0Alpha0Light = Color(0x00FFFFFF);
 
-  static const p0Alpha5Dark = Color(0x0D141818);
+  static const p0Alpha5Dark = Color(0x0D0B0E14);
   static const p0Alpha5Light = Color(0x0DFFFFFF);
 
-  static const p0Alpha10Dark = Color(0x1A141818);
+  static const p0Alpha10Dark = Color(0x1A0B0E14);
   static const p0Alpha10Light = Color(0x1AFFFFFF);
 
-  static const p0Alpha15Dark = Color(0x26141818);
+  static const p0Alpha15Dark = Color(0x260B0E14);
   static const p0Alpha15Light = Color(0x26FFFFFF);
 
-  static const p0Alpha30Dark = Color(0x4D141818);
+  static const p0Alpha30Dark = Color(0x4D0B0E14);
   static const p0Alpha30Light = Color(0x4DFFFFFF);
 
-  static const p0Alpha50Dark = Color(0x80141818);
+  static const p0Alpha50Dark = Color(0x800B0E14);
   static const p0Alpha50Light = Color(0x80FFFFFF);
 
-  static const p150Alpha15Dark = Color(0x262D3232);
-  static const p150Alpha15Light = Color(0x26E1E1E1);
+  static const p150Alpha15Dark = Color(0x26202633);
+  static const p150Alpha15Light = Color(0x26DDE2EA);
 
-  static const p300Alpha10Dark = Color(0x1A4D5252);
-  static const p300Alpha10Light = Color(0x1AB8B8B8);
+  static const p300Alpha10Dark = Color(0x1A3A4254);
+  static const p300Alpha10Light = Color(0x1AAEB5C2);
 
-  static const p300Alpha15Dark = Color(0x264D5252);
-  static const p300Alpha15Light = Color(0x26B8B8B8);
+  static const p300Alpha15Dark = Color(0x263A4254);
+  static const p300Alpha15Light = Color(0x26AEB5C2);
 
-  static const p300Alpha20Dark = Color(0x334D5252);
-  static const p300Alpha20Light = Color(0x33B8B8B8);
+  static const p300Alpha20Dark = Color(0x333A4254);
+  static const p300Alpha20Light = Color(0x33AEB5C2);
 
-  static const p300Alpha35Dark = Color(0x594D5252);
-  static const p300Alpha35Light = Color(0x59B8B8B8);
+  static const p300Alpha35Dark = Color(0x593A4254);
+  static const p300Alpha35Light = Color(0x59AEB5C2);
 
-  static const p300Alpha50Dark = Color(0x804D5252);
-  static const p300Alpha50Light = Color(0x80B8B8B8);
+  static const p300Alpha50Dark = Color(0x803A4254);
+  static const p300Alpha50Light = Color(0x80AEB5C2);
 
-  static const p400Alpha20Dark = Color(0x33626767);
-  static const p400Alpha20Light = Color(0x339A9A9A);
+  static const p400Alpha20Dark = Color(0x33545D70);
+  static const p400Alpha20Light = Color(0x338C94A3);
 
-  static const p400Alpha35Dark = Color(0x59626767);
-  static const p400Alpha35Light = Color(0x599A9A9A);
+  static const p400Alpha35Dark = Color(0x59545D70);
+  static const p400Alpha35Light = Color(0x598C94A3);
 
-  static const p500Alpha50Dark = Color(0x80858686);
-  static const p500Alpha50Light = Color(0x80858686);
+  static const p500Alpha50Dark = Color(0x807C8496);
+  static const p500Alpha50Light = Color(0x807C8496);
 
-  static const p700Alpha50Dark = Color(0x80C2C3C3);
-  static const p700Alpha50Light = Color(0x804D5252);
+  static const p700Alpha50Dark = Color(0x80C9CEDA);
+  static const p700Alpha50Light = Color(0x803F4757);
 
   static const p900Alpha5Dark = Color(0x0DFFFFFF);
-  static const p900Alpha5Light = Color(0x0D141818);
+  static const p900Alpha5Light = Color(0x0D0B0E14);
 
   static const p900Alpha10Dark = Color(0x1AFFFFFF);
-  static const p900Alpha10Light = Color(0x1A141818);
+  static const p900Alpha10Light = Color(0x1A0B0E14);
 
   static const p900Alpha20Dark = Color(0x33FFFFFF);
-  static const p900Alpha20Light = Color(0x33141818);
+  static const p900Alpha20Light = Color(0x330B0E14);
 
   static const p900Alpha50Dark = Color(0x80FFFFFF);
-  static const p900Alpha50Light = Color(0x80141818);
+  static const p900Alpha50Light = Color(0x800B0E14);
 }
 
-/// Brand crimson primitive ladder.
-///
-/// Current primary/accent color family in the Figma design system. Used by
-/// primary buttons, shielded-address feedback, and brand focus rings.
-abstract final class CrimsonPrimitives {
-  static const p0Dark = Color(0xFF080305);
-  static const p0Light = Color(0xFFF6EBEF);
+/// Zafe's brand ladder: jade. Used by primary buttons, brand text/icons,
+/// shielded-address feedback and focus rings.
+abstract final class BrandPrimitives {
+  static const p0Dark = Color(0xFF03110F);
+  static const p0Light = Color(0xFFECFBF7);
 
-  static const p50Dark = Color(0xFF19080F);
-  static const p50Light = Color(0xFFE1B9C8);
+  static const p50Dark = Color(0xFF06201C);
+  static const p50Light = Color(0xFFC6F2E8);
 
-  static const p100Dark = Color(0xFF32111D);
-  static const p100Light = Color(0xFFCF92A8);
+  static const p100Dark = Color(0xFF0B332C);
+  static const p100Light = Color(0xFF9BE7D6);
 
-  static const p150Dark = Color(0xFF4C192C);
-  static const p150Light = Color(0xFFBE6A88);
+  static const p150Dark = Color(0xFF0F4A40);
+  static const p150Light = Color(0xFF72DCC5);
 
-  static const p200Dark = Color(0xFF6D243F);
-  static const p200Light = Color(0xFFB35074);
+  static const p200Dark = Color(0xFF136356);
+  static const p200Light = Color(0xFF3FB89E);
 
-  static const p300Dark = Color(0xFF862D4E);
-  static const p300Light = Color(0xFFA83861);
+  static const p300Dark = Color(0xFF178270);
+  static const p300Light = Color(0xFF0F8C76);
 
-  static const p400Dark = Color(0xFFA83861);
-  static const p400Light = Color(0xFF862D4E);
+  static const p400Dark = Color(0xFF2EC4A6);
+  static const p400Light = Color(0xFF0B6E5E);
 
-  static const p500Dark = Color(0xFFB35074);
-  static const p500Light = Color(0xFF6D243F);
+  static const p500Dark = Color(0xFF4FD2B6);
+  static const p500Light = Color(0xFF095749);
 
-  static const p600Dark = Color(0xFFBE6A88);
-  static const p600Light = Color(0xFF4C192C);
+  static const p600Dark = Color(0xFF72DCC5);
+  static const p600Light = Color(0xFF074238);
 
-  static const p700Dark = Color(0xFFCF92A8);
-  static const p700Light = Color(0xFF32111D);
+  static const p700Dark = Color(0xFF9BE7D6);
+  static const p700Light = Color(0xFF052E27);
 
-  static const p800Dark = Color(0xFFE1B9C8);
-  static const p800Light = Color(0xFF19080F);
+  static const p800Dark = Color(0xFFC6F2E8);
+  static const p800Light = Color(0xFF031C18);
 
-  static const p900Dark = Color(0xFFF5EBEE);
-  static const p900Light = Color(0xFF080305);
+  static const p900Dark = Color(0xFFECFBF7);
+  static const p900Light = Color(0xFF020F0D);
 
-  static const p300Alpha10Dark = Color(0x1A862D4E);
-  static const p300Alpha10Light = Color(0x1AA83861);
+  static const p300Alpha10Dark = Color(0x1A178270);
+  static const p300Alpha10Light = Color(0x1A0F8C76);
 
-  static const p300Alpha15Dark = Color(0x26862D4E);
-  static const p300Alpha15Light = Color(0x26A83861);
+  static const p300Alpha15Dark = Color(0x26178270);
+  static const p300Alpha15Light = Color(0x260F8C76);
 
-  static const p300Alpha25Dark = Color(0x40862D4E);
-  static const p300Alpha25Light = Color(0x40A83861);
+  static const p300Alpha25Dark = Color(0x40178270);
+  static const p300Alpha25Light = Color(0x400F8C76);
 
-  static const p300Alpha35Dark = Color(0x59862D4E);
-  static const p300Alpha35Light = Color(0x59A83861);
+  static const p300Alpha35Dark = Color(0x59178270);
+  static const p300Alpha35Light = Color(0x590F8C76);
 
-  static const p400Alpha15Dark = Color(0x26A83861);
-  static const p400Alpha15Light = Color(0x26862D4E);
+  static const p400Alpha15Dark = Color(0x262EC4A6);
+  static const p400Alpha15Light = Color(0x260B6E5E);
 
-  static const p400Alpha25Dark = Color(0x40A83861);
-  static const p400Alpha25Light = Color(0x40862D4E);
+  static const p400Alpha25Dark = Color(0x402EC4A6);
+  static const p400Alpha25Light = Color(0x400B6E5E);
 
-  static const p400Alpha35Dark = Color(0x59A83861);
-  static const p400Alpha35Light = Color(0x59862D4E);
+  static const p400Alpha35Dark = Color(0x592EC4A6);
+  static const p400Alpha35Light = Color(0x590B6E5E);
 }
 
 /// Utility plum primitive ladder.

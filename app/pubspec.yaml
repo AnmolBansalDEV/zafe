@@ -41,20 +41,23 @@ flutter:
     - assets/fonts/licenses/
     - NOTICE
   fonts:
-    - family: Geist
+    - family: DM Sans
       fonts:
-        - asset: assets/fonts/Geist-Regular.ttf
+        - asset: assets/fonts/DMSans-Regular.ttf
           weight: 400
-        - asset: assets/fonts/Geist-Medium.ttf
+        - asset: assets/fonts/DMSans-Medium.ttf
           weight: 500
-        - asset: assets/fonts/Geist-SemiBold.ttf
+        - asset: assets/fonts/DMSans-SemiBold.ttf
           weight: 600
-    - family: Geist Mono
+    - family: JetBrains Mono
       fonts:
-        - asset: assets/fonts/GeistMono-Regular.ttf
+        - asset: assets/fonts/JetBrainsMono-Regular.ttf
           weight: 400
-        - asset: assets/fonts/GeistMono-Medium.ttf
+        - asset: assets/fonts/JetBrainsMono-Medium.ttf
           weight: 500
-    - family: Young Serif
+    - family: Space Grotesk
       fonts:
-        - asset: assets/fonts/YoungSerif-Regular.ttf
+        - asset: assets/fonts/SpaceGrotesk-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/SpaceGrotesk-SemiBold.ttf
+          weight: 600

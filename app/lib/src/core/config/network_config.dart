@@ -19,7 +19,7 @@ const String kZafeLightwalletdUrl = String.fromEnvironment(
   defaultValue: 'http://127.0.0.1:9067',
 );
 
-/// Ticker shown next to amounts: ZEC on mainnet, TAZ on test networks (as in Vizor).
+/// Ticker shown next to amounts: ZEC on mainnet, TAZ on test networks.
 const String kZcashDefaultCurrencyTicker = kZafeNetwork == 'main'
     ? 'ZEC'
     : 'TAZ';

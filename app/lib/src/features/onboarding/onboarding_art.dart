@@ -3,7 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/theme/app_theme.dart';
 
-/// Original Zafe onboarding illustrations in `assets/illustrations`, one SVG per
+/// Original Zafe illustrations in `assets/illustrations`, one SVG per
 /// theme (`<name>_dark.svg` / `<name>_light.svg`).
 String _asset(BuildContext context, String name) {
   final dark = identical(context.colors, AppColors.dark);
@@ -11,8 +11,8 @@ String _asset(BuildContext context, String name) {
 }
 
 /// Full-width art pinned to the top of the screen that fades into the window
-/// colour, so text and buttons below sit on a clean background (Vizor's hero
-/// placement, flipped because Zafe's content sits at the bottom).
+/// colour, so text and buttons below sit on a clean background
+/// (content sits at the bottom).
 class OnboardingHero extends StatelessWidget {
   const OnboardingHero(this.name, {super.key});
 
@@ -58,11 +58,13 @@ class OnboardingHero extends StatelessWidget {
   }
 }
 
-/// Rounded banner at the top of a form screen.
+/// Rounded banner at the top of a form screen (1080 x 560 art unless
+/// [aspectRatio] says otherwise, e.g. the smaller empty-state banners).
 class OnboardingBanner extends StatelessWidget {
-  const OnboardingBanner(this.name, {super.key});
+  const OnboardingBanner(this.name, {super.key, this.aspectRatio = 1080 / 560});
 
   final String name;
+  final double aspectRatio;
 
   @override
   Widget build(BuildContext context) {
@@ -70,10 +72,26 @@ class OnboardingBanner extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppRadii.large),
         child: AspectRatio(
-          aspectRatio: 1080 / 560,
+          aspectRatio: aspectRatio,
           child: SvgPicture.asset(_asset(context, name), fit: BoxFit.cover),
         ),
       ),
+    );
+  }
+}
+
+/// Full-page art behind a screen's content (e.g. `MobileTransactionProgressScreen`'s
+/// `background`). The art fills the page, cropped equally top and bottom on
+/// shorter screens; its middle is left empty for the content.
+class IllustrationBackground extends StatelessWidget {
+  const IllustrationBackground(this.name, {super.key});
+
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    return ExcludeSemantics(
+      child: SvgPicture.asset(_asset(context, name), fit: BoxFit.cover),
     );
   }
 }

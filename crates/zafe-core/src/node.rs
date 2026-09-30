@@ -1690,7 +1690,7 @@ pub async fn sign_own_shares<P: Parameters>(
 /// share), and broadcasts via lightwalletd, then logs the broadcast. Returns the txid.
 ///
 /// The proof does not depend on the spend authorization signatures, so it is created on a
-/// blocking thread while the shares arrive (Vizor's Keystone pattern). `on_progress` is
+/// blocking thread while the shares arrive (as hardware-signer wallets do). `on_progress` is
 /// called whenever the number of received shares changes. Safe to call again with the
 /// same request after a timeout: shares already sent are still in the inbox.
 #[allow(clippy::too_many_arguments)]

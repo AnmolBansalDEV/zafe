@@ -8,8 +8,9 @@ import '../../core/feedback/app_haptics.dart';
 import '../../core/widgets/mobile/mobile_transaction_progress_screen.dart';
 import '../../providers/proposals_provider.dart';
 import '../../rust/api/proposals.dart' as rust;
+import '../onboarding/onboarding_art.dart';
 
-/// Vizor's transaction progress screen for sending a payment (spec: send status, 4.6).
+/// Transaction progress screen for sending a payment (spec: send status, 4.6).
 /// The send itself belongs to the provider, so leaving this screen doesn't stop it.
 class SendingScreen extends ConsumerStatefulWidget {
   const SendingScreen({super.key, required this.id});
@@ -38,7 +39,7 @@ class _SendingScreenState extends ConsumerState<SendingScreen> {
     });
   }
 
-  /// One haptic per outcome, as Vizor does on its send status screen.
+  /// One haptic per outcome.
   void _announce(MobileTransactionProgressPhase phase) {
     if (_announced == phase) return;
     _announced = phase;
@@ -95,6 +96,7 @@ class _SendingScreenState extends ConsumerState<SendingScreen> {
       // The send continues in the background, so leaving is always safe.
       canPop: true,
       bodyMaxWidth: 260,
+      background: const IllustrationBackground('sent_slot'),
       primaryActionLabel: switch (phase) {
         MobileTransactionProgressPhase.succeeded => 'Done',
         MobileTransactionProgressPhase.failed => 'Try again',

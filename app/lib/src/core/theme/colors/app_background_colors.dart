@@ -12,8 +12,8 @@ import '../primitives.dart';
 /// * [overlay] — Dropdowns, popovers, floating elements.
 /// * [neutralScrim] / [neutralSubtleOpacity] / [neutralStrongOpacity] —
 ///   Alpha neutral overlays.
-/// * [brandCrimsonSubtle] / [brandCrimsonStrong] — Brand-accent backgrounds.
-/// * [brandCrimsonAlpha] — Alpha brand overlay.
+/// * [brandSubtle] / [brandStrong] — Brand-accent backgrounds.
+/// * [brandAlpha] — Alpha brand overlay.
 /// * [utilityDestructiveSubtle] / [utilityDestructiveStrong] /
 ///   [utilitySuccessSubtle] / [utilitySuccessStrong] — Utility backgrounds.
 /// * [utilityDestructiveAlphaSubtle] / [utilityDestructiveAlpha] /
@@ -30,9 +30,9 @@ class AppBackgroundColors {
     required this.neutralScrim,
     required this.neutralSubtleOpacity,
     required this.neutralStrongOpacity,
-    required this.brandCrimsonSubtle,
-    required this.brandCrimsonStrong,
-    required this.brandCrimsonAlpha,
+    required this.brandSubtle,
+    required this.brandStrong,
+    required this.brandAlpha,
     required this.utilityDestructiveSubtle,
     required this.utilityDestructiveStrong,
     required this.utilityDestructiveAlphaSubtle,
@@ -52,9 +52,9 @@ class AppBackgroundColors {
   final Color neutralScrim;
   final Color neutralSubtleOpacity;
   final Color neutralStrongOpacity;
-  final Color brandCrimsonSubtle;
-  final Color brandCrimsonStrong;
-  final Color brandCrimsonAlpha;
+  final Color brandSubtle;
+  final Color brandStrong;
+  final Color brandAlpha;
   final Color utilityDestructiveSubtle;
   final Color utilityDestructiveStrong;
   final Color utilityDestructiveAlphaSubtle;
@@ -65,7 +65,7 @@ class AppBackgroundColors {
   final Color homeCard;
 
   static const dark = AppBackgroundColors(
-    window: Color(0xFF0F0F0F),
+    window: Color(0xFF080A0F),
     ground: Primitives.p50Dark,
     base: Primitives.p100Dark,
     raised: Primitives.p150Dark,
@@ -74,9 +74,9 @@ class AppBackgroundColors {
     neutralScrim: Primitives.p0Alpha50Dark,
     neutralSubtleOpacity: Primitives.p400Alpha20Dark,
     neutralStrongOpacity: Primitives.p300Alpha50Dark,
-    brandCrimsonSubtle: CrimsonPrimitives.p100Dark,
-    brandCrimsonStrong: CrimsonPrimitives.p400Dark,
-    brandCrimsonAlpha: CrimsonPrimitives.p300Alpha35Dark,
+    brandSubtle: BrandPrimitives.p100Dark,
+    brandStrong: BrandPrimitives.p400Dark,
+    brandAlpha: BrandPrimitives.p300Alpha35Dark,
     utilityDestructiveSubtle: PlumPrimitives.p50Dark,
     utilityDestructiveStrong: PlumPrimitives.p300Dark,
     utilityDestructiveAlphaSubtle: PlumPrimitives.p400Alpha8Dark,
@@ -88,7 +88,7 @@ class AppBackgroundColors {
   );
 
   static const light = AppBackgroundColors(
-    window: Color(0xFFF7F7F7),
+    window: Color(0xFFF3F5F9),
     ground: Primitives.p0Light,
     base: Primitives.p50Light,
     raised: Primitives.p100Light,
@@ -97,9 +97,9 @@ class AppBackgroundColors {
     neutralScrim: Primitives.p900Alpha50Light,
     neutralSubtleOpacity: Primitives.p300Alpha20Light,
     neutralStrongOpacity: Primitives.p300Alpha35Light,
-    brandCrimsonSubtle: CrimsonPrimitives.p0Light,
-    brandCrimsonStrong: CrimsonPrimitives.p300Light,
-    brandCrimsonAlpha: CrimsonPrimitives.p300Alpha15Light,
+    brandSubtle: BrandPrimitives.p0Light,
+    brandStrong: BrandPrimitives.p300Light,
+    brandAlpha: BrandPrimitives.p300Alpha15Light,
     utilityDestructiveSubtle: PlumPrimitives.p0Light,
     utilityDestructiveStrong: PlumPrimitives.p400Light,
     utilityDestructiveAlphaSubtle: PlumPrimitives.p400Alpha8Light,

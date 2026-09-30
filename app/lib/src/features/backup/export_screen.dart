@@ -17,6 +17,7 @@ import '../../core/widgets/app_toast.dart';
 import '../../core/widgets/mobile/mobile_surface_card.dart';
 import '../../core/widgets/mobile_text_field.dart';
 import '../../providers/vault_provider.dart';
+import '../onboarding/onboarding_art.dart';
 import 'backup_prompt_screen.dart' show backupStatusProvider;
 import '../../rust/api/backup.dart' as rust;
 
@@ -177,6 +178,8 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
         child: Text(_busy ? 'Encrypting...' : 'Create backup'),
       ),
       children: [
+        const OnboardingBanner('backup_seal'),
+        const SizedBox(height: AppSpacing.md),
         _Note(
           icon: AppIcons.lock,
           iconColor: colors.icon.accent,
@@ -295,7 +298,7 @@ class _Pill extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: colors.background.neutralSubtleOpacity,
-          borderRadius: BorderRadius.circular(AppRadii.full),
+          borderRadius: BorderRadius.circular(10),
         ),
         child: Text(
           label,

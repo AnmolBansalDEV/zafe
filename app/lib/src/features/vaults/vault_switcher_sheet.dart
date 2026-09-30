@@ -14,7 +14,7 @@ import '../../providers/privacy_mode_provider.dart';
 import '../../providers/vault_provider.dart';
 import '../../rust/api/vault.dart' as rust;
 
-/// Vizor's account sheet, for vaults: every vault on this device with its rule, balance and
+/// Vault switcher: every vault on this device with its rule, balance and
 /// payments waiting for you, plus "Add vault" and the current vault's settings.
 Future<void> showVaultSwitcher(BuildContext context) =>
     showAppMobileSheet<void>(
@@ -172,7 +172,7 @@ class _VaultRow extends StatelessWidget {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: colors.background.brandCrimsonStrong,
+                            color: colors.background.brandStrong,
                             borderRadius: BorderRadius.circular(AppRadii.full),
                           ),
                           child: Text(

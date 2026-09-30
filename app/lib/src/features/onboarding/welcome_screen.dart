@@ -38,7 +38,7 @@ class WelcomeScreen extends ConsumerWidget {
                   Text(
                     'Zafe',
                     style: TextStyle(
-                      fontFamily: 'Young Serif',
+                      fontFamily: 'Space Grotesk',
                       fontSize: 48,
                       height: 1.1,
                       letterSpacing: -1.35,

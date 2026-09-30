@@ -51,7 +51,7 @@ class AppStateColors {
     selectedOpacity: Primitives.p0Alpha30Dark,
     focusRing: Primitives.p800Dark,
     focusGap: Primitives.p0Dark,
-    focusRingBrand: CrimsonPrimitives.p400Dark,
+    focusRingBrand: BrandPrimitives.p400Dark,
     focusRingDestructive: PlumPrimitives.p200Dark,
   );
 
@@ -64,7 +64,7 @@ class AppStateColors {
     selectedOpacity: Primitives.p900Alpha5Light,
     focusRing: Primitives.p900Light,
     focusGap: Primitives.p0Light,
-    focusRingBrand: CrimsonPrimitives.p300Light,
+    focusRingBrand: BrandPrimitives.p300Light,
     focusRingDestructive: PlumPrimitives.p400Light,
   );
 }

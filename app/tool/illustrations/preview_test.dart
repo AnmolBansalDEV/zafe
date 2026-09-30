@@ -9,6 +9,8 @@
 //   <name>.png        the raw art at 1080 px wide
 //   <name>_hero.png   portrait art (heroes) as OnboardingHero shows it: phone-sized
 //                     frame in the theme's window colour with the same fade/scrim
+//   <name>_screen.png full-page backgrounds (taller than 2:1) on a phone frame with
+//                     a stand-in status circle in the middle
 //   contact_sheet.png every raw illustration side by side
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -17,8 +19,8 @@ import 'package:flutter/painting.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-const _windowDark = Color(0xFF0F0F0F);
-const _windowLight = Color(0xFFF7F7F7);
+const _windowDark = Color(0xFF080A0F);
+const _windowLight = Color(0xFFF3F5F9);
 const _width = 1080.0;
 const _phone = Size(1080, 2400);
 
@@ -74,7 +76,25 @@ void main() {
       await _writePng(raw, '${out.path}/$name.png');
 
       thumbs.add(raw);
-      if (artSize.height > artSize.width) {
+      if (artSize.height > 2 * artSize.width) {
+        // Full-page backgrounds (e.g. sent_slot): cover a phone frame with a
+        // stand-in for the centred status circle, to check the middle stays calm.
+        final bg = _record(_phone, (c) {
+          c.drawRect(Offset.zero & _phone, Paint()..color = window);
+          final s = _phone.height / artSize.height;
+          c.save();
+          c.translate((_phone.width - artSize.width * s) / 2, 0);
+          c.scale(s);
+          drawArt(c);
+          c.restore();
+          c.drawCircle(
+            _phone.center(Offset.zero),
+            84,
+            Paint()..color = const Color(0xFF0F8C76),
+          );
+        });
+        await _writePng(bg, '${out.path}/${name}_screen.png');
+      } else if (artSize.height > artSize.width) {
         // Same stops as OnboardingHero in lib/src/features/onboarding/onboarding_art.dart.
         final hero = _record(_phone, (c) {
           c.drawRect(Offset.zero & _phone, Paint()..color = window);
@@ -102,24 +122,32 @@ void main() {
       print('${out.path}/$name.png');
     }
 
-    const thumbW = 360.0, gap = 12.0;
-    final thumbH = thumbs
-        .map((t) => thumbW * t.height / t.width)
-        .reduce((a, b) => a > b ? a : b);
+    // A grid, four per row (each scene's dark and light side by side).
+    const thumbW = 360.0, gap = 12.0, cols = 4;
+    double h(ui.Image t) => thumbW * t.height / t.width;
+    final rowHeights = <double>[
+      for (var r = 0; r * cols < thumbs.length; r++)
+        thumbs.skip(r * cols).take(cols).map(h).reduce((a, b) => a > b ? a : b),
+    ];
     final sheet = _record(
-      Size(thumbs.length * (thumbW + gap) + gap, thumbH + 2 * gap),
+      Size(
+        cols * (thumbW + gap) + gap,
+        rowHeights.fold(gap, (s, rh) => s + rh + gap),
+      ),
       (c) {
         c.drawPaint(Paint()..color = const Color(0xFF888888));
+        var y = gap;
         for (var i = 0; i < thumbs.length; i++) {
+          if (i > 0 && i % cols == 0) y += rowHeights[i ~/ cols - 1] + gap;
           c.drawImageRect(
             thumbs[i],
             Offset.zero &
                 Size(thumbs[i].width.toDouble(), thumbs[i].height.toDouble()),
             Rect.fromLTWH(
-              gap + i * (thumbW + gap),
-              gap,
+              gap + (i % cols) * (thumbW + gap),
+              y,
               thumbW,
-              thumbW * thumbs[i].height / thumbs[i].width,
+              h(thumbs[i]),
             ),
             Paint()..filterQuality = FilterQuality.medium,
           );

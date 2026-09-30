@@ -9,6 +9,7 @@ import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/mobile/mobile_surface_card.dart';
 import '../../providers/vault_provider.dart';
+import '../onboarding/onboarding_art.dart';
 
 /// Whether the active vault has a backup (drives the home reminder).
 final backupStatusProvider = FutureProvider.autoDispose<bool>((ref) async {
@@ -52,10 +53,12 @@ class BackupPromptScreen extends ConsumerWidget {
         ],
       ),
       children: [
+        const OnboardingBanner('backup_seal'),
+        const SizedBox(height: AppSpacing.md),
         Text(
           '"$name" is ready',
           style: TextStyle(
-            fontFamily: 'Young Serif',
+            fontFamily: 'Space Grotesk',
             fontSize: 28,
             height: 1.2,
             color: colors.text.accent,

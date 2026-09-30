@@ -4,7 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/widgets.dart';
 import 'package:pretty_qr_code/pretty_qr_code.dart';
 
-/// The Vizor QR look: circular "dot" data modules
+/// Dotted QR look: circular "dot" data modules
 /// ([PrettyQrSmoothSymbol] at `roundFactor: 1`) with ring + center-dot finder
 /// patterns instead of the default squares. Shared by the receive and
 /// swap-deposit QR surfaces so they stay visually identical.

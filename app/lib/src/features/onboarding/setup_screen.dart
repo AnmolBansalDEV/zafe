@@ -221,7 +221,7 @@ class _InviteCard extends StatelessWidget {
             child: PrettyQrView.data(
               data: invite,
               decoration: const PrettyQrDecoration(
-                shape: DotQrShape(color: Color(0xFF141818)),
+                shape: DotQrShape(color: Color(0xFF0B0E14)),
               ),
             ),
           ),
@@ -538,7 +538,7 @@ class _CreatingKeys extends StatelessWidget {
                   Text(
                     'Creating your vault keys...',
                     style: TextStyle(
-                      fontFamily: 'Young Serif',
+                      fontFamily: 'Space Grotesk',
                       fontSize: 24,
                       height: 28 / 24,
                       color: colors.text.accent,

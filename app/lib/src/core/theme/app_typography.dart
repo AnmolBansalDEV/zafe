@@ -10,10 +10,10 @@
 /// in tooling (widgetbook galleries, token tests) that must show both
 /// modes inside one binary.
 ///
-/// Desktop serif styles use Young Serif Regular with the OpenType 'case'
-/// feature enabled: Young Serif defaults to old-style figures whose
+/// Desktop serif styles use Space Grotesk Regular with the OpenType 'case'
+/// feature enabled: Space Grotesk defaults to old-style figures whose
 /// descenders sit below the baseline, and 'case' swaps them for uniform
-/// lining digits. Mobile serif styles also use Young Serif but pin lining
+/// lining digits. Mobile serif styles also use Space Grotesk but pin lining
 /// figures to match the mobile app frames.
 ///
 /// Naming maps Figma → Dart by full word and camelCase where possible:
@@ -44,85 +44,85 @@ import '../layout/app_form_factor.dart';
 
 // ─── Mode-invariant styles (identical in both Figma modes) ───────────
 
-/// Desktop Young Serif styles use the `case` feature for lining digits.
+/// Desktop Space Grotesk styles use the `case` feature for lining digits.
 const _youngSerifCaseFigures = [FontFeature.enable('case')];
 
-/// Young Serif's default numerals are old-style figures (6/8 ascend,
+/// Space Grotesk's default numerals are old-style figures (6/8 ascend,
 /// 3/4/5/7/9 descend below the baseline); the mobile frames render every
 /// serif number — balance, send amount, numpad — with uniform lining
-/// figures, so the Young Serif tokens pin the font's `lnum` feature.
+/// figures, so the Space Grotesk tokens pin the font's `lnum` feature.
 const _youngSerifFigures = [FontFeature.liningFigures()];
 
-/// Figma desktop `Headline L` — Young Serif, 32 / 33 px.
+/// Figma desktop `Headline L` — Space Grotesk, 32 / 33 px.
 ///
 /// The original `Desktop.tokens.json` export predated the design system's
 /// serif migration and still said Libre Caslon; the live desktop screen
-/// frames use Young Serif.
+/// frames use Space Grotesk.
 const _headlineLDesktop = TextStyle(
-  fontFamily: 'Young Serif',
-  fontWeight: FontWeight.w400,
+  fontFamily: 'Space Grotesk',
+  fontWeight: FontWeight.w500,
   fontSize: 32,
   height: 33 / 32,
   letterSpacing: 0,
   fontFeatures: _youngSerifCaseFigures,
 );
 
-/// Figma desktop `Headline M` — Young Serif, 28 / 30 px, −0.28.
+/// Figma desktop `Headline M` — Space Grotesk, 28 / 30 px, −0.28.
 const _headlineMDesktop = TextStyle(
-  fontFamily: 'Young Serif',
-  fontWeight: FontWeight.w400,
+  fontFamily: 'Space Grotesk',
+  fontWeight: FontWeight.w500,
   fontSize: 28,
   height: 30 / 28,
   letterSpacing: -0.28,
   fontFeatures: _youngSerifCaseFigures,
 );
 
-/// Figma mobile app `Headline L` — Young Serif, 32 / 33 px.
+/// Figma mobile app `Headline L` — Space Grotesk, 32 / 33 px.
 ///
 /// The current `3 Fonts-3.zip` variable export lists Libre Caslon Text for
 /// this slot, but the actual mobile screen frames still render the display
-/// headline scale with Young Serif. Keep the app token aligned with the
+/// headline scale with Space Grotesk. Keep the app token aligned with the
 /// screen frames until the design file and variable export agree.
 const _headlineLMobile = TextStyle(
-  fontFamily: 'Young Serif',
-  fontWeight: FontWeight.w400,
+  fontFamily: 'Space Grotesk',
+  fontWeight: FontWeight.w500,
   fontSize: 32,
   height: 33 / 32,
   letterSpacing: 0,
   fontFeatures: _youngSerifFigures,
 );
 
-/// Figma mobile app `Headline M` — Young Serif, 28 / 30 px, −0.28.
+/// Figma mobile app `Headline M` — Space Grotesk, 28 / 30 px, −0.28.
 const _headlineMMobile = TextStyle(
-  fontFamily: 'Young Serif',
-  fontWeight: FontWeight.w400,
+  fontFamily: 'Space Grotesk',
+  fontWeight: FontWeight.w500,
   fontSize: 28,
   height: 30 / 28,
   letterSpacing: -0.28,
   fontFeatures: _youngSerifFigures,
 );
 
-/// Figma `Code M` — Geist Mono Medium, 14 / 21 px.
+/// Figma `Code M` — JetBrains Mono Medium, 14 / 21 px.
 const _codeMDesktop = TextStyle(
-  fontFamily: 'Geist Mono',
+  fontFamily: 'JetBrains Mono',
   fontWeight: FontWeight.w500,
   fontSize: 14,
   height: 21 / 14,
   letterSpacing: 0,
 );
 
-/// Figma `Code M`, Mobile mode — Geist Mono Medium, 16 / 21 px.
+/// Figma `Code M`, Mobile mode — JetBrains Mono Medium, 16 / 21 px.
 const _codeMMobile = TextStyle(
-  fontFamily: 'Geist Mono',
+  fontFamily: 'JetBrains Mono',
   fontWeight: FontWeight.w500,
   fontSize: 16,
   height: 21 / 16,
   letterSpacing: 0,
 );
 
-/// Figma `Code S` — Geist Mono Medium, 13 / 17 px.
+/// Figma `Code S` — JetBrains Mono Medium, 13 / 17 px.
 const _codeS = TextStyle(
-  fontFamily: 'Geist Mono',
+  fontFamily: 'JetBrains Mono',
   fontWeight: FontWeight.w500,
   fontSize: 13,
   height: 17 / 13,
@@ -133,8 +133,8 @@ const _codeS = TextStyle(
 abstract final class AppTypographyDesktop {
   /// Figma `Headline XL` — 45 / 48 px, letter-spacing −1.35.
   static const displayLarge = TextStyle(
-    fontFamily: 'Young Serif',
-    fontWeight: FontWeight.w400,
+    fontFamily: 'Space Grotesk',
+    fontWeight: FontWeight.w500,
     fontFeatures: _youngSerifCaseFigures,
     fontSize: 45,
     height: 48 / 45,
@@ -148,7 +148,7 @@ abstract final class AppTypographyDesktop {
 
   /// Figma `Headline S` — Geist Medium, 16 / 20 px.
   static const headlineSmall = TextStyle(
-    fontFamily: 'Geist',
+    fontFamily: 'DM Sans',
     fontWeight: FontWeight.w500,
     fontSize: 16,
     height: 20 / 16,
@@ -157,7 +157,7 @@ abstract final class AppTypographyDesktop {
 
   /// Figma `Body L` — Geist Medium, 16 / 24 px, −0.24.
   static const bodyLarge = TextStyle(
-    fontFamily: 'Geist',
+    fontFamily: 'DM Sans',
     fontWeight: FontWeight.w500,
     fontSize: 16,
     height: 24 / 16,
@@ -166,7 +166,7 @@ abstract final class AppTypographyDesktop {
 
   /// Figma `Body M` — Geist Regular, 14 / 21 px, −0.21.
   static const bodyMedium = TextStyle(
-    fontFamily: 'Geist',
+    fontFamily: 'DM Sans',
     fontWeight: FontWeight.w400,
     fontSize: 14,
     height: 21 / 14,
@@ -175,7 +175,7 @@ abstract final class AppTypographyDesktop {
 
   /// Figma `Body M Medium` — Geist Medium, 14 / 21 px, −0.21.
   static const bodyMediumStrong = TextStyle(
-    fontFamily: 'Geist',
+    fontFamily: 'DM Sans',
     fontWeight: FontWeight.w500,
     fontSize: 14,
     height: 21 / 14,
@@ -184,7 +184,7 @@ abstract final class AppTypographyDesktop {
 
   /// Figma `Body S` — Geist Regular, 12 / 18 px, −0.12.
   static const bodySmall = TextStyle(
-    fontFamily: 'Geist',
+    fontFamily: 'DM Sans',
     fontWeight: FontWeight.w400,
     fontSize: 12,
     height: 18 / 12,
@@ -193,7 +193,7 @@ abstract final class AppTypographyDesktop {
 
   /// Figma `Body XS` — Geist Regular, 11 / 16 px, −0.055.
   static const bodyExtraSmall = TextStyle(
-    fontFamily: 'Geist',
+    fontFamily: 'DM Sans',
     fontWeight: FontWeight.w400,
     fontSize: 11,
     height: 16 / 11,
@@ -202,7 +202,7 @@ abstract final class AppTypographyDesktop {
 
   /// Figma `Label M` — Geist Medium, 14 / 16 px, −0.06.
   static const labelLarge = TextStyle(
-    fontFamily: 'Geist',
+    fontFamily: 'DM Sans',
     fontWeight: FontWeight.w500,
     fontSize: 14,
     height: 16 / 14,
@@ -211,7 +211,7 @@ abstract final class AppTypographyDesktop {
 
   /// Figma `Label S` — Geist Medium, 13 / 14 px.
   static const labelMedium = TextStyle(
-    fontFamily: 'Geist',
+    fontFamily: 'DM Sans',
     fontWeight: FontWeight.w500,
     fontSize: 13,
     height: 14 / 13,
@@ -227,12 +227,12 @@ abstract final class AppTypographyDesktop {
 ///
 /// Body, label, and code metrics follow the current mobile variable
 /// export. The display headline scale intentionally follows the actual
-/// mobile screen frames, which still use Young Serif.
+/// mobile screen frames, which still use Space Grotesk.
 abstract final class AppTypographyMobile {
-  /// Figma mobile app `Headline XL` — Young Serif, 40 / 40 px, −1.35.
+  /// Figma mobile app `Headline XL` — Space Grotesk, 40 / 40 px, −1.35.
   static const displayLarge = TextStyle(
-    fontFamily: 'Young Serif',
-    fontWeight: FontWeight.w400,
+    fontFamily: 'Space Grotesk',
+    fontWeight: FontWeight.w500,
     fontSize: 40,
     height: 40 / 40,
     letterSpacing: -1.35,
@@ -246,7 +246,7 @@ abstract final class AppTypographyMobile {
 
   /// Figma `Headline S` — Geist Medium, 18 / 22 px.
   static const headlineSmall = TextStyle(
-    fontFamily: 'Geist',
+    fontFamily: 'DM Sans',
     fontWeight: FontWeight.w500,
     fontSize: 18,
     height: 22 / 18,
@@ -255,7 +255,7 @@ abstract final class AppTypographyMobile {
 
   /// Figma `Body L` — Geist Medium, 18 / 26 px, −0.24.
   static const bodyLarge = TextStyle(
-    fontFamily: 'Geist',
+    fontFamily: 'DM Sans',
     fontWeight: FontWeight.w500,
     fontSize: 18,
     height: 26 / 18,
@@ -264,7 +264,7 @@ abstract final class AppTypographyMobile {
 
   /// Figma `Body M` — Geist Regular, 16 / 25 px, −0.21.
   static const bodyMedium = TextStyle(
-    fontFamily: 'Geist',
+    fontFamily: 'DM Sans',
     fontWeight: FontWeight.w400,
     fontSize: 16,
     height: 25 / 16,
@@ -273,7 +273,7 @@ abstract final class AppTypographyMobile {
 
   /// Figma `Body M Medium` — Geist Medium, 16 / 25 px, −0.21.
   static const bodyMediumStrong = TextStyle(
-    fontFamily: 'Geist',
+    fontFamily: 'DM Sans',
     fontWeight: FontWeight.w500,
     fontSize: 16,
     height: 25 / 16,
@@ -282,7 +282,7 @@ abstract final class AppTypographyMobile {
 
   /// Figma `Body S` — Geist Regular, 14 / 20 px, −0.12.
   static const bodySmall = TextStyle(
-    fontFamily: 'Geist',
+    fontFamily: 'DM Sans',
     fontWeight: FontWeight.w400,
     fontSize: 14,
     height: 20 / 14,
@@ -291,7 +291,7 @@ abstract final class AppTypographyMobile {
 
   /// Figma `Body XS` — Geist Regular, 13 / 18 px, −0.055.
   static const bodyExtraSmall = TextStyle(
-    fontFamily: 'Geist',
+    fontFamily: 'DM Sans',
     fontWeight: FontWeight.w400,
     fontSize: 13,
     height: 18 / 13,
@@ -300,7 +300,7 @@ abstract final class AppTypographyMobile {
 
   /// Figma `Label M` — Geist Medium, 16 / 17 px, −0.06.
   static const labelLarge = TextStyle(
-    fontFamily: 'Geist',
+    fontFamily: 'DM Sans',
     fontWeight: FontWeight.w500,
     fontSize: 16,
     height: 17 / 16,
@@ -309,7 +309,7 @@ abstract final class AppTypographyMobile {
 
   /// Figma `Label S` — Geist Medium, 14 / 15 px.
   static const labelMedium = TextStyle(
-    fontFamily: 'Geist',
+    fontFamily: 'DM Sans',
     fontWeight: FontWeight.w500,
     fontSize: 14,
     height: 15 / 14,
@@ -408,7 +408,7 @@ abstract final class AppTypography {
   static const labelSmall = labelMedium;
 
   // ─── Code ─────────────────────────────────────────────────────────
-  // Geist Mono — see `pubspec.yaml`. Use for content where character
+  // JetBrains Mono — see `pubspec.yaml`. Use for content where character
   // alignment matters: addresses, transaction IDs, mnemonics, hex
   // dumps.
 

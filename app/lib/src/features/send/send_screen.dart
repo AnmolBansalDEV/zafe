@@ -29,7 +29,7 @@ import '../../rust/api/proposals.dart' as rust;
 
 enum _Step { recipient, amount, review }
 
-/// New payment: Vizor's three-step send wizard (recipient, amount, review). The last step
+/// New payment: a three-step send wizard (recipient, amount, review). The last step
 /// logs a proposal for the other signers instead of sending.
 class SendScreen extends ConsumerStatefulWidget {
   const SendScreen({super.key});
@@ -303,7 +303,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
                         textAlign: TextAlign.end,
                         cursorColor: colors.text.accent,
                         style: TextStyle(
-                          fontFamily: 'Young Serif',
+                          fontFamily: 'Space Grotesk',
                           fontSize: 48,
                           height: 1.1,
                           color: tooMuch
@@ -315,7 +315,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
                           isCollapsed: true,
                           hintText: '0',
                           hintStyle: TextStyle(
-                            fontFamily: 'Young Serif',
+                            fontFamily: 'Space Grotesk',
                             fontSize: 48,
                             color: colors.text.disabled,
                           ),
@@ -325,7 +325,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
                     Text(
                       ' $kZcashDefaultCurrencyTicker',
                       style: TextStyle(
-                        fontFamily: 'Young Serif',
+                        fontFamily: 'Space Grotesk',
                         fontSize: 38,
                         color: colors.text.accent.withValues(alpha: 0.5),
                       ),
@@ -446,7 +446,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
               AppIcon(
                 AppIcons.shieldKeyhole,
                 size: 16,
-                color: colors.icon.brandCrimson,
+                color: colors.icon.brand,
               ),
               const SizedBox(width: AppSpacing.xxs),
               Text(
@@ -596,7 +596,7 @@ class _Pill extends StatelessWidget {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: colors.background.neutralSubtleOpacity,
-          borderRadius: BorderRadius.circular(AppRadii.full),
+          borderRadius: BorderRadius.circular(10),
         ),
         child: Text(
           label,

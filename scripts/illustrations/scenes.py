@@ -11,7 +11,7 @@ import math
 import random
 from pathlib import Path
 
-from zafe_art import PALETTES, coin, defs, f, line_d, pts, stone_wall, svg
+from zafe_art import PALETTES, coin, defs, dial, f, key, line_d, pts, sparks, stone_wall, svg
 
 ASSETS = Path(__file__).resolve().parents[2] / "app" / "assets" / "illustrations"
 
@@ -52,6 +52,7 @@ def welcome(p):
     # lower-right shading on the door (crescent of hatch)
     b.append(f'<path d="M{cx+318} {cy}A318 318 0 0 1 {cx} {cy+318}A318 318 0 0 1 {cx-225} {cy+225}A300 300 0 0 0 {cx+318} {cy}Z" bb="{cx-230} {cy} {cx+318} {cy+318}" fill="url(#hatch)" opacity=".55"/>')
     b.append(f'<circle cx="{cx}" cy="{cy}" r="290" fill="none" stroke="{p["ink"]}" stroke-width="3"/>')
+    b.append(dial(p, cx, cy, 316, ticks=90, major=6, color=p["ink"], op=".55", rings=()))  # the dial motif
     b.append(f'<circle cx="{cx}" cy="{cy}" r="178" fill="none" stroke="{p["ink"]}" stroke-width="3"/>')
     b.append(f'<path d="M{cx-270} {cy-40}A275 275 0 0 1 {cx-40} {cy-272}" fill="none" stroke="{p["hi"]}" stroke-width="4" stroke-linecap="round" opacity=".7"/>')
     # threshold arc joining the three turned keys (members 0,1,4 -> top, upper-right, upper-left)
@@ -89,7 +90,7 @@ def welcome(p):
         else:
             # empty keyhole
             b.append(f'<path d="M{f(kx)} {f(ky-14)}a10 10 0 1 1 -.1 0zM{f(kx-6)} {f(ky-2)}h12l5 24h-22z" fill="{p["ink"]}"/>')
-    # central hand wheel: rim, five spokes (one per member), crimson grips
+    # central hand wheel: rim, five spokes (one per member), jade grips
     b.append(f'<circle cx="{cx}" cy="{cy}" r="122" fill="none" stroke="{p["ink"]}" stroke-width="30"/>')
     b.append(f'<circle cx="{cx}" cy="{cy}" r="122" fill="none" stroke="{p["metal2"]}" stroke-width="20"/>')
     b.append(f'<path d="M{cx-110} {cy-30}A114 114 0 0 1 {cx-30} {cy-110}" fill="none" stroke="{p["hi"]}" stroke-width="5" stroke-linecap="round"/>')
@@ -101,10 +102,10 @@ def welcome(p):
         b.append(f'<path d="M{cx} {cy}L{f(x2)} {f(y2)}" stroke="{p["metal2"]}" stroke-width="14" stroke-linecap="round"/>')
         gx, gy = cx + 150 * math.cos(r), cy + 150 * math.sin(r)
         b.append(f'<path d="M{f(cx+124*math.cos(r))} {f(cy+124*math.sin(r))}L{f(gx)} {f(gy)}" stroke="{p["ink"]}" stroke-width="26" stroke-linecap="round"/>')
-        b.append(f'<path d="M{f(cx+124*math.cos(r))} {f(cy+124*math.sin(r))}L{f(gx)} {f(gy)}" stroke="{p["crimson"]}" stroke-width="17" stroke-linecap="round"/>')
+        b.append(f'<path d="M{f(cx+124*math.cos(r))} {f(cy+124*math.sin(r))}L{f(gx)} {f(gy)}" stroke="{p["jade"]}" stroke-width="17" stroke-linecap="round"/>')
     b.append(f'<circle cx="{cx}" cy="{cy}" r="50" fill="{p["metal"]}" stroke="{p["ink"]}" stroke-width="5"/>')
     b.append(f'<circle cx="{cx}" cy="{cy}" r="50" fill="url(#hatch2)" opacity=".35"/>')
-    b.append(f'<circle cx="{cx}" cy="{cy}" r="22" fill="{p["crimson2"]}" stroke="{p["ink"]}" stroke-width="4"/>')
+    b.append(f'<circle cx="{cx}" cy="{cy}" r="22" fill="{p["jade2"]}" stroke="{p["ink"]}" stroke-width="4"/>')
     # coins on the floor
     for (x, y, rx, rot) in [(150, 1010, 34, -8), (205, 1040, 30, 6), (930, 1000, 36, 10),
                             (880, 1060, 28, -4), (990, 1075, 32, 0), (120, 1090, 26, 12)]:
@@ -165,8 +166,8 @@ def create(p):
     b.append(f'<polygon points="340,248 740,242 742,262 338,268" fill="url(#hatch)" opacity=".6"/>')
     b.append(f'<path d="M362 228H716" stroke="{p["hi"]}" stroke-width="3" opacity=".6"/>')
     b.append(f'<path d="M540 222l13 18l-13 18l-13 -18z" fill="{p["gold"]}" stroke="{p["ink"]}" stroke-width="3" stroke-linejoin="round"/>')
-    # crimson banner of light connecting the lit stones on the ground
-    b.append(f'<path d="M410 486Q540 520 670 486" fill="none" stroke="{p["crimson"]}" stroke-width="6" stroke-dasharray="2 12" stroke-linecap="round"/>')
+    # jade thread of light connecting the lit stones on the ground
+    b.append(f'<path d="M410 486Q540 520 670 486" fill="none" stroke="{p["jade"]}" stroke-width="6" stroke-dasharray="2 12" stroke-linecap="round"/>')
     b.append(f'<rect width="{W}" height="{H}" fill="url(#vig)"/>')
     return svg(W, H, defs(p) + "".join(b), p["dot"])
 
@@ -189,7 +190,7 @@ def join(p):
         r0, r1 = 150, 205
         q = [(cx + r0 * math.cos(a0), 190 + r0 * math.sin(a0)), (cx + r1 * math.cos(a0), 190 + r1 * math.sin(a0)),
              (cx + r1 * math.cos(a1), 190 + r1 * math.sin(a1)), (cx + r0 * math.cos(a1), 190 + r0 * math.sin(a1))]
-        b.append(f'<polygon points="{pts(q)}" fill="{p["stone2"] if k != 5 else p["crimson2"]}" stroke="{p["ink"]}" stroke-width="4" stroke-linejoin="round"/>')
+        b.append(f'<polygon points="{pts(q)}" fill="{p["stone2"] if k != 5 else p["jade2"]}" stroke="{p["ink"]}" stroke-width="4" stroke-linejoin="round"/>')
     for side in (-1, 1):
         b.append(f'<rect x="{cx + side*177 - 27}" y="190" width="54" height="250" fill="{p["stone2"]}" stroke="{p["ink"]}" stroke-width="4"/>')
         for y in (250, 320, 390):
@@ -201,7 +202,7 @@ def join(p):
     b.append(f'<path d="M{cx-150} 380H{cx+150}" stroke="{p["gold2"]}" stroke-width="3" opacity=".7"/>')
     # door leaf swung open inward (left), in perspective
     leaf = [(cx - 150, 440), (cx - 150, 190), (cx - 70, 150 + 25), (cx - 70, 420)]
-    b.append(f'<path d="M{cx-150} 440V190Q{cx-120} 150 {cx-70} 158V420Z" fill="{p["crimson2"]}" stroke="{p["ink"]}" stroke-width="4" stroke-linejoin="round"/>')
+    b.append(f'<path d="M{cx-150} 440V190Q{cx-120} 150 {cx-70} 158V420Z" fill="{p["jade3"]}" stroke="{p["ink"]}" stroke-width="4" stroke-linejoin="round"/>')
     b.append(f'<path d="M{cx-150} 440V190Q{cx-120} 150 {cx-70} 158V420Z" bb="{cx-150} 150 {cx-70} 440" fill="url(#hatch2)" opacity=".45"/>')
     for y in (230, 360):
         b.append(f'<path d="M{cx-150} {y}L{cx-70} {y-12}" stroke="{p["ink"]}" stroke-width="9"/>')
@@ -220,7 +221,7 @@ def join(p):
     b.append(f'<g transform="rotate(-8 {ex} {ey})">'
              f'<rect x="{ex-70}" y="{ey-40}" width="140" height="86" rx="4" fill="{p["paper"]}" stroke="{p["ink"]}" stroke-width="4"/>'
              f'<path d="M{ex-70} {ey-40}L{ex} {ey+8}L{ex+70} {ey-40}" fill="none" stroke="{p["ink"]}" stroke-width="3.5" stroke-linejoin="round"/>'
-             f'<circle cx="{ex}" cy="{ey+8}" r="20" fill="{p["crimson"]}" stroke="{p["ink"]}" stroke-width="3.5"/>'
+             f'<circle cx="{ex}" cy="{ey+8}" r="20" fill="{p["jade"]}" stroke="{p["ink"]}" stroke-width="3.5"/>'
              f'<path d="M{ex-7} {ey+8}l5 6l10 -12" fill="none" stroke="{p["gold3"]}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>'
              "</g>")
     # wall lanterns
@@ -291,7 +292,7 @@ def shards(p):
         mid = (cuts[i] + cuts[i + 1]) / 2
         gx = -300 if i == 0 else mid
         gy = -62 if i == 0 else 0
-        body += f'<circle cx="{f(gx)}" cy="{f(gy)}" r="18" fill="{p["crimson"]}" stroke="{p["ink"]}" stroke-width="4"/>'
+        body += f'<circle cx="{f(gx)}" cy="{f(gy)}" r="18" fill="{p["jade"]}" stroke="{p["ink"]}" stroke-width="4"/>'
         body += f'<path d="M{f(gx-8)} {f(gy-5)}a9 9 0 0 1 9 -6" stroke="{p["gold3"]}" stroke-width="3" fill="none" stroke-linecap="round"/>' 
         g = (f'<g transform="translate({f(cx+dx)} {f(cy+dy)}) rotate({rot+dr}) scale(1.04)">'
              f'<clipPath id="c{i}"><polygon points="{pts(poly)}"/></clipPath>'
@@ -321,7 +322,256 @@ def shards(p):
     return svg(W, H, defs(p) + "".join(b), p["dot"])
 
 
-SCENES = {"welcome_vault": welcome, "create_stones": create, "join_doorway": join, "key_shards": shards}
+# ---------------------------------------------------------------- shared props
+def envelope(p, x, y, w, h, flap_open=False):
+    """A sealed-backup envelope: body at (x, y) size w x h; the flap closed (V) or open (up)."""
+    cx = x + w / 2
+    ink = p["ink"]
+    o = []
+    if flap_open:
+        o.append(f'<path d="M{f(x)} {f(y)}L{f(cx)} {f(y - h * 0.62)}L{f(x + w)} {f(y)}Z" fill="{p["stone2"] if p["dark"] else p["stone"]}" stroke="{ink}" stroke-width="5" stroke-linejoin="round"/>')
+        o.append(f'<path d="M{f(cx)} {f(y - h * 0.62)}L{f(x + w)} {f(y)}H{f(cx + 30)}Z" bb="{f(cx)} {f(y - h * 0.62)} {f(x + w)} {f(y)}" fill="url(#hatch2)" opacity=".4"/>')
+    o.append(f'<rect x="{f(x)}" y="{f(y)}" width="{f(w)}" height="{f(h)}" rx="8" fill="{p["paper"]}" stroke="{ink}" stroke-width="5"/>')
+    o.append(f'<path d="M{f(x)} {f(y + h)}L{f(cx)} {f(y + h * 0.48)}L{f(x + w)} {f(y + h)}" fill="none" stroke="{ink}" stroke-width="3.5" stroke-linejoin="round"/>')
+    o.append(f'<path d="M{f(cx)} {f(y + h * 0.48)}L{f(x + w)} {f(y + h)}H{f(cx + 40)}Z" bb="{f(cx)} {f(y + h * 0.48)} {f(x + w)} {f(y + h)}" fill="url(#hatch)" opacity=".3"/>')
+    if not flap_open:
+        o.append(f'<path d="M{f(x + 4)} {f(y + 4)}L{f(cx)} {f(y + h * 0.62)}L{f(x + w - 4)} {f(y + 4)}Z" fill="{p["paper"]}" stroke="{ink}" stroke-width="4" stroke-linejoin="round"/>')
+        o.append(f'<path d="M{f(cx)} {f(y + h * 0.62)}L{f(x + w - 4)} {f(y + 4)}H{f(cx + 60)}Z" bb="{f(cx)} {f(y)} {f(x + w)} {f(y + h * 0.62)}" fill="url(#hatch2)" opacity=".35"/>')
+    o.append(f'<path d="M{f(x + 14)} {f(y + 14)}H{f(x + w * 0.3)}" stroke="{p["hi"]}" stroke-width="3" opacity=".7" stroke-linecap="round"/>')
+    return "".join(o)
+
+
+def dial_lock(p, cx, cy, r=58, shackle_open=False):
+    """A combination padlock with a round dial face: the passphrase."""
+    ink = p["ink"]
+    o = []
+    lift = 34 if shackle_open else 0
+    sh = f"M{f(cx - r * 0.5)} {f(cy - r * 0.55 - lift)}V{f(cy - r * 1.05 - lift)}A{f(r * 0.5)} {f(r * 0.5)} 0 0 1 {f(cx + r * 0.5)} {f(cy - r * 1.05 - lift)}V{f(cy - r * 0.55)}"
+    o.append(f'<path d="{sh}" fill="none" stroke="{ink}" stroke-width="22" stroke-linecap="round"/>')
+    o.append(f'<path d="{sh}" fill="none" stroke="{p["metal2"]}" stroke-width="12" stroke-linecap="round"/>')
+    o.append(f'<circle cx="{f(cx)}" cy="{f(cy)}" r="{f(r)}" fill="{p["metal"]}" stroke="{ink}" stroke-width="5"/>')
+    o.append(f'<circle cx="{f(cx)}" cy="{f(cy)}" r="{f(r)}" fill="url(#hatch2)" opacity=".35"/>')
+    o.append(f'<circle cx="{f(cx)}" cy="{f(cy)}" r="{f(r * 0.74)}" fill="{p["stone2"]}" stroke="{p["jade"]}" stroke-width="7"/>')
+    o.append(f'<circle cx="{f(cx)}" cy="{f(cy)}" r="{f(r * 0.74 + 4)}" fill="none" stroke="{ink}" stroke-width="2.5"/>')
+    d = []
+    for i in range(24):
+        a = math.radians(i * 15 - 90)
+        l = r * (0.2 if i % 6 == 0 else 0.1)
+        rr = r * 0.66
+        d.append(f"M{f(cx + rr * math.cos(a))} {f(cy + rr * math.sin(a))}L{f(cx + (rr - l) * math.cos(a))} {f(cy + (rr - l) * math.sin(a))}")
+    o.append(f'<path d="{"".join(d)}" stroke="{ink}" stroke-width="2.5" stroke-linecap="round"/>')
+    o.append(f'<circle cx="{f(cx)}" cy="{f(cy)}" r="{f(r * 0.24)}" fill="url(#goldg)" stroke="{ink}" stroke-width="4"/>')
+    o.append(f'<path d="M{f(cx)} {f(cy - r * 0.62)}l{f(r * 0.1)} {f(-r * 0.2)}h{f(-r * 0.2)}z" transform="rotate(180 {f(cx)} {f(cy - r * 0.62)})" fill="{p["gold"]}" stroke="{ink}" stroke-width="2.5" stroke-linejoin="round"/>')
+    o.append(f'<path d="M{f(cx - r * 0.8)} {f(cy - r * 0.2)}A{f(r * 0.82)} {f(r * 0.82)} 0 0 1 {f(cx - r * 0.2)} {f(cy - r * 0.8)}" fill="none" stroke="{p["hi"]}" stroke-width="4" stroke-linecap="round" opacity=".8"/>')
+    return "".join(o)
+
+
+def word_tiles(p, rnd, x, y, n=3):
+    """A few blank word cards, fanned: the passphrase (no text in the art)."""
+    o = []
+    for i in range(n):
+        tx, ty, r = x + i * 18, y + i * 64, (-10, 4, -3)[i % 3]
+        w = (150, 128, 140)[i % 3]
+        o.append(f'<g transform="rotate({r} {f(tx)} {f(ty)})">'
+                 f'<rect x="{f(tx)}" y="{f(ty)}" width="{w}" height="46" rx="10" fill="{p["paper"]}" stroke="{p["ink"]}" stroke-width="4"/>'
+                 f'<path d="M{f(tx + 18)} {f(ty + 23)}h{f(w * 0.34)}m14 0h{f(w * 0.22)}" stroke="{p["light"] if p["dark"] else p["stone3"]}" stroke-width="8" stroke-linecap="round"/>'
+                 f'<circle cx="{f(tx + w - 16)}" cy="{f(ty + 23)}" r="5" fill="{p["jade"]}"/>'
+                 "</g>")
+    return "".join(o)
+
+
+def ledge(p, y, W, H):
+    o = [f'<rect y="{y}" width="{W}" height="{H - y}" fill="{p["stone3"]}"/>',
+         f'<path d="M0 {y}H{W}" stroke="{p["ink"]}" stroke-width="5"/>',
+         f'<path d="M0 {y + 8}H{W}" stroke="{p["hi"]}" stroke-width="2.5" opacity=".45"/>',
+         f'<rect y="{y}" width="{W}" height="{H - y}" fill="url(#dots)" opacity="{p["texop"]}"/>']
+    return "".join(o)
+
+
+# ---------------------------------------------------------------- (e) backup: key share sealed with a passphrase
+def backup(p):
+    W, H = 1080, 560
+    rnd = random.Random(21)
+    cx = 540
+    b = [f'<rect width="{W}" height="{H}" fill="url(#sky)"/>']
+    b.append(f'<rect width="{W}" height="{H}" fill="url(#fine)" opacity="{float(p["texop"]) * 0.7:.2f}"/>')
+    b.append(dial(p, cx, 300, 300, ticks=72, major=6, op=".35", rings=(0, 40)))
+    b.append(f'<circle cx="{cx}" cy="300" r="300" fill="url(#glow)" opacity=".55"/>')
+    b.append(ledge(p, 470, W, H))
+    # passphrase words on the left, a dotted thread to the lock
+    b.append(word_tiles(p, rnd, 110, 236))
+    b.append(f'<path d="M270 300Q380 250 470 330" fill="none" stroke="{p["jade"]}" stroke-width="5" stroke-dasharray="2 12" stroke-linecap="round"/>')
+    # envelope with the key share inside (a dashed ghost: sealed, not visible)
+    ex, ey, ew, eh = cx - 190, 200, 380, 260
+    b.append(f'<ellipse cx="{cx}" cy="474" rx="230" ry="16" fill="{p["ink"]}" opacity=".35"/>')
+    b.append(envelope(p, ex, ey, ew, eh))
+    b.append(key(p, ex + 44, ey + eh - 46, 0.8, 0, ghost=p["gold2"]))
+    # light leaking from the seal
+    b.append(f'<circle cx="{cx}" cy="{ey + eh * 0.62}" r="120" fill="url(#glow)"/>')
+    b.append(dial_lock(p, cx, ey + eh * 0.62, 56))
+    # the key share glints on the right, going in
+    b.append(sparks(p, rnd, 5, 250, 60, 830, 200, avoid=(cx, 330, 190)))
+    b.append(sparks(p, rnd, 6, 780, 180, 980, 440))
+    b.append(f'<rect width="{W}" height="{H}" fill="url(#vig)"/>')
+    return svg(W, H, defs(p) + "".join(b), p["dot"])
+
+
+# ---------------------------------------------------------------- (f) restore: the seal opens, the key goes home
+def restore(p):
+    W, H = 1080, 560
+    rnd = random.Random(22)
+    b = [f'<rect width="{W}" height="{H}" fill="url(#sky)"/>']
+    b.append(f'<rect width="{W}" height="{H}" fill="url(#fine)" opacity="{float(p["texop"]) * 0.7:.2f}"/>')
+    b.append(ledge(p, 470, W, H))
+    # the vault on the right: a round door with a glowing, empty keyhole
+    vx, vy, vr = 770, 300, 170
+    b.append(f'<rect x="{vx - 210}" y="{vy - 215}" width="420" height="385" rx="26" fill="{p["stone"]}" stroke="{p["ink"]}" stroke-width="5"/>')
+    b.append(f'<rect x="{vx - 210}" y="{vy - 215}" width="420" height="385" rx="26" fill="url(#grit)" opacity=".5"/>')
+    b.append(f'<path d="M{vx + 60} {vy - 215}H{vx + 184}A26 26 0 0 1 {vx + 210} {vy - 189}V{vy + 144}A26 26 0 0 1 {vx + 184} {vy + 170}H{vx + 60}Z" bb="{vx + 60} {vy - 215} {vx + 210} {vy + 170}" fill="url(#hatch)" opacity=".35"/>')
+    for sx in (-180, 180):
+        b.append(f'<circle cx="{vx + sx}" cy="{vy - 185}" r="8" fill="{p["metal2"]}" stroke="{p["ink"]}" stroke-width="3"/>')
+        b.append(f'<circle cx="{vx + sx}" cy="{vy + 140}" r="8" fill="{p["metal2"]}" stroke="{p["ink"]}" stroke-width="3"/>')
+    b.append(f'<circle cx="{vx}" cy="{vy}" r="{vr}" fill="{p["metal"]}" stroke="{p["ink"]}" stroke-width="5"/>')
+    b.append(f'<circle cx="{vx}" cy="{vy}" r="{vr - 22}" fill="{p["stone2"]}" stroke="{p["ink"]}" stroke-width="4"/>')
+    b.append(f'<circle cx="{vx}" cy="{vy}" r="{vr - 22}" fill="url(#grit)" opacity=".4"/>')
+    b.append(dial(p, vx, vy, vr - 30, ticks=60, major=5, color=p["ink"], op=".75", rings=(0,)))
+    b.append(f'<path d="M{vx - vr + 30} {vy - 30}A{vr - 26} {vr - 26} 0 0 1 {vx - 30} {vy - vr + 30}" fill="none" stroke="{p["hi"]}" stroke-width="4" stroke-linecap="round" opacity=".7"/>')
+    b.append(f'<circle cx="{vx}" cy="{vy}" r="110" fill="url(#glowj)"/>')
+    b.append(f'<circle cx="{vx}" cy="{vy}" r="46" fill="{p["metal2"]}" stroke="{p["ink"]}" stroke-width="4"/>')
+    b.append(f'<circle cx="{vx}" cy="{vy}" r="46" fill="none" stroke="{p["jade"]}" stroke-width="6" opacity=".9"/>')
+    b.append(f'<path d="M{vx} {vy - 18}a11 11 0 1 1 -.1 0zM{vx - 7} {vy - 4}h14l6 26h-26z" fill="{p["ink"]}"/>')
+    # the opened backup on the left: envelope, flap up, lock open beside it
+    ex, ey, ew, eh = 70, 300, 260, 170
+    b.append(f'<ellipse cx="{ex + ew / 2}" cy="474" rx="160" ry="12" fill="{p["ink"]}" opacity=".35"/>')
+    b.append(envelope(p, ex, ey, ew, eh, flap_open=True))
+    b.append(f'<circle cx="{ex + ew / 2}" cy="{ey}" r="120" fill="url(#glow)"/>')
+    b.append(dial_lock(p, 380, 428, 38, shackle_open=True))
+    # the key's path home: a dotted arc from the envelope to the keyhole
+    b.append(f'<path d="M{ex + ew / 2} {ey - 10}Q300 70 {vx - 70} {vy - 6}" fill="none" stroke="{p["gold"]}" stroke-width="5" stroke-dasharray="2 13" stroke-linecap="round"/>')
+    b.append(f'<circle cx="440" cy="170" r="110" fill="url(#glow)"/>')
+    b.append(key(p, 395, 175, 0.95, 22))
+    b.append(sparks(p, rnd, 12, 150, 60, 560, 260, avoid=(440, 190, 80)))
+    b.append(f'<rect width="{W}" height="{H}" fill="url(#vig)"/>')
+    return svg(W, H, defs(p) + "".join(b), p["dot"])
+
+
+# ---------------------------------------------------------------- (g) sent: coins leave through the vault's slot
+def sent(p):
+    """Full-page background behind the send progress screen: detail at the top and the
+    edges, the middle (status circle and text) left empty."""
+    W, H = 1080, 2340
+    rnd = random.Random(31)
+    cx, cy, R = 540, -150, 600
+    b = [f'<rect width="{W}" height="{H}" fill="{p["sky1"]}"/>',
+         f'<rect width="{W}" height="900" fill="url(#skyt)"/>']
+    # the vault door, mostly above the screen
+    b.append(f'<circle cx="{cx}" cy="{cy}" r="{R + 30}" fill="{p["ink"]}" opacity="{".3" if p["dark"] else ".1"}"/>')
+    b.append(f'<circle cx="{cx}" cy="{cy}" r="{R}" fill="{p["metal"]}" stroke="{p["ink"]}" stroke-width="5"/>')
+    b.append(f'<circle cx="{cx}" cy="{cy}" r="{R - 34}" fill="{p["stone2"]}" stroke="{p["ink"]}" stroke-width="5"/>')
+    b.append(f'<circle cx="{cx}" cy="{cy}" r="{R - 34}" fill="url(#grit)" opacity=".35"/>')
+    rv = []
+    for a in range(10, 171, 8):
+        r_ = math.radians(a)
+        rv.append(f'M{f(cx + (R - 17) * math.cos(r_))} {f(cy + (R - 17) * math.sin(r_))}h.1')
+    b.append(f'<path d="{"".join(rv)}" stroke="{p["ink"]}" stroke-width="15" stroke-linecap="round"/>')
+    b.append(f'<path d="{"".join(rv)}" stroke="{p["metal2"]}" stroke-width="9" stroke-linecap="round"/>')
+    b.append(f'<path d="M{cx + R - 34} {cy}A{R - 34} {R - 34} 0 0 1 {cx} {cy + R - 34}A{R - 34} {R - 34} 0 0 1 {f(cx - 0.5 * (R - 34))} {f(cy + 0.866 * (R - 34))}A{R - 60} {R - 60} 0 0 0 {cx + R - 34} {cy}Z" bb="{f(cx - 0.5 * (R - 34))} {cy} {cx + R - 34} {cy + R - 34}" fill="url(#hatch)" opacity=".45"/>')
+    b.append(dial(p, cx, cy, R - 60, ticks=90, major=6, color=p["ink"], op=".6", rings=(0, 44)))
+    b.append(f'<path d="M{f(cx - (R - 70) * 0.98)} {f(cy + (R - 70) * 0.2)}A{R - 70} {R - 70} 0 0 0 {f(cx - (R - 70) * 0.6)} {f(cy + (R - 70) * 0.8)}" fill="none" stroke="{p["hi"]}" stroke-width="4" stroke-linecap="round" opacity=".6"/>')
+    # the slot, light pouring out
+    sy = cy + R - 150
+    b.append(f'<ellipse cx="{cx}" cy="{sy + 60}" rx="340" ry="200" fill="url(#glow)"/>')
+    b.append(f'<rect x="{cx - 150}" y="{sy - 18}" width="300" height="36" rx="18" fill="{p["metal2"]}" stroke="{p["ink"]}" stroke-width="5"/>')
+    b.append(f'<rect x="{cx - 128}" y="{sy - 7}" width="256" height="14" rx="7" fill="{p["gold3"]}" stroke="{p["ink"]}" stroke-width="3"/>')
+    # jade member marks around the slot (the signatures that let it out)
+    for dx in (-210, -180, 180, 210):
+        b.append(f'<circle cx="{cx + dx}" cy="{sy}" r="9" fill="{p["jade"]}" stroke="{p["ink"]}" stroke-width="3"/>')
+    # coins drifting out to the edges along two dotted trails
+    trails = [[(cx - 60, sy + 20), (250, 560), (70, 1000)], [(cx + 60, sy + 20), (840, 520), (1010, 940)]]
+    for t in trails:
+        b.append(f'<path d="M{t[0][0]} {t[0][1]}Q{t[1][0]} {t[1][1]} {t[2][0]} {t[2][1]}" fill="none" stroke="{p["gold"]}" stroke-width="4" stroke-dasharray="2 14" stroke-linecap="round" opacity=".7"/>')
+
+    def on(t, u):
+        (x0, y0), (x1, y1), (x2, y2) = t
+        return ((1 - u) ** 2 * x0 + 2 * (1 - u) * u * x1 + u * u * x2,
+                (1 - u) ** 2 * y0 + 2 * (1 - u) * u * y1 + u * u * y2)
+    for side, t in enumerate(trails):
+        for k, u in enumerate((0.22, 0.48, 0.74)):
+            x, y = on(t, u)
+            r_ = 40 - k * 9
+            b.append(f'<g opacity="{1 - k * 0.22:.2f}">' + coin(p, x, y, r_, r_ * 0.45, (-24 + k * 14) * (1 if side else -1)) + "</g>")
+    b.append(sparks(p, rnd, 10, 30, 420, 260, 1150))
+    b.append(sparks(p, rnd, 10, 820, 420, 1050, 1150))
+    # quiet ripples rising from the bottom edge
+    for i, r_ in enumerate((360, 520, 700)):
+        b.append(f'<circle cx="{cx}" cy="{H + 240}" r="{r_}" fill="none" stroke="{p["hi"] if p["dark"] else p["ink"]}" stroke-width="3" stroke-dasharray="{"3 12" if i else "none"}" opacity="{0.35 - i * 0.08:.2f}"/>')
+    b.append(dial(p, cx, H + 240, 470, ticks=72, major=6, op=".25", rings=(0,)))
+    b.append(f'<ellipse cx="{cx}" cy="{H}" rx="520" ry="260" fill="url(#glowj)" opacity=".45"/>')
+    b.append(sparks(p, rnd, 8, 60, 1850, 1020, 2300, avoid=(cx, H + 240, 380)))
+    b.append(f'<rect width="{W}" height="{H}" fill="url(#vigp)"/>')
+    extra = (f'<linearGradient id="skyt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{p["sky0"]}"/>'
+             f'<stop offset="1" stop-color="{p["sky1"]}"/></linearGradient>'
+             f'<radialGradient id="vigp" cx="50%" cy="50%" r="75%"><stop offset="60%" stop-color="{p["sky1"]}" stop-opacity="0"/>'
+             f'<stop offset="100%" stop-color="{p["dot"]}" stop-opacity="{".45" if p["dark"] else ".08"}"/></radialGradient>')
+    return svg(W, H, defs(p, extra) + "".join(b), p["dot"])
+
+
+# ---------------------------------------------------------------- (h) empty activity: a quiet shelf, a blank ledger
+def empty(p):
+    W, H = 1080, 440
+    rnd = random.Random(41)
+    cx = 540
+    b = [f'<rect width="{W}" height="{H}" fill="url(#sky)"/>']
+    b.append(f'<rect width="{W}" height="{H}" fill="url(#fine)" opacity="{float(p["texop"]) * 0.6:.2f}"/>')
+    b.append(dial(p, cx, 330, 330, ticks=72, major=6, op=".25", rings=(0, 40)))
+    b.append(f'<circle cx="{cx}" cy="260" r="260" fill="url(#glow)" opacity=".35"/>')
+    sy = 340
+    # shelf with brackets
+    b.append(f'<rect y="{sy + 34}" width="{W}" height="{H - sy - 34}" fill="{p["stone3"]}"/>')
+    b.append(f'<rect y="{sy + 34}" width="{W}" height="{H - sy - 34}" fill="url(#dots)" opacity="{p["texop"]}"/>')
+    b.append(f'<rect x="60" y="{sy}" width="960" height="34" rx="6" fill="{p["stone2"]}" stroke="{p["ink"]}" stroke-width="5"/>')
+    b.append(f'<rect x="60" y="{sy + 18}" width="960" height="16" fill="url(#hatch)" opacity=".4"/>')
+    b.append(f'<path d="M74 {sy + 9}H700" stroke="{p["hi"]}" stroke-width="3" opacity=".6" stroke-linecap="round"/>')
+    for bx in (150, 930):
+        b.append(f'<path d="M{bx - 18} {sy + 34}h36v24l-18 30l-18 -30z" fill="{p["metal"]}" stroke="{p["ink"]}" stroke-width="4" stroke-linejoin="round"/>')
+    # a small safe on the left, shut
+    x0, w, h = 190, 190, 176
+    y0 = sy - h
+    b.append(f'<rect x="{x0}" y="{y0}" width="{w}" height="{h}" rx="14" fill="{p["metal"]}" stroke="{p["ink"]}" stroke-width="5"/>')
+    b.append(f'<rect x="{x0 + 16}" y="{y0 + 16}" width="{w - 32}" height="{h - 32}" rx="8" fill="{p["stone2"]}" stroke="{p["ink"]}" stroke-width="3.5"/>')
+    b.append(f'<rect x="{x0 + w - 70}" y="{y0 + 16}" width="54" height="{h - 32}" fill="url(#hatch)" opacity=".4"/>')
+    b.append(f'<circle cx="{x0 + w / 2 - 8}" cy="{y0 + h / 2}" r="46" fill="{p["metal2"]}" stroke="{p["ink"]}" stroke-width="4"/>')
+    b.append(dial(p, x0 + w / 2 - 8, y0 + h / 2, 40, ticks=24, major=6, color=p["ink"], op=".9", width=2.5, rings=(0,)))
+    b.append(f'<circle cx="{x0 + w / 2 - 8}" cy="{y0 + h / 2}" r="12" fill="{p["jade"]}" stroke="{p["ink"]}" stroke-width="3.5"/>')
+    b.append(f'<path d="M{x0 + w - 30} {y0 + 60}v56" stroke="{p["ink"]}" stroke-width="12" stroke-linecap="round"/>')
+    b.append(f'<path d="M{x0 + w - 30} {y0 + 60}v56" stroke="{p["metal2"]}" stroke-width="6" stroke-linecap="round"/>')
+    for fx in (x0 + 26, x0 + w - 44):
+        b.append(f'<rect x="{fx}" y="{sy - 4}" width="18" height="8" fill="{p["ink"]}"/>')
+    # the open ledger, blank
+    lx, ly = 650, sy - 6
+    left = f"M{lx} {ly - 6}C{lx - 60} {ly - 30} {lx - 140} {ly - 24} {lx - 200} {ly}L{lx - 180} {ly - 150}C{lx - 120} {ly - 172} {lx - 50} {ly - 170} {lx} {ly - 148}Z"
+    right = f"M{lx} {ly - 6}C{lx + 60} {ly - 30} {lx + 140} {ly - 24} {lx + 200} {ly}L{lx + 180} {ly - 150}C{lx + 120} {ly - 172} {lx + 50} {ly - 170} {lx} {ly - 148}Z"
+    b.append(f'<path d="M{lx - 212} {ly + 4}L{lx - 190} {ly - 140}H{lx + 190}L{lx + 212} {ly + 4}Z" fill="{p["jade2"]}" stroke="{p["ink"]}" stroke-width="4" stroke-linejoin="round"/>')
+    b.append(f'<path d="{left}" fill="{p["paper"]}" stroke="{p["ink"]}" stroke-width="4" stroke-linejoin="round"/>')
+    b.append(f'<path d="{right}" fill="{p["paper"]}" stroke="{p["ink"]}" stroke-width="4" stroke-linejoin="round"/>')
+    b.append(f'<path d="{right}" bb="{lx} {ly - 170} {lx + 200} {ly}" fill="url(#hatch2)" opacity=".25"/>')
+    rules = []
+    for i in range(5):
+        y = ly - 128 + i * 24
+        rules.append(f"M{lx - 168 + i * 4} {y + 4}Q{lx - 90} {y - 12} {lx - 16} {y + 2}M{lx + 16} {y + 2}Q{lx + 90} {y - 12} {lx + 168 - i * 4} {y + 4}")
+    b.append(f'<path d="{"".join(rules)}" fill="none" stroke="{p["light"] if p["dark"] else p["stone3"]}" stroke-width="3"/>')
+    b.append(f'<path d="M{lx + 70} {ly - 162}v150l14 -14l14 14v-150" fill="{p["jade"]}" stroke="{p["ink"]}" stroke-width="3.5" stroke-linejoin="round"/>')
+    # a single coin resting at the right: the vault is ready, nothing moved yet
+    b.append(coin(p, 930, sy - 16, 38, 16, 0))
+    b.append(sparks(p, rnd, 5, 820, 120, 1020, 260))
+    b.append(sparks(p, rnd, 3, 60, 90, 170, 230))
+    b.append(f'<rect width="{W}" height="{H}" fill="url(#vig)"/>')
+    return svg(W, H, defs(p) + "".join(b), p["dot"])
+
+
+SCENES = {"welcome_vault": welcome, "create_stones": create, "join_doorway": join, "key_shards": shards,
+          "backup_seal": backup, "restore_key": restore,
+          "sent_slot": sent, "empty_ledger": empty}
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)

@@ -369,9 +369,10 @@ class _AppButtonState extends State<AppButton> {
     final borderWidth = _enabled ? palette.borderWidth : 0.0;
     final iconGap = widget.iconGap ?? sizing.gap;
     final contentPadding = widget.contentPadding ?? sizing.padding;
-    final OutlinedBorder shape = widget.borderRadius == null
-        ? const StadiumBorder()
-        : RoundedRectangleBorder(borderRadius: widget.borderRadius!);
+    // Zafe: squared-off buttons (rounded rectangles) rather than pills.
+    final radius =
+        widget.borderRadius ?? BorderRadius.circular(zafeButtonRadius(height));
+    final OutlinedBorder shape = RoundedRectangleBorder(borderRadius: radius);
 
     final rowChildren = <Widget>[];
     if (widget.leading != null) {
@@ -463,12 +464,9 @@ class _AppButtonState extends State<AppButton> {
       AppButtonVariant.destructive => 3.5,
       AppButtonVariant.secondary || AppButtonVariant.ghost => 2.0,
     };
-    final OutlinedBorder focusShape = widget.borderRadius == null
-        ? const StadiumBorder()
-        : RoundedRectangleBorder(
-            borderRadius:
-                widget.borderRadius! + BorderRadius.circular(focusRingOutset),
-          );
+    final OutlinedBorder focusShape = RoundedRectangleBorder(
+      borderRadius: radius + BorderRadius.circular(focusRingOutset),
+    );
 
     // Keep the stack's layout size equal to the pill's design height and
     // paint the focus ring outside via overflow. Reserving outer padding
@@ -575,3 +573,8 @@ class _AppButtonState extends State<AppButton> {
     return KeyEventResult.handled;
   }
 }
+
+/// Zafe's button corner radius for a button [height]: 14 for full-size buttons, a bit
+/// less for compact ones.
+double zafeButtonRadius(double height) =>
+    height >= 44 ? 14 : (height >= 32 ? 10 : 8);

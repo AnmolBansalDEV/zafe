@@ -16,7 +16,7 @@ import '../primitives.dart';
 /// * [destructive] — Destructive-state icons.
 /// * [destructiveLight] — Softer destructive icon for secondary error affordances.
 /// * [success] — Positive / success utility icons.
-/// * [brandCrimson] — Brand-colored icons.
+/// * [brand] — Brand-colored icons.
 class AppIconColors {
   const AppIconColors({
     required this.accent,
@@ -29,7 +29,7 @@ class AppIconColors {
     required this.destructive,
     required this.destructiveLight,
     required this.success,
-    required this.brandCrimson,
+    required this.brand,
   });
 
   final Color accent;
@@ -42,7 +42,7 @@ class AppIconColors {
   final Color destructive;
   final Color destructiveLight;
   final Color success;
-  final Color brandCrimson;
+  final Color brand;
 
   static const dark = AppIconColors(
     accent: Primitives.p800Dark,
@@ -55,7 +55,7 @@ class AppIconColors {
     destructive: PlumPrimitives.p400Dark,
     destructiveLight: PlumPrimitives.p300Dark,
     success: GreenPrimitives.p300Dark,
-    brandCrimson: CrimsonPrimitives.p400Dark,
+    brand: BrandPrimitives.p400Dark,
   );
 
   static const light = AppIconColors(
@@ -69,6 +69,6 @@ class AppIconColors {
     destructive: PlumPrimitives.p300Light,
     destructiveLight: PlumPrimitives.p200Light,
     success: GreenPrimitives.p500Light,
-    brandCrimson: CrimsonPrimitives.p300Light,
+    brand: BrandPrimitives.p300Light,
   );
 }

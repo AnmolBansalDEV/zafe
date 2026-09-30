@@ -17,7 +17,7 @@ import 'theme_mode_provider.dart' show kThemeModeKey, themeModeFromName;
 
 const kActiveVaultKey = 'zafe_active_vault';
 
-/// Snapshot read before the first frame (Vizor's bootstrap pattern), so the router can
+/// Snapshot read before the first frame, so the router can
 /// start on the right screen without a flash.
 class VaultBootstrap {
   const VaultBootstrap({

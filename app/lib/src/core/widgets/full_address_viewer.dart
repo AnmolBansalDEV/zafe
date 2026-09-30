@@ -19,7 +19,7 @@ void copyFullAddress(BuildContext context, String address) {
   );
 }
 
-/// Continuous, wrapping Geist Mono address. Soft-wrap only — the string
+/// Continuous, wrapping JetBrains Mono address. Soft-wrap only — the string
 /// itself stays unspaced so `O` / `0` sit in a fixed-width grid the eye
 /// can scan, and a copy action can take the exact value.
 class FullAddressText extends StatelessWidget {

@@ -1,6 +1,6 @@
 //! Vault setup and wallet API for the Flutter app.
 //!
-//! Keep this surface to primitives and flat structs (the Vizor rule); all Zcash and FROST
+//! Keep this surface to primitives and flat structs; all Zcash and FROST
 //! types stay inside `zafe-core`. Secrets (identity seeds, vault material) cross as bytes so
 //! the Dart side can keep them in platform secure storage; nothing here persists secrets.
 //! Calls run on FRB's worker threads; async work uses one shared tokio runtime.

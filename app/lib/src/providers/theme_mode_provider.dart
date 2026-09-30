@@ -11,7 +11,7 @@ ThemeMode themeModeFromName(String? name) => ThemeMode.values.firstWhere(
   orElse: () => ThemeMode.system,
 );
 
-/// Light/dark/system (Vizor's theme setting). Plain prefs, read in the bootstrap.
+/// Light/dark/system theme setting. Plain prefs, read in the bootstrap.
 class ThemeModeNotifier extends Notifier<ThemeMode> {
   @override
   ThemeMode build() => ref.watch(vaultBootstrapProvider).themeMode;
