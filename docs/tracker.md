@@ -54,6 +54,17 @@ Last updated: 2026-09-30 (note reservation; versioned formats; relay TLS + packa
 
 ## M1 — app v1 on testnet (spec §16)
 
+- [x] **Testnet dry run** (2026-09-30, Nothing Phone A024, Android 16, release build,
+      public `testnet.zec.rocks`, local relay via `adb reverse`, CLI members B and C with
+      `--network test`): join, safety number matched, keygen, first sync (hung once in
+      `walletKey`: fixed in `b6fd063`), Valar faucet 0.125 TAZ landed in Ironwood,
+      spendable after 10 confirmations; B proposed 0.01 TAZ with the phone locked:
+      FCM push → background check → notification in ~5 s (no ANR in release); C approved
+      one-tap; the phone approved with the unlock prompt, completed the signatures and
+      auto-sent (proved on the phone): txid e6ccd6b7…0237 mined at ~4422297, vault
+      12500000 → 11490000 zat (payment + 10000 fee). Still to check on the phone: live
+      camera QR scan, haptics, proving time from logs (adb dropped before they were read)
+
 Done
 - [x] Flutter + FRB app on Vizor's architecture and design system (`c07c687`)
 - [x] Create / join (paste) / seal / safety number / keygen, receive, balance (`c07c687`)
