@@ -1,7 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// One vault's secrets on this device. Each vault has its own member identity, so the relay
@@ -40,9 +41,11 @@ class ZafeSecureStore {
   static const _legacyInviteKey = 'zafe_invite';
   static const _legacyMaterialKey = 'zafe_vault_material';
 
-  final FlutterSecureStorage _storage = const FlutterSecureStorage(
-    iOptions: IOSOptions(
-      accessibility: KeychainAccessibility.first_unlock_this_device,
+  final _storage = _PatientStorage(
+    const FlutterSecureStorage(
+      iOptions: IOSOptions(
+        accessibility: KeychainAccessibility.first_unlock_this_device,
+      ),
     ),
   );
 
@@ -148,4 +151,36 @@ class ZafeSecureStore {
     }
     return read(id);
   }
+}
+
+/// `FlutterSecureStorage` with a timeout and one retry per call. On Android a call can
+/// occasionally get no reply at all: seen right after key generation, while a background
+/// check's engine used the same storage (its plugin instance logged "decryption failed"
+/// at the same moment). The first sync then waited forever on `walletKey`; a second call
+/// answered at once. So a lost reply costs [_timeout] instead of hanging the caller.
+class _PatientStorage {
+  const _PatientStorage(this._inner);
+  final FlutterSecureStorage _inner;
+
+  static const _timeout = Duration(seconds: 10);
+
+  Future<T> _call<T>(String what, Future<T> Function() op) async {
+    try {
+      return await op().timeout(_timeout);
+    } on TimeoutException {
+      debugPrint(
+        'secure storage: no answer to $what in ${_timeout.inSeconds}s, retrying',
+      );
+      return await op().timeout(_timeout);
+    }
+  }
+
+  Future<String?> read({required String key}) =>
+      _call('read', () => _inner.read(key: key));
+
+  Future<void> write({required String key, required String? value}) =>
+      _call('write', () => _inner.write(key: key, value: value));
+
+  Future<void> delete({required String key}) =>
+      _call('delete', () => _inner.delete(key: key));
 }

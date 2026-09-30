@@ -337,13 +337,14 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 
 ## Known issues and tech debt
 
-- [ ] **First sync after keygen stuck on "Syncing..."** (emulator, 2026-09-30, once):
-      Rust and platform threads were idle (native + Java stack dumps), no `sync failed`
-      log, `ZafeSecureStore._creatingWalletKey` empty; a restart synced at once. Not
-      reproducible with lightwalletd down (that fails cleanly). Guarded: `sync()` now times
-      out after 6 minutes so `syncing` can't stick. Root cause unknown. Breadcrumbs added
-      (2026-09-30): the log line `sync failed at <step>` names paths / wallet key / rust
-      sync; watch for it in the phone dry run
+- [x] **First sync after keygen stuck on "Syncing..."** (2026-09-30): reproduced on the
+      Nothing phone (release, testnet): the breadcrumb said `sync failed at wallet key`
+      after the 6-minute guard, and the very next `walletKey` call answered at once. A
+      `flutter_secure_storage` call got no reply (Java worker idle, no Dart lock), most
+      likely its async `initialize` racing the background engine's own plugin instance on
+      the same prefs/Keystore (that instance logged "decryption failed"). Fix:
+      `ZafeSecureStore` wraps every call in a 10 s timeout plus one retry
+      (`_PatientStorage`). Upstream report worth filing with a minimal repro *(you?)*
 - [x] A payment to the vault's **own address** failed every member's check (verification
       counts the output as change): `node::propose` now refuses it up front
       (`WalletError::Payment` → `InvalidInput`, "that is this vault's own address"),

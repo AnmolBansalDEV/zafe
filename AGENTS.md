@@ -436,7 +436,10 @@ Learned while studying it:
   `lib/src/{providers,features}`, `lib/src/app.dart` (GoRouter + redirect on vault state),
   `lib/main.dart` (RustLib.init → `VaultBootstrap.load()` → ProviderScope override).
   Secrets (identity, invite, key material) live in `flutter_secure_storage` via
-  `core/storage/zafe_secure_store.dart`. The **network** is compile-time (`ZAFE_NETWORK`,
+  `core/storage/zafe_secure_store.dart`. **Its calls can get no reply** on Android when
+  a background engine (WorkManager/FCM check) uses the storage at the same time: every
+  call goes through `_PatientStorage` (10 s timeout, one retry); never call the plugin
+  directly. The **network** is compile-time (`ZAFE_NETWORK`,
   default regtest, `core/config/network_config.dart`). Relay/lightwalletd **defaults**
   come from the build: presets per network (`regtest` local http; `test`/`testnet`:
   zec.rocks TLS lightwalletd + a placeholder relay `https://relay.zafe.invalid` until one
