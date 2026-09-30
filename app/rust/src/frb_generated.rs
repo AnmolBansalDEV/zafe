@@ -37,7 +37,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1609565489;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1531417390;
 
 // Section: executor
 
@@ -486,6 +486,40 @@ fn wire__crate__api__proposals__list_proposals_impl(
                         api_seeds,
                         api_material,
                     )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__received__list_received_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "list_received",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_db_dir = <String>::sse_decode(&mut deserializer);
+            let api_material = <Vec<u8>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, crate::api::error::ZafeError>((move || {
+                    let output_ok = crate::api::received::list_received(api_db_dir, api_material)?;
                     Ok(output_ok)
                 })())
             }
@@ -1243,6 +1277,20 @@ impl SseDecode for Vec<crate::api::proposals::ProposalInfo> {
     }
 }
 
+impl SseDecode for Vec<crate::api::received::ReceivedInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::received::ReceivedInfo>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for crate::api::vault::MembershipInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1415,6 +1463,28 @@ impl SseDecode for crate::api::proposals::ProposalStage {
     }
 }
 
+impl SseDecode for crate::api::received::ReceivedInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_txid = <String>::sse_decode(deserializer);
+        let mut var_amountZat = <u64>::sse_decode(deserializer);
+        let mut var_minedHeight = <u32>::sse_decode(deserializer);
+        let mut var_blockTimeSecs = <u32>::sse_decode(deserializer);
+        let mut var_confirmations = <u32>::sse_decode(deserializer);
+        let mut var_memo = <String>::sse_decode(deserializer);
+        let mut var_isCoinbase = <bool>::sse_decode(deserializer);
+        return crate::api::received::ReceivedInfo {
+            txid: var_txid,
+            amount_zat: var_amountZat,
+            mined_height: var_minedHeight,
+            block_time_secs: var_blockTimeSecs,
+            confirmations: var_confirmations,
+            memo: var_memo,
+            is_coinbase: var_isCoinbase,
+        };
+    }
+}
+
 impl SseDecode for crate::api::proposals::ReviewInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1576,15 +1646,16 @@ fn pde_ffi_dispatcher_primary_impl(
         10 => wire__crate__api__app__init_app_impl(port, ptr, rust_vec_len, data_len),
         11 => wire__crate__api__vault__join_vault_impl(port, ptr, rust_vec_len, data_len),
         12 => wire__crate__api__proposals__list_proposals_impl(port, ptr, rust_vec_len, data_len),
-        16 => wire__crate__api__proposals__propose_payment_impl(port, ptr, rust_vec_len, data_len),
-        17 => wire__crate__api__vault__register_push_impl(port, ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__proposals__reject_proposal_impl(port, ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__proposals__review_proposal_impl(port, ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__vault__run_keygen_impl(port, ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__vault__seal_vault_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__proposals__send_proposal_impl(port, ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__vault__sync_vault_impl(port, ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__vault__vault_membership_impl(port, ptr, rust_vec_len, data_len),
+        13 => wire__crate__api__received__list_received_impl(port, ptr, rust_vec_len, data_len),
+        17 => wire__crate__api__proposals__propose_payment_impl(port, ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__vault__register_push_impl(port, ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__proposals__reject_proposal_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__proposals__review_proposal_impl(port, ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__vault__run_keygen_impl(port, ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__vault__seal_vault_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__proposals__send_proposal_impl(port, ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__vault__sync_vault_impl(port, ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__vault__vault_membership_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1601,11 +1672,11 @@ fn pde_ffi_dispatcher_sync_impl(
         4 => wire__crate__api__backup__check_backup_passphrase_impl(ptr, rust_vec_len, data_len),
         7 => wire__crate__api__vault__generate_identity_impl(ptr, rust_vec_len, data_len),
         8 => wire__crate__api__vault__identity_public_key_impl(ptr, rust_vec_len, data_len),
-        13 => wire__crate__api__proposals__memo_length_impl(ptr, rust_vec_len, data_len),
-        14 => wire__crate__api__vault__parse_invite_impl(ptr, rust_vec_len, data_len),
-        15 => wire__crate__api__proposals__parse_zec_impl(ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__backup__suggest_backup_passphrase_impl(ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__vault__vault_summary_impl(ptr, rust_vec_len, data_len),
+        14 => wire__crate__api__proposals__memo_length_impl(ptr, rust_vec_len, data_len),
+        15 => wire__crate__api__vault__parse_invite_impl(ptr, rust_vec_len, data_len),
+        16 => wire__crate__api__proposals__parse_zec_impl(ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__backup__suggest_backup_passphrase_impl(ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__vault__vault_summary_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1928,6 +1999,32 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::proposals::ProposalStage>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::received::ReceivedInfo {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.txid.into_into_dart().into_dart(),
+            self.amount_zat.into_into_dart().into_dart(),
+            self.mined_height.into_into_dart().into_dart(),
+            self.block_time_secs.into_into_dart().into_dart(),
+            self.confirmations.into_into_dart().into_dart(),
+            self.memo.into_into_dart().into_dart(),
+            self.is_coinbase.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::received::ReceivedInfo
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::received::ReceivedInfo>
+    for crate::api::received::ReceivedInfo
+{
+    fn into_into_dart(self) -> crate::api::received::ReceivedInfo {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::proposals::ReviewInfo {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -2225,6 +2322,16 @@ impl SseEncode for Vec<crate::api::proposals::ProposalInfo> {
     }
 }
 
+impl SseEncode for Vec<crate::api::received::ReceivedInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::received::ReceivedInfo>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for crate::api::vault::MembershipInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -2358,6 +2465,19 @@ impl SseEncode for crate::api::proposals::ProposalStage {
             },
             serializer,
         );
+    }
+}
+
+impl SseEncode for crate::api::received::ReceivedInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.txid, serializer);
+        <u64>::sse_encode(self.amount_zat, serializer);
+        <u32>::sse_encode(self.mined_height, serializer);
+        <u32>::sse_encode(self.block_time_secs, serializer);
+        <u32>::sse_encode(self.confirmations, serializer);
+        <String>::sse_encode(self.memo, serializer);
+        <bool>::sse_encode(self.is_coinbase, serializer);
     }
 }
 

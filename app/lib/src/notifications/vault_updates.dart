@@ -2,6 +2,7 @@ import '../core/formatting/member_label.dart';
 import '../core/formatting/zec_amount.dart';
 import '../core/privacy/amount_display.dart';
 import '../rust/api/proposals.dart' as rust;
+import '../rust/api/received.dart' as rust;
 
 /// A notification to show for a change in the vault.
 class VaultUpdate {
@@ -11,6 +12,7 @@ class VaultUpdate {
     required this.body,
   });
 
+  /// The proposal id, or `rx:<txid>` for a received payment (see [receivedKey]).
   final String proposalId;
   final String title;
   final String body;
@@ -19,8 +21,18 @@ class VaultUpdate {
   String toString() => 'VaultUpdate($proposalId, $title, $body)';
 }
 
-/// What this device last saw of each proposal: `stage/myVote/ready`.
+/// What this device last saw of each proposal (`stage/myVote/ready`), plus one
+/// `rx:<txid>` entry per received payment and the [kReceivedMarker].
 typedef SeenSnapshot = Map<String, String>;
+
+/// Snapshot keys of received payments start with this.
+const kReceivedPrefix = 'rx:';
+
+/// Present once received payments are part of the snapshot. Older snapshots lack it, and
+/// then the vault's past receipts must not be announced as new.
+const kReceivedMarker = 'rx:*';
+
+String receivedKey(String txid) => '$kReceivedPrefix$txid';
 
 String seenKey(rust.ProposalInfo p) =>
     '${p.stage.name}/${p.myVote.name}/${p.ready}';
@@ -35,9 +47,27 @@ List<VaultUpdate> vaultUpdates({
   required List<rust.ProposalInfo> proposals,
   required String vaultName,
   required bool hideAmounts,
+  List<rust.ReceivedInfo> received = const [],
 }) {
   if (previous == null) return const [];
   final out = <VaultUpdate>[];
+  if (previous.containsKey(kReceivedMarker)) {
+    for (final r in received) {
+      if (previous.containsKey(receivedKey(r.txid))) continue;
+      final amount = amountWithTicker(
+        ZecAmount.fromZatoshi(r.amountZat).activity.amountText,
+        hide: hideAmounts,
+      );
+      out.add(
+        VaultUpdate(
+          proposalId: receivedKey(r.txid),
+          title:
+              '$vaultName: ${r.isCoinbase ? 'mining reward' : 'payment'} received',
+          body: hideAmounts ? 'Open Zafe to see it.' : '+$amount',
+        ),
+      );
+    }
+  }
   for (final p in proposals) {
     final before = previous[p.id];
     if (before == seenKey(p)) continue;
@@ -84,8 +114,25 @@ List<VaultUpdate> vaultUpdates({
   return out;
 }
 
-SeenSnapshot snapshotOf(List<rust.ProposalInfo> proposals) => {
-  for (final p in proposals) p.id: seenKey(p),
+/// The snapshot for `proposals` and/or `received`; a `null` list keeps that kind's
+/// entries from `previous`.
+SeenSnapshot snapshotOf(
+  List<rust.ProposalInfo>? proposals, {
+  List<rust.ReceivedInfo>? received,
+  SeenSnapshot previous = const {},
+}) => {
+  if (proposals == null)
+    for (final e in previous.entries)
+      if (!e.key.startsWith(kReceivedPrefix)) e.key: e.value,
+  if (proposals != null)
+    for (final p in proposals) p.id: seenKey(p),
+  if (received == null)
+    for (final e in previous.entries)
+      if (e.key.startsWith(kReceivedPrefix)) e.key: e.value,
+  if (received != null) ...{
+    kReceivedMarker: '',
+    for (final r in received) receivedKey(r.txid): '',
+  },
 };
 
 /// Payments waiting for this member: a vote, or (once every signature is in and nobody is

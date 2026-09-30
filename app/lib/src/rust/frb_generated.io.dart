@@ -6,6 +6,7 @@
 import 'api/backup.dart';
 import 'api/error.dart';
 import 'api/proposals.dart';
+import 'api/received.dart';
 import 'api/vault.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -87,6 +88,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ProposalInfo> dco_decode_list_proposal_info(dynamic raw);
 
   @protected
+  List<ReceivedInfo> dco_decode_list_received_info(dynamic raw);
+
+  @protected
   MembershipInfo dco_decode_membership_info(dynamic raw);
 
   @protected
@@ -118,6 +122,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ProposalStage dco_decode_proposal_stage(dynamic raw);
+
+  @protected
+  ReceivedInfo dco_decode_received_info(dynamic raw);
 
   @protected
   ReviewInfo dco_decode_review_info(dynamic raw);
@@ -222,6 +229,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<ReceivedInfo> sse_decode_list_received_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   MembershipInfo sse_decode_membership_info(SseDeserializer deserializer);
 
   @protected
@@ -255,6 +267,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ProposalStage sse_decode_proposal_stage(SseDeserializer deserializer);
+
+  @protected
+  ReceivedInfo sse_decode_received_info(SseDeserializer deserializer);
 
   @protected
   ReviewInfo sse_decode_review_info(SseDeserializer deserializer);
@@ -377,6 +392,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_received_info(
+    List<ReceivedInfo> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_membership_info(
     MembershipInfo self,
     SseSerializer serializer,
@@ -417,6 +438,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_proposal_stage(ProposalStage self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_received_info(ReceivedInfo self, SseSerializer serializer);
 
   @protected
   void sse_encode_review_info(ReviewInfo self, SseSerializer serializer);

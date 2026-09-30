@@ -8,11 +8,11 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_toast.dart';
 import '../../providers/privacy_mode_provider.dart';
 import '../../providers/proposals_provider.dart';
-import '../../rust/api/proposals.dart' as rust;
+import '../../providers/received_provider.dart';
 import '../onboarding/onboarding_art.dart';
-import 'proposal_status.dart';
+import 'activity_feed.dart';
 
-/// Every payment in the vault, grouped into sections: "This week", then
+/// Every payment in the vault, sent and received, grouped into sections: "This week", then
 /// month and year, then "Earlier"; one card per section.
 class ActivityScreen extends ConsumerWidget {
   const ActivityScreen({super.key});
@@ -21,8 +21,11 @@ class ActivityScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final proposals = ref.watch(proposalsProvider);
+    final received = ref.watch(receivedProvider);
     final hide = ref.watch(privacyModeProvider);
-    final sections = activitySections(proposals.items);
+    final sections = activitySections(
+      mergeActivity(proposals.items, received.items),
+    );
     return Scaffold(
       backgroundColor: colors.background.window,
       body: AppToastHost(
@@ -49,12 +52,8 @@ class ActivityScreen extends ConsumerWidget {
                         _SectionCard(
                           title: title,
                           children: [
-                            for (final p in rows)
-                              ProposalRow(
-                                proposal: p,
-                                hideAmount: hide,
-                                onTap: () => context.push('/proposal/${p.id}'),
-                              ),
+                            for (final item in rows)
+                              ActivityRow(item: item, hideAmount: hide),
                           ],
                         ),
                         const SizedBox(height: AppSpacing.md),
@@ -71,19 +70,21 @@ class ActivityScreen extends ConsumerWidget {
   }
 }
 
-/// Newest first (the provider's order), grouped by section title.
-List<(String, List<rust.ProposalInfo>)> activitySections(
-  List<rust.ProposalInfo> items,
-) {
-  final out = <(String, List<rust.ProposalInfo>)>[];
-  for (final p in items) {
+/// Newest first (`mergeActivity`'s order), grouped by section title. Payments still
+/// being mined belong to "This week".
+List<(String, List<ActivityItem>)> activitySections(
+  List<ActivityItem> items, {
+  DateTime? now,
+}) {
+  final out = <(String, List<ActivityItem>)>[];
+  for (final item in items) {
+    final pending = item is ReceivedActivity && item.pending;
     final title = sectionTitle(
-      p.createdAt == BigInt.zero
-          ? null
-          : DateTime.fromMillisecondsSinceEpoch(p.createdAt.toInt() * 1000),
+      pending ? (now ?? DateTime.now()) : item.time,
+      now: now,
     );
     if (out.isEmpty || out.last.$1 != title) out.add((title, []));
-    out.last.$2.add(p);
+    out.last.$2.add(item);
   }
   return out;
 }
