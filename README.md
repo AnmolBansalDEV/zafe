@@ -81,6 +81,18 @@ at a local regtest).
 Contributor notes, invariants and gotchas are in [`AGENTS.md`](AGENTS.md); open work is in
 [`docs/tracker.md`](docs/tracker.md).
 
+## License
+
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
+[MIT license](LICENSE-MIT), at your option. Exception: code derived from Vizor (listed in
+[`app/NOTICE`](app/NOTICE), mainly `app/lib/src/core` and `app/assets/icons`) is
+Apache-2.0 only, as upstream. Bundled fonts are under the SIL Open Font License 1.1
+(`app/assets/fonts/licenses`).
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for
+inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed
+as above, without any additional terms or conditions.
+
 ## Acknowledgements
 
 The app's architecture and parts of its UI component library are derived from
