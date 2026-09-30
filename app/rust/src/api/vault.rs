@@ -15,7 +15,7 @@ use zafe_core::{
 };
 use zafe_proto::{Identity, IdentitySeeds, ProtoError};
 
-use super::error::ZafeError;
+use super::error::{ZafeError, ZafeErrorKind};
 
 type Result<T, E = ZafeError> = std::result::Result<T, E>;
 
@@ -289,6 +289,9 @@ pub(crate) async fn open_wallet(
 }
 
 /// Syncs the vault wallet (creating its database under `db_dir` on first use).
+/// Upper bound for one sync pass (see `sync_vault`).
+const SYNC_PASS_TIMEOUT: Duration = Duration::from_secs(300);
+
 pub fn sync_vault(
     db_dir: String,
     db_key: Vec<u8>,
@@ -300,7 +303,16 @@ pub fn sync_vault(
     runtime().block_on(async {
         let mut wallet = open_wallet(&db_dir, &db_key, &lightwalletd_url, &m).await?;
         let mut client = connect(&lightwalletd_url).await?;
-        wallet.sync(&mut client).await?;
+        // One pass is capped so a stalled stream can't hold the wallet lock forever; sync is
+        // incremental, so the next pass continues where this one stopped.
+        tokio::time::timeout(SYNC_PASS_TIMEOUT, wallet.sync(&mut client))
+            .await
+            .map_err(|_| {
+                ZafeError::new(
+                    ZafeErrorKind::Network,
+                    "sync took too long; it will continue on the next try",
+                )
+            })??;
         let b = wallet.balance()?;
         // Before the vault's birthday block exists the wallet has no chain height yet.
         let height = match wallet.chain_height()? {

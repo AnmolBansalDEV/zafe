@@ -182,6 +182,13 @@ pub fn regtest_network() -> LocalNetwork {
 /// `https://testnet.zec.rocks:443`). `https` endpoints use rustls with the bundled Mozilla
 /// roots (webpki-roots). TLS must be configured explicitly: `Channel::from_shared` with an
 /// `https` URI otherwise fails with "Connecting to HTTPS without TLS enabled".
+/// Time to establish the lightwalletd connection.
+pub const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+/// Per request, until the response starts (a block stream may then run longer).
+pub const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+const KEEPALIVE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(15);
+const KEEPALIVE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 pub async fn connect(endpoint: &str) -> Result<Client, WalletError> {
     let mut channel = Channel::from_shared(endpoint.to_owned()).map_err(|e| remote_error(&e))?;
     if endpoint.starts_with("https://") {
@@ -189,7 +196,17 @@ pub async fn connect(endpoint: &str) -> Result<Client, WalletError> {
             .tls_config(ClientTlsConfig::new().with_webpki_roots())
             .map_err(|e| remote_error(&e))?;
     }
-    let channel = channel.connect().await.map_err(|e| remote_error(&e))?;
+    // Without these a lightwalletd that accepts the connection but never answers (seen
+    // while it was still starting) hangs the sync forever, holding the wallet lock.
+    let channel = channel
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(REQUEST_TIMEOUT)
+        .http2_keep_alive_interval(KEEPALIVE_INTERVAL)
+        .keep_alive_timeout(KEEPALIVE_TIMEOUT)
+        .keep_alive_while_idle(true)
+        .connect()
+        .await
+        .map_err(|e| remote_error(&e))?;
     Ok(CompactTxStreamerClient::new(channel))
 }
 

@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# Device-testing harness for the app: a relay and two headless CLI members (B, C) on this
-# machine; the app on a phone/emulator is the third member. `adb reverse` lets the device
+# Device-testing harness for the app: a relay and headless CLI members (B, C, ...) on this
+# machine; the app on a phone/emulator is the last member. `adb reverse` lets the device
 # reach the relay (8787) and lightwalletd (9067) at 127.0.0.1, matching the app defaults.
 #
-#   scripts/app-harness.sh start          relay + B creates a 2-of-3 vault; prints the invite
-#   scripts/app-harness.sh join-c         C joins
+#   scripts/app-harness.sh start          relay + B creates a vault (ZAFE_THRESHOLD of
+#                                         ZAFE_MEMBERS, default 2 of 3); prints the invite
+#   scripts/app-harness.sh join-all       the other CLI members (C, D, ...) join; alias join-c
 #   scripts/app-harness.sh seal           B seals (after the app joined); prints safety number
-#   scripts/app-harness.sh keygen         B and C run keygen in the background (app joins in)
+#   scripts/app-harness.sh keygen         CLI members run keygen in the background (app joins in)
+#   scripts/app-harness.sh each ARGS      run the zafe CLI as every CLI member in turn
 #   scripts/app-harness.sh fund           regtest up, mining to the vault; 120 blocks
 #   scripts/app-harness.sh mine N         mine N blocks
 #   scripts/app-harness.sh resume         after a restart: containers, relay, adb reverse
-#   scripts/app-harness.sh cli WHO ARGS   run the zafe CLI as B or C (sync, approve, respond, ...)
+#   scripts/app-harness.sh cli WHO ARGS   run the zafe CLI as one member (sync, approve, respond, ...)
 #   scripts/app-harness.sh stop           stop everything and delete the state
 set -euo pipefail
 
@@ -20,6 +22,8 @@ WORK=${ZAFE_HARNESS_DIR:-$HOME/.cache/zafe-harness}
 export ZAFE_RELAY=http://127.0.0.1:8787 ZAFE_LIGHTWALLETD=http://127.0.0.1:9067
 ZAFE="$ROOT/target/debug/zafe"
 member() { local who=$1; shift; "$ZAFE" --home "$WORK/$who" "$@"; }
+# CLI members: B plus the others that join (ZAFE_MEMBERS - 1 in total; the app is the last seat).
+others() { cat "$WORK/others"; }
 mine() {
   curl -sf -X POST -H 'content-type: application/json' \
     --data "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"generate\",\"params\":[$1]}" \
@@ -40,17 +44,21 @@ case "${1:-}" in
     mkdir -p "$WORK"
     cargo build -q -p zafe-cli -p zafe-relay
     relay_up
+    T=${ZAFE_THRESHOLD:-2} N=${ZAFE_MEMBERS:-3}
+    echo C D E F G H I J K L M N O | tr ' ' '\n' | head -n $((N - 2)) > "$WORK/others"
     member B init >/dev/null
-    member C init >/dev/null
-    member B vault create --name "${ZAFE_VAULT_NAME:-Grants}" --threshold 2 --members 3 | tee "$WORK/invite"
+    for who in $(others); do member "$who" init >/dev/null; done
+    member B vault create --name "${ZAFE_VAULT_NAME:-Grants}" --threshold "$T" --members "$N" | tee "$WORK/invite"
     ;;
-  join-c) member C vault join "$(cat "$WORK/invite")" ;;
+  join-c|join-all) for who in $(others); do member "$who" vault join "$(cat "$WORK/invite")"; done ;;
   seal) member B vault seal; member B vault members ;;
   keygen)
     SN=$(member B vault members | sed -n 's/^safety number: //p')
     echo "safety number: $SN"
     nohup "$ZAFE" --home "$WORK/B" vault keygen --safety-number "$SN" --birthday 2 > "$WORK/kB" 2>&1 &
-    nohup "$ZAFE" --home "$WORK/C" vault keygen --safety-number "$SN" > "$WORK/kC" 2>&1 &
+    for who in $(others); do
+      nohup "$ZAFE" --home "$WORK/$who" vault keygen --safety-number "$SN" > "$WORK/k$who" 2>&1 &
+    done
     ;;
   fund)
     ADDR=$(member B vault show | sed -n 's/^address //p')
@@ -67,6 +75,7 @@ case "${1:-}" in
     ;;
   mine) mine "${2:-1}" ;;
   cli) who=$2; shift 2; member "$who" "$@" ;;
+  each) shift; for who in B $(others); do echo "== $who"; member "$who" "$@"; done ;;
   stop)
     [[ -f "$WORK/relay.pid" ]] && kill "$(cat "$WORK/relay.pid")" 2>/dev/null || true
     "$ROOT/infra/regtest/down.sh" || true

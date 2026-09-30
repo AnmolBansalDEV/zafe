@@ -51,7 +51,7 @@ postcard = { version = "1", features = ["alloc"] }
 
 # Relay server
 axum = "0.8"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "signal"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "signal", "time"] }
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 tracing = "0.1"
