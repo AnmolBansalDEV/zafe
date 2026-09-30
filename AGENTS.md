@@ -279,7 +279,8 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   overpaying proposer).
 - `cargo build -p a -p b --examples` builds only examples — build bins separately.
 - **TLS (clients)**: rustls + **ring** + **webpki-roots** (bundled Mozilla roots)
-  everywhere: reqwest `rustls-tls` (relay client, relay's FCM client) and tonic
+  everywhere: reqwest `rustls-tls` (relay client when direct, relay's FCM client; over
+  Tor the relay client uses `zcash_client_backend`'s hyper + tokio-rustls) and tonic
   `tls-ring` + `tls-webpki-roots` (+ `zcash_client_backend/lightwalletd-tonic-tls-webpki-roots`).
   Why: no OpenSSL to cross-compile, ring builds with the NDK (aws-lc-rs needs cmake/NASM),
   and bundled roots behave the same on Android/iOS without platform-verifier plumbing
@@ -290,6 +291,50 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   `ClientTlsConfig::new().with_webpki_roots()` for https. `RelayClient::with_extra_root`
   adds a trust anchor (private CA / tests) and keeps verification on. Transport errors
   now carry their cause chain (e.g. `UnknownIssuer`).
+- **Tor ("Use Tor", Settings > Privacy; default off, per device)**: arti embedded through
+  `zcash_client_backend`'s `tor` feature (arti-client 0.35, no tor binary; +252 crates,
+  ring only, zstd/xz C code builds with the NDK; no pinned crate moved). Size: arm64
+  `librust_lib_zafe.so` stripped 24.7 → 34.7 MB (+10 MB; gzip 11.8 → 15.8 MB, i.e.
+  about +4 MB to download). Policy in
+  `zafe_core::tor`, process-wide, **fail-closed**: `tor::request()` flips the route
+  before any bootstrap (and cancels a `CancellationToken` every direct connection holds);
+  from then on `tor::route()` returns the Tor client or `Blocked::{Connecting, Failed}`
+  (→ `NetFailure::TorConnecting/TorFailed` → `ZafeErrorKind::TorConnecting/TorFailed` →
+  `SyncFailureKind::torConnecting/torFailed`), never direct. A request waits up to
+  `ROUTE_WAIT` (20 s) for a bootstrap in progress; a failed one answers at once.
+  `tor::enable(dir, budget)` is bounded (arti retries forever on a blocked network),
+  idempotent (instant when Ready), serialized, abandons when Tor is turned off
+  mid-bootstrap, and on failure leaves status `Failed` with the route still Tor. Choke
+  points: `wallet::connect` (every lightwalletd use: sync, send, mempool watch,
+  `check_server`, `chain_tip`, endpoint checks) and `RelayClient::exchange` (every relay
+  request incl. `/v1/wait`, push registration, `/health`). Direct paths: lightwalletd
+  uses tonic `connect_with_connector(tor::DirectConnector)` (our TCP, tonic adds TLS;
+  I/O wrapped in `DirectIo`, which errors once the token is cancelled, and the
+  connector refuses tonic's reconnects); the relay keeps **reqwest** for direct and wraps
+  each request in `DirectLease::guard` (dropping the future drops the connection; pooled
+  idle connections are never used while Tor is on). Through Tor: lightwalletd via
+  `Client::connect_to_lightwalletd` (90 s cap), relay via `Client::http_get/http_post`
+  (why not a pooled hyper client over arti: `zcash_client_backend::tor::Client` doesn't
+  expose its arti client, and a second arti instance would duplicate it; cost: a new Tor
+  stream + TLS handshake per relay request, ~1 s; timeouts get +30 s). Relay and
+  lightwalletd use separate isolated circuits. `RelayClient::with_extra_root` is not
+  honoured over Tor (bundled roots only). arti refuses local addresses, so regtest
+  (127.0.0.1 / 10.0.2.2) can't work with Tor on: it fails closed, as it should. App:
+  pref `zafe_use_tor`; `main()` calls `torRequest()` right after `RustLib.init()`
+  (before anything can connect), `torLifecycleProvider` (kept alive by `ZafeApp`)
+  bootstraps without blocking the UI (180 s) and sets dormant on hide/pause (a request
+  wakes arti by itself), retrying a failed Tor on resume. Background checks
+  (`vault_watch.dart`) read the pref after `prefs.reload()`, then `ensureTorForBackground`
+  (request, then enable within 60 s) and skip the run if Tor isn't connected. State dir:
+  `<appSupport>/tor` (`ZafePaths.torDir`; Android backup/transfer already excluded; on
+  mobile fs-mistrust is relaxed with `dangerously_trust_everyone`, the sandbox being the
+  boundary). FCM push stays direct (Google, content-free). Tests: `tor::tests` (pure
+  route decision, `DirectIo` cut, guard), `tests/tor_policy.rs` (own process: nothing
+  reaches a server once Tor is requested, waiters wake on failure, a direct long poll
+  and a lightwalletd call are cut; ignored live test: cold bootstrap ~14 s, testnet tip
+  through Tor ~3.5 s, an HTTPS GET ~1 s), Dart `test/tor_setting_test.dart`; sheet
+  preview `flutter test tool/screens/tor_render_test.dart`. Not done: iOS backup
+  exclusion of the Tor dir, onion endpoints, per-vault circuit isolation.
 - **Relay limits** (`zafe_relay::limits`): off in `Relay::new()` (tests), on in the
   `zafe-relay` binary (`Limits::hosted()`: 300/min per key, 1200/min per IP). Charge a
   key only after its signature verifies (`verified(relay, body)`, and after
@@ -495,9 +540,8 @@ first study used). Detailed reference (tokens, components, screens, bridge setup
 `docs/vizor-reference.md` (§11: resync notes). `lib/src/core` was resynced to upstream
 `4bff2e7`; check upstream for newer work and resync file by file, re-applying Zafe edits
 (AppButton semantics, `xyz.zafe/*` channels, no Vizor background PNG in the progress screen).
-Upstream features to borrow later: Tor via `zcash_client_backend`'s `tor` feature
-(`rust/src/network_privacy.rs`: process-wide fail-closed route policy, bootstrap timeout,
-dormant mode when backgrounded), settings screens, address book.
+Upstream features to borrow later: settings screens, address book. (Tor is done: see
+"Tor" under Dependency gotchas.)
 Learned while studying it:
 - **Copy** architecture, tokens, component specs, screen structures, and the Keystone
   signing UX (it starts proving in the background while the external signer works — do the

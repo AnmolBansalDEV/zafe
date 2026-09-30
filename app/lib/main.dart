@@ -2,11 +2,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'src/app.dart';
+import 'src/core/network/tor_setting.dart';
 import 'src/notifications/vault_watch.dart';
 import 'src/providers/vault_provider.dart';
 import 'src/services/invite_links.dart';
+import 'src/rust/api/tor.dart';
 import 'src/rust/frb_generated.dart';
 
 Future<void> main() async {
@@ -29,6 +32,11 @@ Future<void> main() async {
     }
   });
   await RustLib.init();
+  // "Use Tor": switch the route before anything can connect (fail-closed). Bootstrapping
+  // starts later (`torLifecycleProvider`); nothing waits for it here.
+  if ((await SharedPreferences.getInstance()).getBool(kUseTorKey) ?? false) {
+    torRequest();
+  }
   await initVaultNotifications();
   final bootstrap = await VaultBootstrap.load();
   runApp(

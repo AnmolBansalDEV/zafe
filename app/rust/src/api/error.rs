@@ -40,6 +40,10 @@ pub enum ZafeErrorKind {
     WrongNetwork,
     /// This device's wallet database failed (it is a cache: it resyncs if deleted).
     WalletDatabase,
+    /// "Use Tor" is on and Tor is still connecting: nothing was sent (never direct).
+    TorConnecting,
+    /// "Use Tor" is on but Tor couldn't connect: nothing was sent (never direct).
+    TorFailed,
     Other,
 }
 
@@ -91,6 +95,8 @@ fn net_kind(failure: NetFailure) -> ZafeErrorKind {
         NetFailure::Tls => ZafeErrorKind::Tls,
         NetFailure::Timeout => ZafeErrorKind::NetworkTimeout,
         NetFailure::Server => ZafeErrorKind::Other,
+        NetFailure::TorConnecting => ZafeErrorKind::TorConnecting,
+        NetFailure::TorFailed => ZafeErrorKind::TorFailed,
     }
 }
 

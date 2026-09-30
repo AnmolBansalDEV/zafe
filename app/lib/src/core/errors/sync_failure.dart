@@ -31,6 +31,12 @@ enum SyncFailureKind {
 
   /// The relay runs an older Zafe than this app.
   relayOutdated,
+
+  /// "Use Tor" is on and Tor is still connecting: nothing is sent meanwhile.
+  torConnecting,
+
+  /// "Use Tor" is on but Tor couldn't connect: nothing is sent until it does.
+  torFailed,
   other,
 }
 
@@ -60,8 +66,13 @@ class SyncFailure {
     SyncFailureKind.walletDatabase => 'Storage problem',
     SyncFailureKind.updateRequired => 'Update needed',
     SyncFailureKind.relayOutdated => 'Relay outdated',
+    SyncFailureKind.torConnecting => 'Connecting to Tor…',
+    SyncFailureKind.torFailed => 'Tor couldn\'t connect',
     SyncFailureKind.other => 'Sync failed',
   };
+
+  /// Waiting rather than broken (shown without the error colour).
+  bool get isTransient => kind == SyncFailureKind.torConnecting;
 
   /// Title of the details sheet.
   String get title => switch (kind) {
@@ -75,6 +86,8 @@ class SyncFailure {
     SyncFailureKind.walletDatabase => 'Wallet storage problem',
     SyncFailureKind.updateRequired => 'Update Zafe',
     SyncFailureKind.relayOutdated => 'The relay needs an update',
+    SyncFailureKind.torConnecting => 'Connecting to Tor',
+    SyncFailureKind.torFailed => 'Tor couldn\'t connect',
     SyncFailureKind.other => 'Sync failed',
   };
 
@@ -113,6 +126,13 @@ class SyncFailure {
     SyncFailureKind.relayOutdated =>
       'The relay runs an older version of Zafe than this app. Ask whoever runs it '
           'to update it.',
+    SyncFailureKind.torConnecting =>
+      '"Use Tor" is on and Tor is still connecting. Zafe sends nothing until it '
+          'is, and never connects directly instead.',
+    SyncFailureKind.torFailed =>
+      '"Use Tor" is on but Tor couldn\'t connect, so Zafe sends nothing: no sync, '
+          'no approvals, no payments. Tor may be blocked on this network. Try again, '
+          'or turn off Tor in Settings.',
     SyncFailureKind.other =>
       'Something went wrong while updating the vault. Zafe keeps trying.',
   };
@@ -123,7 +143,8 @@ class SyncFailure {
     SyncFailureKind.relayUnreachable ||
     SyncFailureKind.tls ||
     SyncFailureKind.serverBehind ||
-    SyncFailureKind.wrongNetwork => true,
+    SyncFailureKind.wrongNetwork ||
+    SyncFailureKind.torFailed => true,
     _ => false,
   };
 }
@@ -158,12 +179,16 @@ SyncFailure classifySyncFailure(Object error, {SyncEndpoint? fallback}) {
     ZafeErrorKind.walletDatabase => SyncFailureKind.walletDatabase,
     ZafeErrorKind.updateRequired => SyncFailureKind.updateRequired,
     ZafeErrorKind.relayOutdated => SyncFailureKind.relayOutdated,
+    ZafeErrorKind.torConnecting => SyncFailureKind.torConnecting,
+    ZafeErrorKind.torFailed => SyncFailureKind.torFailed,
     _ => SyncFailureKind.other,
   };
   final keepsEndpoint = switch (kind) {
     SyncFailureKind.offline ||
     SyncFailureKind.walletDatabase ||
-    SyncFailureKind.updateRequired => false,
+    SyncFailureKind.updateRequired ||
+    SyncFailureKind.torConnecting ||
+    SyncFailureKind.torFailed => false,
     _ => true,
   };
   return SyncFailure(
@@ -174,8 +199,9 @@ SyncFailure classifySyncFailure(Object error, {SyncEndpoint? fallback}) {
 }
 
 /// The failure Home shows, from the last wallet sync error and the last vault refresh
-/// error (either may be null). Both servers unreachable reads as "offline"; otherwise the
-/// wallet sync's failure comes first (balances), then the relay's.
+/// error (either may be null). Tor comes first (it stops both); both servers unreachable
+/// reads as "offline"; otherwise the wallet sync's failure comes first (balances), then
+/// the relay's.
 SyncFailure? homeSyncFailure({Object? syncError, Object? relayError}) {
   final sync = syncError == null
       ? null
@@ -183,6 +209,13 @@ SyncFailure? homeSyncFailure({Object? syncError, Object? relayError}) {
   final relay = relayError == null
       ? null
       : classifySyncFailure(relayError, fallback: SyncEndpoint.relay);
+  for (final kind in const [
+    SyncFailureKind.torFailed,
+    SyncFailureKind.torConnecting,
+  ]) {
+    if (sync?.kind == kind) return sync;
+    if (relay?.kind == kind) return relay;
+  }
   if (sync?.kind == SyncFailureKind.lightwalletdUnreachable &&
       relay?.kind == SyncFailureKind.relayUnreachable) {
     return SyncFailure(

@@ -69,7 +69,10 @@ Future<String?> tryEndpoint(EndpointKind kind, String url) async {
       SyncFailureKind.wrongNetwork =>
         'This server is on another network than this app ($kZafeNetwork).',
       SyncFailureKind.updateRequired ||
-      SyncFailureKind.relayOutdated => zafeErrorMessage(e),
+      SyncFailureKind.relayOutdated ||
+      // "Use Tor" is on: the test goes through Tor too, never directly.
+      SyncFailureKind.torConnecting ||
+      SyncFailureKind.torFailed => zafeErrorMessage(e),
       _ =>
         kind == EndpointKind.relay
             ? 'This doesn\'t look like a Zafe relay.'

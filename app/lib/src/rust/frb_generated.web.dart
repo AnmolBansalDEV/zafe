@@ -14,6 +14,7 @@ import 'api/mempool.dart';
 import 'api/names.dart';
 import 'api/proposals.dart';
 import 'api/received.dart';
+import 'api/tor.dart';
 import 'api/vault.dart';
 import 'api/watch.dart';
 import 'dart:async';
@@ -178,6 +179,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SignerName dco_decode_signer_name(dynamic raw);
+
+  @protected
+  TorState dco_decode_tor_state(dynamic raw);
 
   @protected
   int dco_decode_u_16(dynamic raw);
@@ -371,6 +375,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SignerName sse_decode_signer_name(SseDeserializer deserializer);
+
+  @protected
+  TorState sse_decode_tor_state(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_16(SseDeserializer deserializer);
@@ -604,6 +611,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_signer_name(SignerName self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_tor_state(TorState self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_16(int self, SseSerializer serializer);
