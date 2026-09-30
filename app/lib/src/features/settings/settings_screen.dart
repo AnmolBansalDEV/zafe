@@ -18,10 +18,12 @@ import '../../providers/device_lock_provider.dart';
 import '../../providers/endpoints_provider.dart';
 import '../../providers/privacy_mode_provider.dart';
 import '../../providers/theme_mode_provider.dart';
+import '../../providers/tor_provider.dart';
 import '../../providers/vault_names_provider.dart';
 import '../../providers/vault_provider.dart';
 import '../home/rename_sheet.dart';
 import 'endpoint_sheet.dart';
+import 'tor_sheet.dart';
 
 const _rowHeight = 44.0;
 const _appVersion = '0.1.0';
@@ -41,6 +43,7 @@ class SettingsScreen extends ConsumerWidget {
     final hasScreenLock = ref.watch(hasScreenLockProvider).value;
     final me = vault.myKeyHex;
     final endpoints = ref.watch(endpointsProvider);
+    final tor = ref.watch(torProvider);
     if (summary == null) return const SizedBox.shrink();
 
     final rowStyle = AppTypography.labelLarge.copyWith(
@@ -157,6 +160,19 @@ class SettingsScreen extends ConsumerWidget {
                               _toggleRequireUnlock(context, ref, requireUnlock),
                         ),
                         if (hasScreenLock == false) const _NoScreenLockNote(),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    _Group(
+                      title: 'Privacy',
+                      rows: [
+                        row(
+                          icon: AppIcons.shieldKeyholeOutline,
+                          label: 'Use Tor',
+                          value: tor.statusLabel,
+                          chevron: true,
+                          onTap: () => showTorSheet(context),
+                        ),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.md),

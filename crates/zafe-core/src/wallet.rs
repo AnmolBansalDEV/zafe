@@ -196,10 +196,6 @@ pub fn regtest_network() -> LocalNetwork {
     }
 }
 
-/// Connects to a lightwalletd gRPC endpoint (e.g. `http://127.0.0.1:9067`, or
-/// `https://testnet.zec.rocks:443`). `https` endpoints use rustls with the bundled Mozilla
-/// roots (webpki-roots). TLS must be configured explicitly: `Channel::from_shared` with an
-/// `https` URI otherwise fails with "Connecting to HTTPS without TLS enabled".
 /// Time to establish the lightwalletd connection.
 pub const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 /// Per request, until the response starts (a block stream may then run longer).
@@ -207,7 +203,42 @@ pub const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(
 const KEEPALIVE_INTERVAL: std::time::Duration = std::time::Duration::from_secs(15);
 const KEEPALIVE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
+/// Connects to a lightwalletd gRPC endpoint (e.g. `http://127.0.0.1:9067`, or
+/// `https://testnet.zec.rocks:443`). `https` endpoints use rustls with the bundled Mozilla
+/// roots (webpki-roots). TLS must be configured explicitly: `Channel::from_shared` with an
+/// `https` URI otherwise fails with "Connecting to HTTPS without TLS enabled".
+///
+/// Follows the Tor route policy ([`crate::tor`]): through Tor when it is on (failing with
+/// `NetFailure::TorConnecting`/`TorFailed` while it can't be used, never direct), else a
+/// direct connection that Tor cuts when it is turned on.
 pub async fn connect(endpoint: &str) -> Result<Client, WalletError> {
+    use crate::tor::{self, Purpose, Route};
+    let route = tor::route(Purpose::Lightwalletd, tor::ROUTE_WAIT)
+        .await
+        .map_err(|b| WalletError::Remote {
+            failure: b.into(),
+            message: b.to_string(),
+        })?;
+    let lease = match route {
+        Route::Tor(tor) => {
+            let uri = endpoint
+                .parse::<tonic::transport::Uri>()
+                .map_err(|e| remote_error(&e))?;
+            // The Tor client applies its own connect and request timeouts; this bounds a
+            // re-bootstrap it may start first.
+            return tokio::time::timeout(
+                TOR_CONNECT_TIMEOUT,
+                tor.connect_to_lightwalletd(uri, false),
+            )
+            .await
+            .map_err(|_| WalletError::Remote {
+                failure: crate::net::NetFailure::Timeout,
+                message: "connecting through Tor took too long".into(),
+            })?
+            .map_err(|e| remote_error(&e));
+        }
+        Route::Direct(lease) => lease,
+    };
     let mut channel = Channel::from_shared(endpoint.to_owned()).map_err(|e| remote_error(&e))?;
     if endpoint.starts_with("https://") {
         channel = channel
@@ -222,11 +253,16 @@ pub async fn connect(endpoint: &str) -> Result<Client, WalletError> {
         .http2_keep_alive_interval(KEEPALIVE_INTERVAL)
         .keep_alive_timeout(KEEPALIVE_TIMEOUT)
         .keep_alive_while_idle(true)
-        .connect()
+        // Plain TCP from our connector (tonic adds TLS): the connection is cut, and never
+        // re-established, once Tor is turned on.
+        .connect_with_connector(crate::tor::DirectConnector(lease))
         .await
         .map_err(|e| remote_error(&e))?;
     Ok(CompactTxStreamerClient::new(channel))
 }
+
+/// Upper bound for opening a lightwalletd channel through Tor.
+pub const TOR_CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(90);
 
 /// tonic's errors say only "transport error"; keep the causes (e.g. a certificate error).
 fn remote_error(e: &(dyn std::error::Error + 'static)) -> WalletError {

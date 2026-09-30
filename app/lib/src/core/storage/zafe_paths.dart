@@ -23,6 +23,10 @@ class ZafePaths {
     return dir.path;
   }
 
+  /// Tor's state (guards, directory cache) when "Use Tor" is on. Covered by the app-wide
+  /// backup exclusion: a restored copy would carry this phone's guard choice elsewhere.
+  String get torDir => '$_support/tor';
+
   static ZafePaths? _cached;
 
   static Future<ZafePaths> get() async {

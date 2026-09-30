@@ -31,10 +31,21 @@ Last updated: 2026-09-30 (note reservation; versioned formats; relay TLS + packa
    Next: confirm latency on a real phone.
    Open: APNs sender + iOS (NSE). Done: dead FCM tokens are pruned (2026-09-30).
    Done: relay-client TLS (2026-09-30, see M1 "Hosted relay").
-3. [ ] **Tor** (as in Vizor `rust/src/network_privacy.rs`): `zcash_client_backend` `tor`
-   feature (arti), process-wide fail-closed route policy, bootstrap timeout, dormant when
-   backgrounded; route both lightwalletd and the relay (relay client moves off reqwest).
-   Settings toggle + status. A full slice; deferred on 2026-09-29 as "not small".
+3. [x] **Tor** (2026-10-01): "Use Tor" in Settings > Privacy (default off, per device).
+   Embedded arti (`zcash_client_backend` `tor` feature), process-wide fail-closed route
+   policy (`zafe_core::tor`): lightwalletd and every relay request go through Tor or fail,
+   direct connections open at the switch are cut; bootstrap bounded (180 s foreground,
+   60 s background checks, which skip the run if Tor isn't up); dormant in the
+   background. Home shows "Connecting to Tor…" / "Tor couldn't connect"; typed errors
+   end to end. Relay client: reqwest stays for direct, Tor requests use
+   `zcash_client_backend`'s HTTP-over-Tor (see AGENTS.md "Tor"). Live test passed
+   (bootstrap ~14 s, testnet lightwalletd through Tor). FCM stays direct (content-free).
+   Cost: the arm64 Rust library grows 24.7 → 34.7 MB stripped (+4 MB compressed).
+   Still to check **on a device**: bootstrap on the phone (cold and warm), fs-mistrust
+   on the Android data dir, background check with Tor on (WorkManager and FCM time
+   budget), dormant/resume, battery. Follow-ups: pooled relay connections over Tor
+   (needs the arti client, which upstream's `Client` doesn't expose), onion endpoints,
+   per-vault circuit isolation, iOS backup exclusion of `<appSupport>/tor`.
 4. [x] **Incoming history** (2026-09-30): received payments (any transaction paying the
    vault that spends none of its notes, so never change; coinbase included) are read
    from the wallet DB (`VaultWallet::received_payments`, bridge `api/received.rs`), merged

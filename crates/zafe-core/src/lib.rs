@@ -13,6 +13,7 @@ pub mod nonce_store;
 pub mod relay_client;
 pub mod session;
 pub mod signing;
+pub mod tor;
 pub mod tx;
 pub mod vault;
 pub mod verify;

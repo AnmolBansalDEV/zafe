@@ -102,6 +102,70 @@ pub const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(
 /// (network latency, a slow proxy).
 pub const WAIT_GRACE: std::time::Duration = std::time::Duration::from_secs(15);
 
+/// Extra time a request through Tor may take on top of the direct timeouts: every request
+/// opens a new Tor stream and TLS session (several round trips through the circuit).
+pub const TOR_EXTRA_TIME: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// What the client needs from a relay response, whichever way it travelled.
+struct RawResponse {
+    status: u16,
+    retry_after: Option<String>,
+    supported_version: Option<String>,
+    body: Vec<u8>,
+}
+
+/// One request through Tor (`zcash_client_backend`'s HTTP-over-Tor: a fresh Tor stream and
+/// rustls session with the bundled roots per request, no retries). A private root added
+/// with [`RelayClient::with_extra_root`] is not trusted on this path.
+async fn over_tor(
+    client: &zcash_client_backend::tor::Client,
+    url: String,
+    body: Option<Vec<u8>>,
+) -> Result<RawResponse, RelayClientError> {
+    use http_body_util::BodyExt;
+    use zcash_client_backend::tor::{self, http::HttpError};
+
+    let uri: tonic::transport::Uri = url.parse().map_err(transport)?;
+    let read_body = |incoming: hyper::body::Incoming| async move {
+        Ok::<_, tor::Error>(
+            incoming
+                .collect()
+                .await
+                .map_err(HttpError::from)?
+                .to_bytes(),
+        )
+    };
+    let response = match body {
+        None => client.http_get(uri, |b| b, read_body, 0, |_| None).await,
+        Some(body) => {
+            client
+                .http_post(
+                    uri,
+                    |b| b.header("content-type", "application/octet-stream"),
+                    http_body_util::Full::new(bytes::Bytes::from(body)),
+                    read_body,
+                    0,
+                    |_| None,
+                )
+                .await
+        }
+    }
+    .map_err(transport)?;
+    let header = |name: &str| {
+        response
+            .headers()
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned)
+    };
+    Ok(RawResponse {
+        status: response.status().as_u16(),
+        retry_after: header("retry-after"),
+        supported_version: header(UNSUPPORTED_VERSION_HEADER),
+        body: response.body().to_vec(),
+    })
+}
+
 fn http_builder() -> reqwest::ClientBuilder {
     reqwest::Client::builder()
         .connect_timeout(CONNECT_TIMEOUT)
@@ -147,22 +211,94 @@ impl RelayClient {
 
     /// `GET /health`: whether a Zafe relay answers at this URL (200 `ok`).
     pub async fn health(&self) -> Result<(), RelayClientError> {
-        let response = self
-            .http
-            .get(format!("{}/health", self.base))
-            .send()
-            .await
-            .map_err(transport)?;
-        let status = response.status();
-        let body = response.bytes().await.map_err(transport)?;
-        if status.is_success() && body.as_ref() == b"ok" {
+        let response = self.exchange("/health", None, None).await?;
+        if (200..300).contains(&response.status) && response.body == b"ok" {
             Ok(())
         } else {
             Err(RelayClientError::Status {
-                status: status.as_u16(),
-                body: String::from_utf8_lossy(&body).chars().take(200).collect(),
+                status: response.status,
+                body: String::from_utf8_lossy(&response.body)
+                    .chars()
+                    .take(200)
+                    .collect(),
             })
         }
+    }
+
+    /// One request, through Tor or directly as the route policy says ([`crate::tor`]):
+    /// `body` makes it a POST. While Tor is on but unusable this fails with
+    /// `NetFailure::TorConnecting`/`TorFailed` and sends nothing.
+    async fn exchange(
+        &self,
+        path: &str,
+        body: Option<Vec<u8>>,
+        timeout: Option<std::time::Duration>,
+    ) -> Result<RawResponse, RelayClientError> {
+        use crate::tor::{self, Purpose, Route};
+        let url = format!("{}{path}", self.base);
+        match tor::route(Purpose::Relay, tor::ROUTE_WAIT)
+            .await
+            .map_err(|b| RelayClientError::Transport {
+                failure: b.into(),
+                message: b.to_string(),
+            })? {
+            Route::Direct(lease) => {
+                lease
+                    .guard(self.direct(url, body, timeout), || {
+                        RelayClientError::Transport {
+                            failure: crate::net::NetFailure::TorConnecting,
+                            message: tor::revoked_error().to_string(),
+                        }
+                    })
+                    .await
+            }
+            Route::Tor(client) => {
+                let limit = timeout.unwrap_or(REQUEST_TIMEOUT) + TOR_EXTRA_TIME;
+                tokio::time::timeout(limit, over_tor(&client, url, body))
+                    .await
+                    .map_err(|_| RelayClientError::Transport {
+                        failure: crate::net::NetFailure::Timeout,
+                        message: "the relay didn't answer in time (through Tor)".into(),
+                    })?
+            }
+        }
+    }
+
+    async fn direct(
+        &self,
+        url: String,
+        body: Option<Vec<u8>>,
+        timeout: Option<std::time::Duration>,
+    ) -> Result<RawResponse, RelayClientError> {
+        let mut request = match body {
+            Some(body) => self
+                .http
+                .post(url)
+                .header("content-type", "application/octet-stream")
+                .body(body),
+            None => self.http.get(url),
+        };
+        if let Some(timeout) = timeout {
+            request = request.timeout(timeout);
+        }
+        let response = request.send().await.map_err(transport)?;
+        let status = response.status().as_u16();
+        let header = |name: &str| {
+            response
+                .headers()
+                .get(name)
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_owned)
+        };
+        let (retry_after, supported_version) =
+            (header("retry-after"), header(UNSUPPORTED_VERSION_HEADER));
+        let body = response.bytes().await.map_err(transport)?.to_vec();
+        Ok(RawResponse {
+            status,
+            retry_after,
+            supported_version,
+            body,
+        })
     }
 
     async fn post(&self, path: &str, body: Vec<u8>) -> Result<Vec<u8>, RelayClientError> {
@@ -175,22 +311,13 @@ impl RelayClient {
         body: Vec<u8>,
         timeout: Option<std::time::Duration>,
     ) -> Result<Vec<u8>, RelayClientError> {
-        let mut request = self
-            .http
-            .post(format!("{}{path}", self.base))
-            .header("content-type", "application/octet-stream")
-            .body(body);
-        if let Some(timeout) = timeout {
-            request = request.timeout(timeout);
-        }
-        let response = request.send().await.map_err(transport)?;
-        let status = response.status();
-        if status.as_u16() == 426 {
+        let response = self.exchange(path, Some(body), timeout).await?;
+        let status = response.status;
+        if status == 426 {
             let format = body_format(path);
             let relay_supports = response
-                .headers()
-                .get(UNSUPPORTED_VERSION_HEADER)
-                .and_then(|v| v.to_str().ok()?.parse().ok())
+                .supported_version
+                .and_then(|v| v.parse().ok())
                 .unwrap_or(0);
             return Err(RelayClientError::VersionRejected {
                 format,
@@ -198,27 +325,26 @@ impl RelayClient {
                 relay_supports,
             });
         }
-        if status.as_u16() == 429 {
+        if status == 429 {
             let retry_after_secs = response
-                .headers()
-                .get("retry-after")
-                .and_then(|v| v.to_str().ok()?.parse().ok())
+                .retry_after
+                .and_then(|v| v.parse().ok())
                 .unwrap_or(60);
             return Err(RelayClientError::RateLimited { retry_after_secs });
         }
-        let bytes = response.bytes().await.map_err(transport)?;
-        if status.as_u16() == 507 {
+        let bytes = response.body;
+        if status == 507 {
             return Err(RelayClientError::StorageFull {
                 detail: String::from_utf8_lossy(&bytes).into_owned(),
             });
         }
-        if !status.is_success() {
+        if !(200..300).contains(&status) {
             return Err(RelayClientError::Status {
-                status: status.as_u16(),
+                status,
                 body: String::from_utf8_lossy(&bytes).into_owned(),
             });
         }
-        Ok(bytes.to_vec())
+        Ok(bytes)
     }
 
     async fn signed<T, R>(

@@ -14,6 +14,19 @@ pub enum NetFailure {
     Timeout,
     /// The server answered, with an error.
     Server,
+    /// Tor is on and still connecting: nothing is sent until it is (never direct).
+    TorConnecting,
+    /// Tor is on but could not connect: nothing is sent until it does (never direct).
+    TorFailed,
+}
+
+impl From<crate::tor::Blocked> for NetFailure {
+    fn from(b: crate::tor::Blocked) -> Self {
+        match b {
+            crate::tor::Blocked::Connecting => NetFailure::TorConnecting,
+            crate::tor::Blocked::Failed => NetFailure::TorFailed,
+        }
+    }
 }
 
 impl NetFailure {
@@ -31,6 +44,12 @@ impl NetFailure {
             }
             if let Some(r) = err.downcast_ref::<reqwest::Error>() {
                 timeout |= r.is_timeout();
+            }
+            // HTTP over Tor (the relay client with Tor on).
+            if let Some(zcash_client_backend::tor::http::HttpError::Timeout(_)) =
+                err.downcast_ref::<zcash_client_backend::tor::http::HttpError>()
+            {
+                timeout = true;
             }
             current = match err.downcast_ref::<std::io::Error>() {
                 // `io::Error::source` skips the error it wraps (and reqwest nests them:

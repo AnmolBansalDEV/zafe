@@ -83,5 +83,11 @@ enum ZafeErrorKind {
 
   /// This device's wallet database failed (it is a cache: it resyncs if deleted).
   walletDatabase,
+
+  /// "Use Tor" is on and Tor is still connecting: nothing was sent (never direct).
+  torConnecting,
+
+  /// "Use Tor" is on but Tor couldn't connect: nothing was sent (never direct).
+  torFailed,
   other,
 }

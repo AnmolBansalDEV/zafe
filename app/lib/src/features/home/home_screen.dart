@@ -26,6 +26,7 @@ import '../../providers/vault_names_provider.dart';
 import 'sync_status_sheet.dart';
 import '../../providers/proposals_provider.dart';
 import '../../providers/received_provider.dart';
+import '../../providers/tor_provider.dart';
 import '../../core/privacy/privacy_mask.dart';
 import '../proposals/activity_feed.dart';
 import '../../providers/vault_provider.dart';
@@ -139,8 +140,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     // A failure stays on screen while the next attempt runs, so the status doesn't
     // flicker between "Syncing..." and the error on every poll.
     final failure = currentSyncFailure(ref);
+    // "Use Tor" while Tor isn't connected: nothing syncs, say why.
+    final tor = ref.watch(torProvider);
+    final torLabel = tor.homeLabel;
     final String syncLabel;
-    if (failure != null) {
+    if (torLabel != null) {
+      syncLabel = torLabel;
+    } else if (failure != null) {
       syncLabel = failure.statusLabel;
     } else if (vault.syncing) {
       syncLabel = 'Syncing...';
@@ -160,10 +166,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               MobileTopNav.account(
                 accountName: ref.watch(activeVaultNameProvider) ?? summary.name,
                 syncLabel: syncLabel,
-                syncLabelColor: failure != null
+                syncLabelColor:
+                    tor.failed ||
+                        (torLabel == null &&
+                            failure != null &&
+                            !failure.isTransient)
                     ? colors.sync.textError
                     : colors.sync.text,
-                syncAnimated: vault.syncing && failure == null,
+                syncAnimated:
+                    tor.connecting ||
+                    (vault.syncing && (failure?.isTransient ?? true)),
                 onSyncTap: () => showSyncStatusSheet(context, retry: _refresh),
                 onAccountTap: () => showVaultSwitcher(context),
                 avatar: VaultEmblem(vaultId: vault.activeId!),

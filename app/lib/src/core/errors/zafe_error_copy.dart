@@ -46,6 +46,11 @@ String zafeErrorMessage(
       'The Zcash server is on another network. Pick another server in Settings.',
     ZafeErrorKind.walletDatabase =>
       'This phone couldn\'t read the vault\'s wallet data. Try again.',
+    ZafeErrorKind.torConnecting =>
+      'Zafe is still connecting to Tor. Nothing was sent; try again in a moment.',
+    ZafeErrorKind.torFailed =>
+      'Tor couldn\'t connect, so nothing was sent. Try again, or turn off Tor in '
+          'Settings.',
     ZafeErrorKind.other => fallback,
   };
 }

@@ -11,6 +11,7 @@ import 'package:workmanager/workmanager.dart';
 
 import '../core/config/endpoints.dart';
 import '../core/errors/zafe_error_copy.dart';
+import '../core/network/tor_setting.dart';
 import '../core/storage/member_names.dart';
 import '../core/storage/vault_name.dart';
 import '../core/storage/vault_summaries.dart';
@@ -20,6 +21,7 @@ import '../features/proposals/proposal_status.dart' show proposalExpired;
 import '../providers/privacy_mode_provider.dart' show kPrivacyModeKey;
 import '../rust/api/proposals.dart' as rust;
 import '../rust/api/received.dart' as rust_received;
+import '../rust/api/tor.dart';
 import '../rust/api/vault.dart' as rust_vault;
 import '../rust/frb_generated.dart';
 import 'vault_updates.dart';
@@ -254,6 +256,23 @@ Future<void> _check() async {
   final vaults = await ZafeSecureStore.instance.readAll();
   final prefs = await SharedPreferences.getInstance();
   await prefs.reload();
+  // "Use Tor" (read after the reload): nothing may connect before the route is Tor, and
+  // a Tor that can't connect in time ends this check (the next one tries again).
+  if (!await ensureTorForBackground(
+    useTor: prefs.getBool(kUseTorKey) ?? false,
+    request: torRequest,
+    enable: () async => torConnectionOf(
+      await torEnable(
+        torDir: (await ZafePaths.get()).torDir,
+        timeoutSecs: kBackgroundTorTimeoutSecs,
+      ),
+    ),
+    onError: (e) =>
+        debugPrint('vault check: Tor did not connect: ${describeError(e)}'),
+  )) {
+    debugPrint('vault check: skipped, Tor is not connected');
+    return;
+  }
   final hideAmounts = prefs.getBool(kPrivacyModeKey) ?? false;
   // The URLs the user set in Settings (read after the reload: prefs cache per isolate).
   final endpoints = ZafeEndpoints.fromPrefs(prefs);

@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/config/endpoints.dart';
 import '../core/config/network_config.dart';
 import '../core/errors/zafe_error_copy.dart';
+import '../core/network/tor_setting.dart' show kUseTorKey;
 import '../core/storage/vault_summaries.dart';
 import '../core/storage/zafe_paths.dart';
 import '../core/storage/zafe_secure_store.dart';
@@ -29,6 +30,7 @@ class VaultBootstrap {
     this.themeMode = ThemeMode.system,
     this.requireUnlock = true,
     this.endpoints = ZafeEndpoints.defaults,
+    this.useTor = false,
   });
   final List<StoredVault> vaults;
   final String? activeId;
@@ -36,6 +38,9 @@ class VaultBootstrap {
   final ThemeMode themeMode;
   final bool requireUnlock;
   final ZafeEndpoints endpoints;
+
+  /// "Use Tor" (the route was already switched in `main()`; see `torProvider`).
+  final bool useTor;
 
   /// Needs Rust initialized (parses the legacy invite when migrating).
   static Future<VaultBootstrap> load() async {
@@ -60,6 +65,7 @@ class VaultBootstrap {
       themeMode: themeModeFromName(prefs.getString(kThemeModeKey)),
       requireUnlock: prefs.getBool(kRequireUnlockKey) ?? true,
       endpoints: ZafeEndpoints.fromPrefs(prefs),
+      useTor: prefs.getBool(kUseTorKey) ?? false,
     );
   }
 }

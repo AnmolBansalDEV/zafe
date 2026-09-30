@@ -10,6 +10,7 @@ import '../../core/widgets/app_button.dart';
 import '../../core/widgets/mobile/zafe_detail.dart';
 import '../../providers/endpoints_provider.dart';
 import '../../providers/proposals_provider.dart';
+import '../../providers/tor_provider.dart';
 import '../../providers/vault_provider.dart';
 
 /// The failure Home shows for the active vault, if any.
@@ -56,6 +57,9 @@ class _SyncStatusSheetState extends ConsumerState<_SyncStatusSheet> {
   Future<void> _retry() async {
     setState(() => _retrying = true);
     try {
+      // A failed Tor must connect before anything else can.
+      final tor = ref.read(torProvider);
+      if (tor.failed) await ref.read(torProvider.notifier).retry();
       await widget.retry();
     } finally {
       if (mounted) setState(() => _retrying = false);
@@ -109,6 +113,10 @@ class _SyncStatusSheetState extends ConsumerState<_SyncStatusSheet> {
         ),
       );
     }
+    final tor = ref.watch(torProvider);
+    if (tor.enabled) {
+      body.add(DetailRow(label: 'Tor', value: tor.statusLabel));
+    }
     body.add(
       DetailRow(label: 'Last synced', value: formatLastSuccess(syncedAt)),
     );
@@ -152,7 +160,11 @@ class _SyncStatusSheetState extends ConsumerState<_SyncStatusSheet> {
             Navigator.of(context).pop();
             router.go('/settings');
           },
-          child: const Text('Server settings'),
+          child: Text(
+            failure?.kind == SyncFailureKind.torFailed
+                ? 'Tor settings'
+                : 'Server settings',
+          ),
         ),
       ],
     ]);

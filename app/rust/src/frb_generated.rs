@@ -37,7 +37,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 541100342;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 714243047;
 
 // Section: executor
 
@@ -1453,6 +1453,167 @@ fn wire__crate__api__vault__sync_vault_impl(
         },
     )
 }
+fn wire__crate__api__tor__tor_disable_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "tor_disable",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Result::<_, ()>::Ok({
+                    crate::api::tor::tor_disable();
+                })?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__tor__tor_enable_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "tor_enable",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_tor_dir = <String>::sse_decode(&mut deserializer);
+            let api_timeout_secs = <u32>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, crate::api::error::ZafeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::tor::tor_enable(api_tor_dir, api_timeout_secs).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__tor__tor_request_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "tor_request",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Result::<_, ()>::Ok({
+                    crate::api::tor::tor_request();
+                })?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__tor__tor_set_dormant_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "tor_set_dormant",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_dormant = <bool>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Result::<_, ()>::Ok({
+                    crate::api::tor::tor_set_dormant(api_dormant);
+                })?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__tor__tor_state_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "tor_state",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Result::<_, ()>::Ok(crate::api::tor::tor_state())?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__vault__vault_membership_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -2269,6 +2430,20 @@ impl SseDecode for crate::api::names::SignerName {
     }
 }
 
+impl SseDecode for crate::api::tor::TorState {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::tor::TorState::Off,
+            1 => crate::api::tor::TorState::Connecting,
+            2 => crate::api::tor::TorState::Connected,
+            3 => crate::api::tor::TorState::Failed,
+            _ => unreachable!("Invalid variant for TorState: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for u16 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2399,7 +2574,9 @@ impl SseDecode for crate::api::error::ZafeErrorKind {
             12 => crate::api::error::ZafeErrorKind::ServerBehind,
             13 => crate::api::error::ZafeErrorKind::WrongNetwork,
             14 => crate::api::error::ZafeErrorKind::WalletDatabase,
-            15 => crate::api::error::ZafeErrorKind::Other,
+            15 => crate::api::error::ZafeErrorKind::TorConnecting,
+            16 => crate::api::error::ZafeErrorKind::TorFailed,
+            17 => crate::api::error::ZafeErrorKind::Other,
             _ => unreachable!("Invalid variant for ZafeErrorKind: {}", inner),
         };
     }
@@ -2447,9 +2624,10 @@ fn pde_ffi_dispatcher_primary_impl(
         32 => wire__crate__api__vault__seal_vault_impl(port, ptr, rust_vec_len, data_len),
         33 => wire__crate__api__proposals__send_proposal_impl(port, ptr, rust_vec_len, data_len),
         37 => wire__crate__api__vault__sync_vault_impl(port, ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__vault__vault_membership_impl(port, ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__mempool__watch_mempool_impl(port, ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__watch__watch_vault_impl(port, ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__tor__tor_enable_impl(port, ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__vault__vault_membership_impl(port, ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__mempool__watch_mempool_impl(port, ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__watch__watch_vault_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2475,8 +2653,12 @@ fn pde_ffi_dispatcher_sync_impl(
         34 => wire__crate__api__mempool__stop_mempool_watch_impl(ptr, rust_vec_len, data_len),
         35 => wire__crate__api__watch__stop_vault_watch_impl(ptr, rust_vec_len, data_len),
         36 => wire__crate__api__backup__suggest_backup_passphrase_impl(ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__vault__vault_summary_impl(ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__vault__vault_viewing_key_impl(ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__tor__tor_disable_impl(ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__tor__tor_request_impl(ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__tor__tor_set_dormant_impl(ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__tor__tor_state_impl(ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__vault__vault_summary_impl(ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__vault__vault_viewing_key_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3035,6 +3217,24 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::names::SignerName>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::tor::TorState {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Off => 0.into_dart(),
+            Self::Connecting => 1.into_dart(),
+            Self::Connected => 2.into_dart(),
+            Self::Failed => 3.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::tor::TorState {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::tor::TorState> for crate::api::tor::TorState {
+    fn into_into_dart(self) -> crate::api::tor::TorState {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::watch::VaultActivity {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -3165,7 +3365,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::error::ZafeErrorKind {
             Self::ServerBehind => 12.into_dart(),
             Self::WrongNetwork => 13.into_dart(),
             Self::WalletDatabase => 14.into_dart(),
-            Self::Other => 15.into_dart(),
+            Self::TorConnecting => 15.into_dart(),
+            Self::TorFailed => 16.into_dart(),
+            Self::Other => 17.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -3652,6 +3854,24 @@ impl SseEncode for crate::api::names::SignerName {
     }
 }
 
+impl SseEncode for crate::api::tor::TorState {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::tor::TorState::Off => 0,
+                crate::api::tor::TorState::Connecting => 1,
+                crate::api::tor::TorState::Connected => 2,
+                crate::api::tor::TorState::Failed => 3,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for u16 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -3771,7 +3991,9 @@ impl SseEncode for crate::api::error::ZafeErrorKind {
                 crate::api::error::ZafeErrorKind::ServerBehind => 12,
                 crate::api::error::ZafeErrorKind::WrongNetwork => 13,
                 crate::api::error::ZafeErrorKind::WalletDatabase => 14,
-                crate::api::error::ZafeErrorKind::Other => 15,
+                crate::api::error::ZafeErrorKind::TorConnecting => 15,
+                crate::api::error::ZafeErrorKind::TorFailed => 16,
+                crate::api::error::ZafeErrorKind::Other => 17,
                 _ => {
                     unimplemented!("");
                 }
