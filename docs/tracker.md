@@ -12,6 +12,10 @@ Last updated: 2026-09-30 (note reservation; versioned formats; relay TLS + packa
 
 ## Next up (proposed order)
 
+- [ ] **Brand: Verdigris + Seam** (decided 2026-10-01, `docs/brand.md`): palette tokens,
+      light vault card in light mode, Patina icon style, Seam app icon / splash /
+      notification icon, illustration palette. Implementation in progress on a side branch.
+
 0. [x] **Proposals expire after ~50 min.** Fixed: vault descriptor `proposal_expiry_blocks` (default 7 days), proposer sets it, members accept it plus ~2 h tip slack; `bridge_e2e` lets 300 blocks pass before approving. PCZTs are built with the library default expiry
    (`DEFAULT_TX_EXPIRY_DELTA` = 40 blocks) and `verify` allows at most 100 blocks, so
    approvals and signing must finish within about 50 minutes. Async multisig needs a long
@@ -472,6 +476,12 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       failing call *(idea)*
 
 ## Ideas (not decided)
+
+- *(idea, 2026-10-01)* **N-of-M ring emblem**: a ring of M segments with T filled as a
+  per-vault mark (logo study, `docs/brand.md` §6). Not adopted: the per-vault picture
+  emblems already took the avatar, and the balance card shows the threshold as dots.
+- *(idea, 2026-10-01)* **Quorum Z splash animation**: the three strokes of the Quorum Z
+  arriving one by one, resolving into the Seam icon.
 
 - *(idea, proposed 2026-09-29)* **One-tap approvals: sign at approval time.** Members
   pre-publish pools of FROST nonce commitments (FROST's preprocessing round, done ahead
