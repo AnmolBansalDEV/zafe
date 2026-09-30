@@ -69,7 +69,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         showAppToast(
           context,
           'Couldn\'t lock membership. $e',
-          iconName: AppIcons.warning,
+          iconName: AppIcons.warningCircle,
+          tone: AppToastTone.destructive,
         );
       }
     } finally {
@@ -90,7 +91,8 @@ class _SetupScreenState extends ConsumerState<SetupScreen> {
         showAppToast(
           context,
           'Key generation failed. $e',
-          iconName: AppIcons.warning,
+          iconName: AppIcons.warningCircle,
+          tone: AppToastTone.destructive,
         );
         _poll = Timer.periodic(const Duration(seconds: 2), (_) => _refresh());
       }

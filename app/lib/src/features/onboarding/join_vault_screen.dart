@@ -57,7 +57,12 @@ class _JoinVaultScreenState extends ConsumerState<JoinVaultScreen> {
       if (mounted) context.go('/setup');
     } catch (e) {
       if (mounted) {
-        showAppToast(context, 'Couldn\'t join. $e', iconName: AppIcons.warning);
+        showAppToast(
+          context,
+          'Couldn\'t join. $e',
+          iconName: AppIcons.warningCircle,
+          tone: AppToastTone.destructive,
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);

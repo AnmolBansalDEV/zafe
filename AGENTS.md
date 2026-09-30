@@ -189,7 +189,9 @@ Keep attribution/NOTICE for anything copied from Vizor.
 
 Upstream is **github.com/chainapsis/vizor-wallet** (not the stale `valargroup` mirror the
 first study used). Detailed reference (tokens, components, screens, bridge setup):
-`docs/vizor-reference.md`, written from an older snapshot; check upstream for newer work.
+`docs/vizor-reference.md` (§11: resync notes). `lib/src/core` was resynced to upstream
+`4bff2e7`; check upstream for newer work and resync file by file, re-applying Zafe edits
+(AppButton semantics, `xyz.zafe/*` channels, no Vizor background PNG in the progress screen).
 Upstream features to borrow later: Tor via `zcash_client_backend`'s `tor` feature
 (`rust/src/network_privacy.rs`: process-wide fail-closed route policy, bootstrap timeout,
 dormant mode when backgrounded), settings screens, address book.
@@ -224,7 +226,9 @@ Learned while studying it:
   `ZafeError` has no useful `toString`; log with `describeError`. Keep a plain-callback
   twin marked `#[frb(ignore)]` (`send_with_progress`) so Rust tests can drive it.
 - Flows: `/send` (recipient → amount → review → "Propose payment"), `/proposal/:id`
-  (independent check on this device, votes, approve/reject, "Collect signatures & send").
+  (independent check on this device, votes, approve/reject, "Collect signatures & send"),
+  `/proposal/:id/send` (Vizor's transaction progress screen; the send lives in
+  `ProposalsNotifier`, so leaving the screen doesn't stop it), `/activity` (all payments).
   Home polls every 15 s: proposals refresh + answering signing requests, then wallet sync.
   Wallet DB access is serialized by `wallet_lock()` in the bridge.
 - `VaultWallet::create` does all network calls **before** creating the DB file; the bridge

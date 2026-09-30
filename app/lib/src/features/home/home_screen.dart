@@ -9,6 +9,7 @@ import '../../core/feedback/app_haptics.dart';
 import '../../core/formatting/member_label.dart';
 import '../../core/formatting/zec_amount.dart';
 import '../../core/layout/mobile/mobile_top_nav.dart';
+import '../../core/layout/mobile/mobile_top_scroll_fade.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_icon.dart';
@@ -115,70 +116,76 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 ),
               ),
               Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 48),
-                  children: [
-                    _BalanceCard(
-                      spendableZat: vault.balance?.spendableZat,
-                      totalZat: vault.balance?.totalZat,
-                      hidden: ref.watch(privacyModeProvider),
-                      onToggle: () {
-                        AppHaptics.privacyToggle();
-                        ref.read(privacyModeProvider.notifier).toggle();
-                      },
-                    ),
-                    const SizedBox(height: AppSpacing.s),
-                    if ((vault.balance?.totalZat ?? BigInt.zero) == BigInt.zero)
-                      AppButton(
-                        expand: true,
-                        onPressed: () => context.push('/receive'),
-                        leading: const AppIcon(AppIcons.addNew, size: 20),
-                        child: const Text(
-                          'Receive your first $kZcashDefaultCurrencyTicker',
-                        ),
-                      )
-                    else
-                      Row(
-                        children: [
-                          Expanded(
-                            child: AppButton(
-                              expand: true,
-                              onPressed: () => context.push('/send'),
-                              leading: const AppIcon(AppIcons.plane, size: 20),
-                              child: const Text('New payment'),
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.xs),
-                          Expanded(
-                            child: AppButton(
-                              expand: true,
-                              variant: AppButtonVariant.secondary,
-                              onPressed: () => context.push('/receive'),
-                              leading: const AppIcon(
-                                AppIcons.arrowDownCircle,
-                                size: 20,
-                              ),
-                              child: const Text('Receive'),
-                            ),
-                          ),
-                        ],
+                child: MobileTopScrollFade(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 64 + 48),
+                    children: [
+                      _BalanceCard(
+                        spendableZat: vault.balance?.spendableZat,
+                        totalZat: vault.balance?.totalZat,
+                        hidden: ref.watch(privacyModeProvider),
+                        onToggle: () {
+                          AppHaptics.privacyToggle();
+                          ref.read(privacyModeProvider.notifier).toggle();
+                        },
                       ),
-                    const SizedBox(height: AppSpacing.md),
-                    if (ref.watch(backupStatusProvider).value == false) ...[
-                      const _BackupReminder(),
+                      const SizedBox(height: AppSpacing.s),
+                      if ((vault.balance?.totalZat ?? BigInt.zero) ==
+                          BigInt.zero)
+                        AppButton(
+                          expand: true,
+                          onPressed: () => context.push('/receive'),
+                          leading: const AppIcon(AppIcons.addNew, size: 20),
+                          child: const Text(
+                            'Receive your first $kZcashDefaultCurrencyTicker',
+                          ),
+                        )
+                      else
+                        Row(
+                          children: [
+                            Expanded(
+                              child: AppButton(
+                                expand: true,
+                                onPressed: () => context.push('/send'),
+                                leading: const AppIcon(
+                                  AppIcons.plane,
+                                  size: 20,
+                                ),
+                                child: const Text('New payment'),
+                              ),
+                            ),
+                            const SizedBox(width: AppSpacing.xs),
+                            Expanded(
+                              child: AppButton(
+                                expand: true,
+                                variant: AppButtonVariant.secondary,
+                                onPressed: () => context.push('/receive'),
+                                leading: const AppIcon(
+                                  AppIcons.arrowDownCircle,
+                                  size: 20,
+                                ),
+                                child: const Text('Receive'),
+                              ),
+                            ),
+                          ],
+                        ),
                       const SizedBox(height: AppSpacing.md),
+                      if (ref.watch(backupStatusProvider).value == false) ...[
+                        const _BackupReminder(),
+                        const SizedBox(height: AppSpacing.md),
+                      ],
+                      _Payments(
+                        proposals: ref.watch(proposalsProvider),
+                        hideAmounts: ref.watch(privacyModeProvider),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      _SignersCard(
+                        threshold: summary.threshold,
+                        members: summary.members,
+                        me: vault.myKeyHex,
+                      ),
                     ],
-                    _Payments(
-                      proposals: ref.watch(proposalsProvider),
-                      hideAmounts: ref.watch(privacyModeProvider),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    _SignersCard(
-                      threshold: summary.threshold,
-                      members: summary.members,
-                      me: vault.myKeyHex,
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ],
@@ -235,7 +242,7 @@ class _BalanceCard extends StatelessWidget {
     final total = totalZat;
     final amount = total == null
         ? '—'
-        : ZecAmount.fromZatoshi(total).balance.amountText;
+        : ZecAmount.fromZatoshi(total).compactBalance.amountText;
     final pending =
         (total != null && spendableZat != null && total > spendableZat!)
         ? ZecAmount.fromZatoshi(total - spendableZat!).balance.amountText
@@ -395,6 +402,8 @@ class _SignersCard extends StatelessWidget {
   }
 }
 
+/// Vizor's "Recent activity" (4.4): header with "See all", up to 10 rows 12 apart, and
+/// the empty state.
 class _Payments extends StatelessWidget {
   const _Payments({required this.proposals, required this.hideAmounts});
   final ProposalsState proposals;
@@ -412,30 +421,80 @@ class _Payments extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Payments',
-            style: AppTypography.labelLarge.copyWith(
-              color: colors.text.accent,
-              fontWeight: FontWeight.w600,
+          SizedBox(
+            height: 24,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Recent activity',
+                    style: AppTypography.labelLarge.copyWith(
+                      color: colors.text.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (items.isNotEmpty)
+                  AppTappable(
+                    onTap: () => context.push('/activity'),
+                    semanticsLabel: 'See all activity',
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'See all',
+                          style: AppTypography.labelLarge.copyWith(
+                            color: colors.button.ghost.label,
+                          ),
+                        ),
+                        AppIcon(
+                          AppIcons.chevronForward,
+                          size: 16,
+                          color: colors.button.ghost.label,
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
           ),
           const SizedBox(height: AppSpacing.md),
           if (items.isEmpty)
-            Text(
-              proposals.loaded ? 'No payments yet' : 'Loading...',
-              style: AppTypography.bodyMedium.copyWith(
-                color: colors.text.secondary,
-              ),
-            ),
-          for (final p in items)
             Padding(
-              padding: const EdgeInsets.only(bottom: AppSpacing.s),
-              child: ProposalRow(
-                proposal: p,
-                hideAmount: hideAmounts,
-                onTap: () => context.push('/proposal/${p.id}'),
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+              child: Center(
+                child: Column(
+                  children: [
+                    Text(
+                      proposals.loaded
+                          ? 'No activity, yet...'
+                          : 'Loading activity...',
+                      style: AppTypography.headlineSmall.copyWith(
+                        color: colors.text.accent,
+                      ),
+                    ),
+                    if (proposals.loaded) ...[
+                      const SizedBox(height: AppSpacing.xxs),
+                      Text(
+                        'How about proposing\nyour first payment?',
+                        textAlign: TextAlign.center,
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: colors.text.secondary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0) const SizedBox(height: AppSpacing.s),
+            ProposalRow(
+              proposal: items[i],
+              hideAmount: hideAmounts,
+              onTap: () => context.push('/proposal/${items[i].id}'),
+            ),
+          ],
         ],
       ),
     );
@@ -449,50 +508,75 @@ class _BackupReminder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    // Vizor's home entry card (the coinholder-voting card): ground, radius 24, 1.5px
+    // white @ 7% border, icon + title/chevron + body.
     return AppTappable(
       onTap: () => context.push('/export'),
       semanticsLabel: 'Back up this vault',
       child: Container(
-        padding: const EdgeInsets.all(AppSpacing.sm),
+        constraints: const BoxConstraints(minHeight: 77),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.s,
+        ),
         decoration: BoxDecoration(
-          color: colors.background.brandCrimsonSubtle,
+          color: colors.background.ground,
           borderRadius: BorderRadius.circular(AppRadii.large),
         ),
-        child: Row(
-          children: [
-            AppIcon(
-              AppIcons.warning,
-              size: 20,
-              color: colors.icon.brandCrimson,
-            ),
-            const SizedBox(width: AppSpacing.s),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Back up this vault',
-                    style: AppTypography.labelLarge.copyWith(
-                      color: colors.text.accent,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.xxs),
-                  Text(
-                    'Your key share lives only on this phone.',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: colors.text.secondary,
-                    ),
-                  ),
-                ],
+        foregroundDecoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppRadii.large),
+          border: Border.all(color: const Color(0x12FFFFFF), width: 1.5),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xxs),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AppIcon(
+                AppIcons.warning,
+                size: 20,
+                color: colors.icon.brandCrimson,
               ),
-            ),
-            AppIcon(
-              AppIcons.chevronForward,
-              size: 20,
-              color: colors.icon.accent,
-            ),
-          ],
+              const SizedBox(width: AppSpacing.s),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Back up this vault',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.labelLarge.copyWith(
+                              color: colors.text.accent,
+                            ),
+                          ),
+                        ),
+                        AppIcon(
+                          AppIcons.chevronForward,
+                          size: 20,
+                          color: colors.icon.accent,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      'Your key share lives only on this phone',
+                      maxLines: 2,
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: colors.text.secondary,
+                        height: 17 / 16,
+                        letterSpacing: -0.04,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

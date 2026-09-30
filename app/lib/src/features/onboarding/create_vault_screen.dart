@@ -49,7 +49,8 @@ class _CreateVaultScreenState extends ConsumerState<CreateVaultScreen> {
         showAppToast(
           context,
           'Couldn\'t create the vault. $e',
-          iconName: AppIcons.warning,
+          iconName: AppIcons.warningCircle,
+          tone: AppToastTone.destructive,
         );
       }
     } finally {

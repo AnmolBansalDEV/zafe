@@ -15,7 +15,9 @@ import 'features/onboarding/create_vault_screen.dart';
 import 'features/onboarding/join_vault_screen.dart';
 import 'features/onboarding/setup_screen.dart';
 import 'features/onboarding/welcome_screen.dart';
+import 'features/proposals/activity_screen.dart';
 import 'features/proposals/proposal_screen.dart';
+import 'features/proposals/sending_screen.dart';
 import 'features/receive/receive_screen.dart';
 import 'features/send/send_screen.dart';
 import 'features/settings/settings_screen.dart';
@@ -68,6 +70,7 @@ final _routerProvider = Provider<GoRouter>((ref) {
         '/proposal',
         '/settings',
         '/export',
+        '/activity',
         '/backup-prompt',
       ].any(loc.startsWith);
       if (vault.hasVault && !inVault) return '/home';
@@ -96,6 +99,10 @@ final _routerProvider = Provider<GoRouter>((ref) {
         pageBuilder: (_, _) => page(const ReceiveScreen()),
       ),
       GoRoute(
+        path: '/activity',
+        pageBuilder: (_, _) => page(const ActivityScreen()),
+      ),
+      GoRoute(
         path: '/export',
         pageBuilder: (_, _) => page(const ExportScreen()),
       ),
@@ -116,6 +123,13 @@ final _routerProvider = Provider<GoRouter>((ref) {
         path: '/proposal/:id',
         pageBuilder: (_, state) =>
             page(ProposalScreen(id: state.pathParameters['id']!)),
+        routes: [
+          GoRoute(
+            path: 'send',
+            pageBuilder: (_, state) =>
+                page(SendingScreen(id: state.pathParameters['id']!)),
+          ),
+        ],
       ),
     ],
   );

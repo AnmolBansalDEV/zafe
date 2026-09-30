@@ -74,7 +74,12 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
       setState(() => _done = backup);
     } catch (e) {
       if (mounted) {
-        showAppToast(context, zafeErrorMessage(e), iconName: AppIcons.warning);
+        showAppToast(
+          context,
+          zafeErrorMessage(e),
+          iconName: AppIcons.warningCircle,
+          tone: AppToastTone.destructive,
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);

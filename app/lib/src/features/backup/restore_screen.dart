@@ -81,7 +81,8 @@ class _RestoreScreenState extends ConsumerState<RestoreScreen> {
           showAppToast(
             context,
             '"${v.name}" is already on this phone',
-            iconName: AppIcons.warning,
+            iconName: AppIcons.warningCircle,
+            tone: AppToastTone.destructive,
           );
         }
         return;
@@ -99,7 +100,12 @@ class _RestoreScreenState extends ConsumerState<RestoreScreen> {
       context.go('/home');
     } catch (e) {
       if (mounted) {
-        showAppToast(context, zafeErrorMessage(e), iconName: AppIcons.warning);
+        showAppToast(
+          context,
+          zafeErrorMessage(e),
+          iconName: AppIcons.warningCircle,
+          tone: AppToastTone.destructive,
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);

@@ -1,5 +1,3 @@
-import 'package:flutter/services.dart';
-
 import '../config/network_config.dart';
 
 final BigInt zatoshiPerZec = BigInt.from(100000000);
@@ -52,6 +50,32 @@ BigInt? _parseZecAmount(String input) {
 
 bool _digitsOnly(String value) => RegExp(r'^\d*$').hasMatch(value);
 
+String _withoutZeroFraction(String value) {
+  final match = RegExp(r'^(-?\d+)\.0+$').firstMatch(value);
+  return match == null ? value : match[1]!;
+}
+
+BigInt _zatoshiUnitForFractionDigits(int fractionDigits) {
+  var value = BigInt.one;
+  for (var i = 0; i < 8 - fractionDigits; i++) {
+    value *= BigInt.from(10);
+  }
+  return value;
+}
+
+int _adaptiveFractionDigits(
+  BigInt absZatoshi, {
+  required int minFractionDigits,
+  required int maxFractionDigits,
+}) {
+  final whole = absZatoshi ~/ zatoshiPerZec;
+  final integerDigits = whole.toString().length;
+  var fractionDigits = maxFractionDigits - integerDigits + 1;
+  if (fractionDigits < minFractionDigits) fractionDigits = minFractionDigits;
+  if (fractionDigits > maxFractionDigits) fractionDigits = maxFractionDigits;
+  return fractionDigits;
+}
+
 /// Formats a raw zatoshi value as decimal text without appending a denomination.
 String formatZecAmount(BigInt zatoshi, {int minFractionDigits = 0}) {
   return _formatZecAmount(zatoshi, minFractionDigits: minFractionDigits);
@@ -82,6 +106,7 @@ class ZecAmount {
     ZecDenomStyle denomStyle = ZecDenomStyle.none,
     String? denomination,
     bool signed = false,
+    bool hideZeroFraction = false,
   }) {
     return ZecAmountPretty._(
       zatoshi,
@@ -91,10 +116,60 @@ class ZecAmount {
       denomination: denomination,
       signed: signed,
       trimTrailingZeros: true,
+      hideZeroFraction: hideZeroFraction,
     );
   }
 
   ZecAmountPretty get balance => pretty(minFractionDigits: 2);
+
+  /// Headline wallet balances. Caps typical amounts at 4–5 fraction
+  /// digits so home totals do not show full zatoshi precision.
+  ZecAmountPretty compactBalancePretty({
+    int minFractionDigits = 2,
+    int maxFractionDigits = 5,
+    bool hideZeroFraction = true,
+  }) {
+    assert(minFractionDigits >= 0 && minFractionDigits <= 8);
+    assert(maxFractionDigits >= 0 && maxFractionDigits <= 8);
+    assert(minFractionDigits <= maxFractionDigits);
+
+    final abs = zatoshi.abs();
+    final minimumVisibleZatoshi = _zatoshiUnitForFractionDigits(
+      maxFractionDigits,
+    );
+    if (abs > BigInt.zero && abs < minimumVisibleZatoshi) {
+      final visibleMinimum = _formatZecAmount(
+        minimumVisibleZatoshi,
+        minFractionDigits: maxFractionDigits,
+        maxFractionDigits: maxFractionDigits,
+      );
+      final sign = zatoshi < BigInt.zero ? '-' : '';
+      return ZecAmountPretty._(
+        zatoshi,
+        minFractionDigits: minFractionDigits,
+        maxFractionDigits: maxFractionDigits,
+        denomStyle: ZecDenomStyle.none,
+        denomination: null,
+        signed: false,
+        trimTrailingZeros: true,
+        hideZeroFraction: hideZeroFraction,
+        amountTextOverride: '$sign<$visibleMinimum',
+      );
+    }
+
+    final fractionDigits = _adaptiveFractionDigits(
+      abs,
+      minFractionDigits: minFractionDigits,
+      maxFractionDigits: maxFractionDigits,
+    );
+    return pretty(
+      minFractionDigits: minFractionDigits,
+      maxFractionDigits: fractionDigits,
+      hideZeroFraction: hideZeroFraction,
+    );
+  }
+
+  ZecAmountPretty get compactBalance => compactBalancePretty();
 
   ZecAmountPretty receiptPretty({String? denomination}) => pretty(
     minFractionDigits: 2,
@@ -148,6 +223,7 @@ class ZecAmount {
       denomination: denomination,
       signed: signed,
       trimTrailingZeros: true,
+      hideZeroFraction: false,
     );
   }
 }
@@ -162,12 +238,16 @@ class ZecAmountPretty {
     required String? denomination,
     required bool signed,
     required bool trimTrailingZeros,
+    required bool hideZeroFraction,
+    String? amountTextOverride,
   }) : _minFractionDigits = minFractionDigits,
        _maxFractionDigits = maxFractionDigits,
        _denomStyle = denomStyle,
        _denomination = denomination,
        _signed = signed,
-       _trimTrailingZeros = trimTrailingZeros;
+       _trimTrailingZeros = trimTrailingZeros,
+       _hideZeroFraction = hideZeroFraction,
+       _amountTextOverride = amountTextOverride;
 
   final BigInt _zatoshi;
   final int _minFractionDigits;
@@ -176,14 +256,19 @@ class ZecAmountPretty {
   final String? _denomination;
   final bool _signed;
   final bool _trimTrailingZeros;
+  final bool _hideZeroFraction;
+  final String? _amountTextOverride;
 
   String get amountText {
-    final value = _formatZecAmount(
+    final override = _amountTextOverride;
+    if (override != null) return override;
+    var value = _formatZecAmount(
       _zatoshi,
       minFractionDigits: _minFractionDigits,
       maxFractionDigits: _maxFractionDigits,
       trimTrailingZeros: _trimTrailingZeros,
     );
+    if (_hideZeroFraction) value = _withoutZeroFraction(value);
     if (!_signed) return value;
     return _zatoshi > BigInt.zero ? '+$value' : value;
   }
@@ -204,25 +289,5 @@ class ZecAmountPretty {
   String toString() {
     if (_denomStyle == ZecDenomStyle.none) return amountText;
     return '$amountText $denomText';
-  }
-}
-
-class ZecAmountInputFormatter extends TextInputFormatter {
-  const ZecAmountInputFormatter();
-
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final text = newValue.text.replaceAll(',', '.');
-    if (text.isEmpty) return newValue.copyWith(text: text);
-    if (!RegExp(r'^[0-9.]*$').hasMatch(text)) return oldValue;
-    if ('.'.allMatches(text).length > 1) return oldValue;
-
-    final dotIndex = text.indexOf('.');
-    if (dotIndex != -1 && text.length - dotIndex - 1 > 8) return oldValue;
-
-    return newValue.copyWith(text: text);
   }
 }

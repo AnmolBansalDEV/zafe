@@ -1,0 +1,171 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../core/layout/mobile/mobile_top_nav.dart';
+import '../../core/layout/mobile/mobile_top_scroll_fade.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_toast.dart';
+import '../../providers/privacy_mode_provider.dart';
+import '../../providers/proposals_provider.dart';
+import '../../rust/api/proposals.dart' as rust;
+import 'proposal_status.dart';
+
+/// Every payment in the vault, grouped like Vizor's activity feed (4.7): "This week", then
+/// month and year, then "Earlier"; one card per section.
+class ActivityScreen extends ConsumerWidget {
+  const ActivityScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final proposals = ref.watch(proposalsProvider);
+    final hide = ref.watch(privacyModeProvider);
+    final sections = activitySections(proposals.items);
+    return Scaffold(
+      backgroundColor: colors.background.window,
+      body: AppToastHost(
+        child: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              MobileTopNav.back(title: 'Activity', onBack: () => context.pop()),
+              Expanded(
+                child: MobileTopScrollFade(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(4, 12, 4, 112),
+                    children: [
+                      if (sections.isEmpty)
+                        _MessageCard(
+                          text: proposals.error != null && !proposals.loaded
+                              ? 'Couldn\'t load activity. Try again in a moment.'
+                              : proposals.loaded
+                              ? 'No activity yet'
+                              : 'Loading activity...',
+                          error: proposals.error != null && !proposals.loaded,
+                        ),
+                      for (final (title, rows) in sections) ...[
+                        _SectionCard(
+                          title: title,
+                          children: [
+                            for (final p in rows)
+                              ProposalRow(
+                                proposal: p,
+                                hideAmount: hide,
+                                onTap: () => context.push('/proposal/${p.id}'),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Newest first (the provider's order), grouped by Vizor's section titles.
+List<(String, List<rust.ProposalInfo>)> activitySections(
+  List<rust.ProposalInfo> items,
+) {
+  final out = <(String, List<rust.ProposalInfo>)>[];
+  for (final p in items) {
+    final title = sectionTitle(
+      p.createdAt == BigInt.zero
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(p.createdAt.toInt() * 1000),
+    );
+    if (out.isEmpty || out.last.$1 != title) out.add((title, []));
+    out.last.$2.add(p);
+  }
+  return out;
+}
+
+String sectionTitle(DateTime? timestamp, {DateTime? now}) {
+  if (timestamp == null) return 'Earlier';
+  final local = timestamp.toLocal();
+  final today = now ?? DateTime.now();
+  final weekStart = DateTime(
+    today.year,
+    today.month,
+    today.day,
+  ).subtract(Duration(days: today.weekday - DateTime.monday));
+  if (!local.isBefore(weekStart) &&
+      local.isBefore(weekStart.add(const Duration(days: 7)))) {
+    return 'This week';
+  }
+  const months = [
+    'January', 'February', 'March', 'April', 'May', 'June', //
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  return '${months[local.month - 1]} ${local.year}';
+}
+
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.title, required this.children});
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+      decoration: BoxDecoration(
+        color: colors.background.ground,
+        borderRadius: BorderRadius.circular(AppRadii.large),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: 24,
+            child: Text(
+              title,
+              style: AppTypography.labelLarge.copyWith(
+                color: colors.text.secondary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          for (var i = 0; i < children.length; i++) ...[
+            if (i > 0) const SizedBox(height: AppSpacing.s),
+            children[i],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MessageCard extends StatelessWidget {
+  const _MessageCard({required this.text, this.error = false});
+  final String text;
+  final bool error;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Container(
+      height: 160,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: colors.background.ground,
+        borderRadius: BorderRadius.circular(AppRadii.large),
+      ),
+      child: Text(
+        text,
+        style: AppTypography.labelLarge.copyWith(
+          color: error ? colors.text.destructive : colors.text.secondary,
+        ),
+      ),
+    );
+  }
+}

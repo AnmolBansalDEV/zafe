@@ -6,7 +6,7 @@ finished ones, tick them and add the commit. Spec references are to `spec.md`.
 
 Legend: `[ ]` open · `[x]` done · **(you)** needs the user · *(idea)* not yet decided
 
-Last updated: 2026-09-29 (one-tap approvals; Vizor upstream ideas from `4bff2e7`)
+Last updated: 2026-09-30 (Vizor core resynced to `4bff2e7`; send progress and activity screens)
 
 ---
 
@@ -180,12 +180,13 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       details screen. Upstream typed kinds to copy: `lib/src/providers/sync_failure.dart`
       (`SyncFailureKind` incl. `torUnavailable`) + `core/formatting/sync_status_label.dart`
       ("Sync paused" states); Vizor has no details screen either
-- [ ] Copied Vizor `lib/src/core` is from an older snapshot (`ff02152`); upstream
-      (`chainapsis/vizor-wallet` @ `4bff2e7`) added tokens and button options. Resync
-      deliberately, keeping Zafe's fixes (button semantics). File-by-file list in
-      `docs/vizor-reference.md` §11: 20 copied files changed upstream, including breaking
-      `surface.input` → `surface.input.primary`, `ZecAmountInputFormatter` removed (→
-      `DecimalAmountInputFormatter`), sheet bottom gap 32 → 16, full-address verify sheet
+- [x] Copied Vizor `lib/src/core` resynced to `chainapsis/vizor-wallet` @ `4bff2e7`
+      (was `ff02152`), keeping Zafe's button semantics; `docs/vizor-reference.md` §11.
+      Also adopted: transaction progress screen (`/proposal/:id/send`), activity screen
+      with Vizor's sections (`/activity`), entry-card backup reminder, destructive error
+      toasts, `DecimalAmountInputFormatter`, full-address verify sheet
+- [ ] iOS: `xyz.zafe/modal_corners` has no Swift handler yet (Dart falls back to fixed
+      corners); port Vizor's `NativeModalCorners` when iOS work starts
 - [ ] No CI: add GitHub Actions for `cargo fmt/clippy/test` and `flutter analyze`
       (regtest/Docker tests stay manual or nightly). Vizor has no workflows to copy
 - [ ] Agent-device flows are manual; capture them as a repeatable script

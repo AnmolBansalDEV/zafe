@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart' show InputDecoration, TextField;
 import 'package:flutter/services.dart'
-    show TextInputAction, TextInputFormatter, TextInputType;
+    show TextInputAction, TextInputFormatter, TextInputType, TextSelection;
 import 'package:flutter/widgets.dart';
 
 import '../theme/app_theme.dart';
 
 /// The shared single-line mobile text field (Figma `_Modal Type` field
-/// 4755:84371 / 4755:85337): a flat `surface.input` box sized by
+/// 4755:84371 / 4755:85337): a flat `surface.input.primary` box sized by
 /// [AppInputSizing] (60px tall, radius 16 on mobile), label-m Medium text, NO
 /// visible border by default and a bright `background.inverse` outline only
 /// while focused, over the layered surface shadow — the same shell the
@@ -37,6 +37,7 @@ class MobileTextField extends StatefulWidget {
     this.hintStyle,
     this.height,
     this.radius,
+    this.enabled = true,
     super.key,
   });
 
@@ -84,11 +85,17 @@ class MobileTextField extends StatefulWidget {
   /// Optional radius override for one-off embedded field variants.
   final double? radius;
 
+  /// Whether the field and its outer tap target accept input.
+  final bool enabled;
+
   @override
   State<MobileTextField> createState() => _MobileTextFieldState();
 }
 
 class _MobileTextFieldState extends State<MobileTextField> {
+  final GlobalKey _textFieldRegionKey = GlobalKey();
+  Offset? _pendingShellTapGlobalPosition;
+
   @override
   void initState() {
     super.initState();
@@ -102,6 +109,9 @@ class _MobileTextFieldState extends State<MobileTextField> {
       oldWidget.focusNode.removeListener(_onFocusChanged);
       widget.focusNode.addListener(_onFocusChanged);
     }
+    if (oldWidget.enabled && !widget.enabled) {
+      widget.focusNode.unfocus();
+    }
   }
 
   @override
@@ -113,6 +123,37 @@ class _MobileTextFieldState extends State<MobileTextField> {
   // Repaint the border when focus toggles.
   void _onFocusChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _handleShellTapDown(TapDownDetails details) {
+    if (!widget.enabled) return;
+    _pendingShellTapGlobalPosition = details.globalPosition;
+  }
+
+  void _requestFocusFromShell() {
+    if (!widget.enabled) return;
+    final tapPosition = _pendingShellTapGlobalPosition;
+    _pendingShellTapGlobalPosition = null;
+    if (tapPosition != null && _isInsideTextFieldRegion(tapPosition)) {
+      return;
+    }
+
+    if (!widget.focusNode.hasFocus) {
+      widget.focusNode.requestFocus();
+    }
+    widget.controller.selection = TextSelection.collapsed(
+      offset: widget.controller.text.length,
+    );
+  }
+
+  bool _isInsideTextFieldRegion(Offset globalPosition) {
+    final renderObject = _textFieldRegionKey.currentContext?.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.attached) {
+      return false;
+    }
+
+    final localPosition = renderObject.globalToLocal(globalPosition);
+    return (Offset.zero & renderObject.size).contains(localPosition);
   }
 
   @override
@@ -142,54 +183,63 @@ class _MobileTextFieldState extends State<MobileTextField> {
       ),
       BoxShadow(color: colors.shadows.subtle, blurRadius: 1),
     ];
-    return Container(
-      // Mobile input metrics (AppInputSizing → 60px tall, radius 16); desktop
-      // resolves these to 46 / 12. The surface fill, the focus-only inverse
-      // outline and the layered surface shadow mirror the canonical
-      // AppTextField shell.
-      height: widget.height ?? AppInputSizing.height,
-      decoration: BoxDecoration(
-        color: widget.backgroundColor ?? colors.surface.input,
-        borderRadius: BorderRadius.circular(
-          widget.radius ?? AppInputSizing.radius,
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTapDown: widget.enabled ? _handleShellTapDown : null,
+      onTap: widget.enabled ? _requestFocusFromShell : null,
+      child: Container(
+        // Mobile input metrics (AppInputSizing → 60px tall, radius 16); desktop
+        // resolves these to 46 / 12. The surface fill, the focus-only inverse
+        // outline and the layered surface shadow mirror the canonical
+        // AppTextField shell.
+        height: widget.height ?? AppInputSizing.height,
+        decoration: BoxDecoration(
+          color: widget.backgroundColor ?? colors.surface.input.primary,
+          borderRadius: BorderRadius.circular(
+            widget.radius ?? AppInputSizing.radius,
+          ),
+          border: Border.all(
+            color: focused
+                ? widget.focusedBorderColor ?? colors.background.inverse
+                : widget.restingBorderColor ?? const Color(0x00000000),
+            width: 1.5,
+            strokeAlign: BorderSide.strokeAlignInside,
+          ),
+          boxShadow: focused
+              ? widget.focusedBoxShadow ?? surfaceShadow
+              : surfaceShadow,
         ),
-        border: Border.all(
-          color: focused
-              ? widget.focusedBorderColor ?? colors.background.inverse
-              : widget.restingBorderColor ?? const Color(0x00000000),
-          width: 1.5,
-          strokeAlign: BorderSide.strokeAlignInside,
-        ),
-        boxShadow: focused
-            ? widget.focusedBoxShadow ?? surfaceShadow
-            : surfaceShadow,
-      ),
-      child: Row(
-        children: [
-          if (widget.leading != null) widget.leading!,
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: TextField(
-                key: widget.fieldKey,
-                controller: widget.controller,
-                focusNode: widget.focusNode,
-                onChanged: widget.onChanged,
-                onSubmitted: widget.onSubmitted,
-                textInputAction: widget.textInputAction,
-                keyboardType: widget.keyboardType,
-                inputFormatters: widget.inputFormatters,
-                style: textStyle,
-                cursorColor: colors.text.accent,
-                decoration: InputDecoration.collapsed(
-                  hintText: widget.hintText,
-                  hintStyle: hintStyle,
+        child: Row(
+          children: [
+            if (widget.leading != null) widget.leading!,
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: KeyedSubtree(
+                  key: _textFieldRegionKey,
+                  child: TextField(
+                    key: widget.fieldKey,
+                    controller: widget.controller,
+                    focusNode: widget.focusNode,
+                    enabled: widget.enabled,
+                    onChanged: widget.onChanged,
+                    onSubmitted: widget.onSubmitted,
+                    textInputAction: widget.textInputAction,
+                    keyboardType: widget.keyboardType,
+                    inputFormatters: widget.inputFormatters,
+                    style: textStyle,
+                    cursorColor: colors.text.accent,
+                    decoration: InputDecoration.collapsed(
+                      hintText: widget.hintText,
+                      hintStyle: hintStyle,
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-          if (widget.trailing != null) widget.trailing!,
-        ],
+            if (widget.trailing != null) widget.trailing!,
+          ],
+        ),
       ),
     );
   }

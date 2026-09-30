@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/errors/zafe_error_copy.dart';
 import '../../core/formatting/member_label.dart';
@@ -63,7 +64,10 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
     try {
       if (approve) {
         final r = await notifier.approve(widget.id);
-        if (mounted) {
+        if (mounted && r.completed && r.autoSend) {
+          // This approval completed the signatures: watch it go out.
+          context.push('/proposal/${widget.id}/send');
+        } else if (mounted) {
           showAppToast(
             context,
             r.completed
@@ -80,15 +84,19 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
     } catch (e) {
       debugPrint('vote failed: ${describeError(e)}');
       if (mounted) {
-        showAppToast(context, zafeErrorMessage(e), iconName: AppIcons.warning);
+        showAppToast(
+          context,
+          zafeErrorMessage(e),
+          iconName: AppIcons.warningCircle,
+          tone: AppToastTone.destructive,
+        );
       }
     } finally {
       if (mounted) setState(() => _voting = false);
     }
   }
 
-  void _startSend() =>
-      ref.read(proposalsProvider.notifier).startSend(widget.id);
+  void _startSend() => context.push('/proposal/${widget.id}/send');
 
   @override
   Widget build(BuildContext context) {

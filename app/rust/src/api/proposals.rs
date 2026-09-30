@@ -51,15 +51,23 @@ pub fn check_address(network_name: String, address: String) -> AddressCheck {
         },
         Err(_) => AddressCheck {
             valid: false,
-            reason: if zcash_keys::address::Address::decode(
-                &network(&network_name).unwrap_or(ZafeNetwork::Main),
-                address.trim(),
-            )
-            .is_some()
-            {
-                "Vaults can only pay shielded unified addresses".into()
-            } else {
-                "Invalid address".into()
+            reason: {
+                let decodes_on = |name: &str| {
+                    ZafeNetwork::from_name(name).is_some_and(|net| {
+                        zcash_keys::address::Address::decode(&net, address.trim()).is_some()
+                    })
+                };
+                if decodes_on(&network_name) {
+                    "Vaults can only pay shielded unified addresses".into()
+                } else if ["main", "test", "regtest"]
+                    .iter()
+                    .any(|other| *other != network_name && decodes_on(other))
+                {
+                    // Vizor's wording (send recipient step).
+                    "This address is for a different Zcash network".into()
+                } else {
+                    "Invalid address".into()
+                }
             },
         },
     }

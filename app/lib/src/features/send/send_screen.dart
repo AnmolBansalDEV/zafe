@@ -13,6 +13,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/app_tappable.dart';
+import '../../core/widgets/decimal_amount_input_formatter.dart';
 import '../../core/widgets/app_toast.dart';
 import '../../core/widgets/mobile/mobile_address_verify_sheet.dart';
 import '../../core/widgets/mobile/mobile_review_row.dart';
@@ -119,7 +120,8 @@ class _SendScreenState extends ConsumerState<SendScreen> {
             e,
             fallback: 'Couldn\'t create the proposal. Try again.',
           ),
-          iconName: AppIcons.warning,
+          iconName: AppIcons.warningCircle,
+          tone: AppToastTone.destructive,
         );
       }
     } finally {
@@ -291,7 +293,12 @@ class _SendScreenState extends ConsumerState<SendScreen> {
                         keyboardType: const TextInputType.numberWithOptions(
                           decimal: true,
                         ),
-                        inputFormatters: [ZecAmountInputFormatter()],
+                        inputFormatters: [
+                          DecimalAmountInputFormatter(
+                            maxFractionDigits: 8,
+                            maxLength: 17,
+                          ),
+                        ],
                         onChanged: (_) => setState(() {}),
                         textAlign: TextAlign.end,
                         cursorColor: colors.text.accent,
