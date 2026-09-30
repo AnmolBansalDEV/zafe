@@ -35,10 +35,12 @@ kill_timeout = "30s"
   auto_start_machines = false
   min_machines_running = 1
 
+  # Every open app holds one long poll (`/v1/wait`, up to 25 s, under Fly's 60 s idle
+  # timeout), so concurrent requests grow with the number of open apps.
   [http_service.concurrency]
     type = "requests"
-    soft_limit = 200
-    hard_limit = 250
+    soft_limit = 1000
+    hard_limit = 1500
 
   [[http_service.checks]]
     method = "GET"

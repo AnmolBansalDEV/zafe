@@ -14,6 +14,7 @@ import 'api/names.dart';
 import 'api/proposals.dart';
 import 'api/received.dart';
 import 'api/vault.dart';
+import 'api/watch.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'frb_generated.dart';
@@ -32,6 +33,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RustStreamSink<SendProgress> dco_decode_StreamSink_send_progress_Sse(
+    dynamic raw,
+  );
+
+  @protected
+  RustStreamSink<VaultActivity> dco_decode_StreamSink_vault_activity_Sse(
     dynamic raw,
   );
 
@@ -64,6 +70,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int dco_decode_i_32(dynamic raw);
+
+  @protected
+  PlatformInt64 dco_decode_i_64(dynamic raw);
 
   @protected
   IdentityInfo dco_decode_identity_info(dynamic raw);
@@ -174,6 +183,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void dco_decode_unit(dynamic raw);
 
   @protected
+  VaultActivity dco_decode_vault_activity(dynamic raw);
+
+  @protected
+  VaultActivityKind dco_decode_vault_activity_kind(dynamic raw);
+
+  @protected
   VaultSummary dco_decode_vault_summary(dynamic raw);
 
   @protected
@@ -190,6 +205,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   RustStreamSink<SendProgress> sse_decode_StreamSink_send_progress_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  RustStreamSink<VaultActivity> sse_decode_StreamSink_vault_activity_Sse(
     SseDeserializer deserializer,
   );
 
@@ -222,6 +242,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int sse_decode_i_32(SseDeserializer deserializer);
+
+  @protected
+  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
 
   @protected
   IdentityInfo sse_decode_identity_info(SseDeserializer deserializer);
@@ -342,6 +365,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_decode_unit(SseDeserializer deserializer);
 
   @protected
+  VaultActivity sse_decode_vault_activity(SseDeserializer deserializer);
+
+  @protected
+  VaultActivityKind sse_decode_vault_activity_kind(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   VaultSummary sse_decode_vault_summary(SseDeserializer deserializer);
 
   @protected
@@ -362,6 +393,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_StreamSink_send_progress_Sse(
     RustStreamSink<SendProgress> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_vault_activity_Sse(
+    RustStreamSink<VaultActivity> self,
     SseSerializer serializer,
   );
 
@@ -400,6 +437,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
 
   @protected
   void sse_encode_identity_info(IdentityInfo self, SseSerializer serializer);
@@ -544,6 +584,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_unit(void self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_vault_activity(VaultActivity self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_vault_activity_kind(
+    VaultActivityKind self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_vault_summary(VaultSummary self, SseSerializer serializer);

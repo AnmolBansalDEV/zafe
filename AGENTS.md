@@ -179,7 +179,10 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
     A body in a version the relay doesn't speak gets **HTTP 426** with header
     `zafe-supported-version`; the client turns it into `RelayClientError::VersionRejected`
     → bridge `ZafeErrorKind::UpdateRequired` (app older) or `RelayOutdated` (relay older).
-    Relay DB: `PRAGMA user_version` = `RELAY_DB`; a newer DB, or one from before
+    New endpoints add new body types under the same tag without a bump (no existing body
+    changes); a client meets an older relay as HTTP 404 on the new route and falls back
+    (e.g. `/v1/wait` → `Ok(None)` → the app keeps polling). Bump `RELAY_API` only when an
+    existing body changes. Relay DB: `PRAGMA user_version` = `RELAY_DB`; a newer DB, or one from before
     versioning (tables but version 0), is refused at startup: delete it. Bumps:
     **2** (2026-09-30) added the quota counters `mailboxes.delivery_bytes/log_bytes`;
     a schema-1 DB is migrated at startup (`migrate_from_v1`: ALTER + backfill).
@@ -296,6 +299,28 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   quota → `RelayError::QuotaExceeded` → HTTP 507 → `RelayClientError::StorageFull` →
   `ZafeErrorKind::RelayStorageFull`. Gotcha: no `--` comments inside `SCHEMA`'s CREATE
   TABLE text: SQLite stores it and `ALTER TABLE ... DROP COLUMN` then fails to re-parse.
+- **Live activity (long polls)**: `POST /v1/wait` (`WaitRequest`/`WaitResponse` in
+  `zafe_proto::relay`, `zafe_relay::wait`, `RelayClient::wait_for_activity`) answers when
+  the mailbox log is longer than the client's `log_len` or a delivery for the signer is
+  past `inbox_after`, else after `max_wait_secs` (capped at `MAX_WAIT_SECS` = 25, below
+  proxy idle timeouts). A per-mailbox `tokio::sync::watch` counter is bumped by
+  `log_append`/`post_envelope` **after commit and after dropping the DB mutex**; waiters
+  subscribe before reading so nothing slips between read and wait, and never hold the
+  mutex while waiting. Signed + fresh like other reads, charged to the key's rate limit
+  after the signature verifies; concurrent waits capped per key (2) and in total (4096)
+  → 429, always on (`Relay::with_wait_caps`); `max_wait_secs = 0` is a plain read and
+  takes no slot. Unknown mailbox is **403 here, not 404**, so a 404 unambiguously means
+  "relay without the endpoint". Any new write path that should wake apps must call
+  `relay.waiters.signal(&mailbox)`. Bridge `api/watch.rs`: `watch_vault(..., watch_id,
+  sink)` spawns a loop on the bridge runtime (holds no FRB worker) and returns; events
+  `Connected`/`Activity`/`Unsupported`/`Failed{retry_in_secs}` (failures are events;
+  backoff 2^n s up to 60, `Retry-After` on 429, stops on version errors). Watches are
+  ordered by Dart-chosen increasing ids (`stop_vault_watch(id)` stops that id and older)
+  because Dart's sync stop can reach Rust before the async start. Dart:
+  `services/live_vault_watch.dart` (`LiveActivityPolicy` + `LiveVaultWatch`, unit-tested)
+  run by Home in the foreground; events call `ProposalsNotifier.refreshSoon()` (queues one
+  more refresh if one is running); while live the Home poll relaxes from 15 s to 60 s but
+  keeps running. Background stays on FCM + WorkManager.
 - **Relay deploy**: `GET /health`; `PORT` → `0.0.0.0:$PORT` unless `ZAFE_RELAY_LISTEN`;
   FCM key from `ZAFE_FCM_SERVICE_ACCOUNT` (file) or `ZAFE_FCM_SERVICE_ACCOUNT_JSON`
   (inline, for Fly secrets). The image's entrypoint chowns `/data` then drops to uid
@@ -475,7 +500,8 @@ Learned while studying it:
   (independent check on this device, votes, approve/reject, "Collect signatures & send"),
   `/proposal/:id/send` (Vizor's transaction progress screen; the send lives in
   `ProposalsNotifier`, so leaving the screen doesn't stop it), `/activity` (all payments).
-  Home polls every 15 s: proposals refresh + answering signing requests, then wallet sync.
+  Home polls every 15 s (60 s while the live watch is connected, see "Live activity"):
+  proposals refresh + answering signing requests, then wallet sync.
   Wallet DB access is serialized by `wallet_lock()` in the bridge.
 - **Received payments** (`wallet::VaultWallet::received_payments`, bridge
   `api/received.rs` `list_received`, `providers/received_provider.dart`): `WalletDb`
