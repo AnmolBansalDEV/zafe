@@ -496,11 +496,20 @@ class _SendScreenState extends ConsumerState<SendScreen> {
                         ],
                       ),
                     ),
-                    Switch.adaptive(
+                    Switch(
                       value: _autoSend,
                       onChanged: _busy
                           ? null
                           : (v) => setState(() => _autoSend = v),
+                      // Lime when on, muted when off: the default Material colours
+                      // made the two states hard to tell apart.
+                      activeThumbColor: colors.button.primary.label,
+                      activeTrackColor: colors.button.primary.bg,
+                      inactiveThumbColor: colors.icon.muted,
+                      inactiveTrackColor: colors.background.raised,
+                      trackOutlineColor: WidgetStatePropertyAll(
+                        colors.border.regular,
+                      ),
                     ),
                   ],
                 ),

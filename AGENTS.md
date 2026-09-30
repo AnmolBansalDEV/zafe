@@ -523,11 +523,16 @@ Learned while studying it:
 
 Device testing (agent-device): emulator AVD `zafe` (API 35 x86_64; needs `/dev/kvm`
 access and `libxkbfile.so.1`, which was unpacked into `~/android/sdk/emulator/lib64` without
-root). Start it windowed with `emulator -avd zafe -gpu swiftshader_indirect -no-snapshot
+root). Start it windowed with `emulator -avd zafe -gpu swangle_indirect -no-snapshot
 -no-audio`; build with `--target-platform android-x64`. `scripts/app-harness.sh` runs the
 relay plus CLI members B and C and sets `adb reverse` for 8787/9067, so the app's localhost
 defaults work on a device. Its `cli` subcommand does not rebuild: `cargo build -p zafe-cli`
-after core changes. agent-device tips: prefer `find "<text>" click`; refs go stale after
+after core changes. **Emulator renderer (WSL)**: `-gpu swiftshader_indirect` segfaulted in the host
+`RenderThread` three times on 2026-09-30 (`dmesg`: "RenderThread: potentially unexpected fatal
+signal 11"), around the proposal/sending screens; the emulator died, not the app. Use
+`-gpu swangle_indirect` (stable since). AVD RAM raised to 4G for proving. A send's broadcast
+can still complete when the emulator dies mid-send: check the vault log (`zafe proposals`)
+before retrying. agent-device tips: prefer `find "<text>" click`; refs go stale after
 every snapshot; `scroll down --until 'label="..."'` before pressing bottom buttons.
 
 In a fresh git worktree, plain `flutter analyze` reports ~50 errors in

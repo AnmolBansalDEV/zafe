@@ -90,8 +90,12 @@ class IllustrationBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ExcludeSemantics(
-      child: SvgPicture.asset(_asset(context, name), fit: BoxFit.cover),
+    // Its own layer: the sending screen animates a loader on top, and without the
+    // boundary the full-page SVG was repainted every frame.
+    return RepaintBoundary(
+      child: ExcludeSemantics(
+        child: SvgPicture.asset(_asset(context, name), fit: BoxFit.cover),
+      ),
     );
   }
 }
