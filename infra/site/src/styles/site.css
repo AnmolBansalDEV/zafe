@@ -162,7 +162,6 @@ code { font-size: 0.95em; }
 
 :root {
   --text-tertiary: #7E8987;
-  --stage: #E5EAE9;
   --ink: #0E1313;
   --ink-raised: #1A2020;
   --ink-line: #262D2D;
@@ -245,296 +244,344 @@ code { font-size: 0.95em; }
   margin: 0 auto 36px;
 }
 
-/* The stage: a soft band with a notch, three members' phones on it. */
-.stage {
+/* The story: one payment between two members, played by scrolling. A tall section pins a
+   full-screen scene split in two: Bob's phone in dark mode, yours in light. The vault on
+   the seam shows the rule (3 signers, 2 needed) and fills as each approves. Every moving
+   part runs on the section's view timeline (--story), keyed to these beats:
+     0-20%  Bob: Home, "New payment", review, "Propose payment"
+     22-38% a notification swirls from Bob's phone to yours
+     40-50% Bob approves (his screen scrolls to the button): vault 1 of 2
+     52-78% you: tap the notification, review slides up, scrolls, approve: vault 2 of 2
+     74-92% the vault opens, a coin leaves, your phone shows it sent
+   The base styles are the last frame, which is what shows without scroll timelines or
+   with reduced motion (the section is then one screen tall). */
+.story { position: relative; }
+.story-pin {
   position: relative;
-  /* The band ends behind the phones, so they stand on it and run past it. */
-  background: linear-gradient(var(--stage) 62%, transparent 62%);
-  padding: 96px 16px 0;
+  height: 100vh;
+  min-height: 620px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
 }
-.notch {
+.story-half { position: relative; display: grid; place-items: center; }
+.story-half.dark { background: #080B0B; }
+.story-half.light { background: var(--window); }
+.who {
   position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 12px 36px 16px;
-  border-radius: 0 0 28px 28px;
-  background: var(--window);
-  color: var(--text-tertiary);
-  font-size: 15px;
-  white-space: nowrap;
+  top: 28px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
 }
-.notch span { margin: 0 8px; }
+.dark .who { color: #9DA9A7; }
+.light .who { color: var(--text-secondary); }
 
-.phones {
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  gap: 32px;
-  max-width: var(--width);
-  margin: 0 auto;
-}
-.phone {
-  margin: 0;
-  flex: none;
-  border-radius: 46px;
+.sphone {
+  height: min(72vh, 660px);
+  aspect-ratio: 780 / 1688;
   padding: 9px;
-  background: #1C2222;
-  box-shadow: 0 50px 90px -50px rgba(0, 40, 38, 0.55), inset 0 0 0 1px #3A4242;
+  border-radius: 48px;
+  transform-origin: 50% 50%;
 }
-.phone img { display: block; width: 100%; height: auto; border-radius: 38px; }
-.phone.front { width: 320px; }
-.phone.side { width: 272px; margin-bottom: 40px; }
+.sphone.a { background: #232A2A; box-shadow: 0 0 0 1px #343D3D, 0 50px 100px -40px rgba(0, 0, 0, 0.8); }
+.sphone.b { background: #1C2222; box-shadow: 0 50px 100px -50px rgba(0, 40, 38, 0.55); }
+.sscreen { position: relative; width: 100%; height: 100%; border-radius: 40px; overflow: hidden; }
+.a .sscreen { background: #080B0B; }
+.b .sscreen { background: var(--window); }
+.scr { position: absolute; left: 0; top: 0; width: 100%; height: auto; opacity: 0; }
+.bob-approved, .me-sent { opacity: 1; }
 
-/* The two-phone demo (after headnote.in's animated product mockups): Bob proposes on the
-   left, a sealed packet crosses the relay, you get the notification, the review sheet
-   slides up, one tap approves, both phones see it sent. One 12 s timeline for every
-   element; the base styles are the still frame shown with reduced motion (your review
-   sheet open). */
-.demo { max-width: var(--width); margin: 0 auto; padding: 128px 16px 24px; }
-.demo-head { text-align: center; margin-bottom: 40px; }
-.demo-head h2 { font-size: clamp(36px, 4.4vw, 56px); line-height: 1.05; margin-bottom: 12px; }
-.demo-head p { color: var(--text-secondary); font-size: 18px; }
-
-.demo-card {
-  --T: 12s;
-  --pw: 270px;
-  border-radius: 40px;
-  background: linear-gradient(160deg, #DDF1EE 0%, #EEF4F3 45%, #F6F1E6 100%);
-  border: 1px solid var(--line);
-  padding: 56px 40px 36px;
-  overflow: hidden;
-}
-.demo-stage { display: flex; justify-content: center; align-items: center; }
-
-.demo-phone { margin: 0; flex: none; text-align: center; }
-.demo-phone figcaption { margin-top: 14px; font-size: 14px; font-weight: 500; color: var(--text-secondary); }
-.demo-screen {
-  position: relative;
-  width: var(--pw);
-  aspect-ratio: 390 / 844;
-  border-radius: 40px;
-  border: 8px solid #1C2222;
-  background: var(--window);
-  overflow: hidden;
-  box-shadow: 0 40px 80px -40px rgba(0, 40, 38, 0.5);
-  text-align: left;
+.snotif {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 8px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 12px 28px -12px rgba(0, 40, 38, 0.45);
   font-size: 12px;
   line-height: 1.35;
+  opacity: 0;
+  z-index: 2;
 }
-.demo-home { display: block; width: 100%; height: auto; }
+.snotif-app { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 11px; margin-bottom: 3px !important; }
+.snotif-app time { margin-left: auto; }
+.snotif-mark { width: 15px; height: 15px; }
+.snotif-title { font-weight: 500; }
+.snotif-body { color: var(--text-secondary); }
 
-.demo-scrim { position: absolute; inset: 0; background: rgba(9, 14, 14, 0.38); opacity: 0; }
-.demo-phone.b .demo-scrim { opacity: 1; }
-
-.demo-sheet {
+/* A fingertip on what gets tapped. */
+.tap {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 62%;
-  background: #FFFFFF;
-  border-radius: 24px 24px 0 0;
-  padding: 10px 16px 14px;
+  width: 38px;
+  height: 38px;
+  margin: -19px 0 0 -19px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85), 0 6px 16px rgba(0, 0, 0, 0.25);
+  opacity: 0;
+  z-index: 3;
+}
+.b .tap { background: rgba(9, 14, 14, 0.14); }
+.t1 { left: 26.5%; top: 36.6%; }  /* Bob: New payment */
+.t2 { left: 50%; top: 78.7%; }    /* Bob: Propose payment */
+.t3 { left: 50%; top: 83.4%; }    /* Bob: Approve and sign, scrolled */
+.t4 { left: 50%; top: 9%; }       /* you: the notification */
+.t5 { left: 50%; top: 83.4%; }    /* you: Approve and sign, scrolled */
+
+/* The swirl and the notification flying along it. */
+.swirl { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.swirl-path {
+  fill: none;
+  stroke: #51DDD2;
+  /* In viewBox units (the box is stretched to the scene), so the draw-on dashes are in
+     path units too; the stretch thickens the stroke a little along the curve. */
+  stroke-width: 0.24;
+  stroke-linecap: round;
+  stroke-dasharray: 100 200;
+  stroke-dashoffset: 100;
+}
+.swirl-path.mob { display: none; }
+.flyer {
+  position: absolute;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  border-radius: 12px;
+  box-shadow: 0 0 0 8px rgba(81, 221, 210, 0.18), 0 10px 30px rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  z-index: 4;
+}
+.flyer-mark { display: block; width: 46px; height: 46px; }
+
+/* The vault on the seam: three signers, two needed. */
+.vault {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  transform: translateY(105%);
-}
-.demo-sheet.review { transform: none; }
-.sheet-grabber { align-self: center; width: 36px; height: 4px; border-radius: 2px; background: #D9DFDF; margin-bottom: 4px; }
-.sheet-title { font-weight: 500; font-size: 14px; }
-.sheet-amount { font-family: var(--display); font-size: 34px; letter-spacing: -0.03em; line-height: 1; margin: 4px 0 2px !important; }
-.sheet-amount span { font-size: 15px; color: var(--value); letter-spacing: 0; }
-.sheet-to { color: var(--text-secondary); }
-.sheet-to code { font-size: 11px; color: var(--text); }
-.sheet-row, .sheet-votes { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid #E5EAE9; }
-.sheet-row span, .sheet-status { color: var(--text-secondary); }
-.sheet-row b { font-weight: 500; display: inline-flex; align-items: center; gap: 4px; }
-.sheet-ok { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; background: #F3E7C7; color: var(--value); }
-.sheet-ok .icon { width: 10px; height: 10px; }
-.sheet-dots { display: inline-flex; align-items: center; gap: 5px; }
-.sheet-dots i { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid #090E0E; }
-.sheet-dots i.on { background: var(--brand); border-color: var(--brand); }
-.sheet-dots b { width: 1px; height: 12px; background: #D9DFDF; }
-.sheet-status { position: relative; min-width: 96px; height: 16px; text-align: right; }
-.sheet-status em { position: absolute; right: 0; font-style: normal; white-space: nowrap; }
-.sheet-status .s2, .sheet-status .s3 { opacity: 0; }
-.sheet-status .s3 { color: var(--brand); font-weight: 500; }
-.sheet-button {
-  position: relative;
-  margin-top: auto !important;
-  height: 42px;
-  border-radius: 12px;
-  background: var(--brand);
-  color: var(--brand-label);
-  font-weight: 500;
-  font-size: 13px;
-  overflow: hidden;
-}
-.sheet-button span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 6px; }
-.sheet-button .icon { width: 14px; height: 14px; }
-.sheet-button .b2 { opacity: 0; }
-.sheet-ripple { position: absolute; left: 50%; top: 50%; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; background: rgba(255, 255, 255, 0.5); opacity: 0; }
-
-.demo-notif {
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  top: 10px;
-  background: rgba(255, 255, 255, 0.97);
-  border-radius: 16px;
-  padding: 10px 12px;
-  box-shadow: 0 10px 24px -12px rgba(0, 40, 38, 0.45);
-  opacity: 0;
-  transform: translateY(-130%);
-}
-.notif-app { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 11px; margin-bottom: 3px !important; }
-.notif-app time { margin-left: auto; }
-.notif-mark { width: 14px; height: 14px; }
-.notif-title { font-weight: 500; }
-.notif-body { color: var(--text-secondary); }
-
-.demo-toast {
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 16px;
-  display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 11px 14px;
-  border-radius: 14px;
-  background: #0E1313;
-  color: #F1F5F5;
-  font-size: 12px;
-  opacity: 0;
+  gap: 10px;
+  padding: 16px 14px 12px;
+  border-radius: 22px;
+  background: #FFFFFF;
+  box-shadow: 0 0 0 1px rgba(9, 14, 14, 0.08), 0 20px 50px -20px rgba(0, 0, 0, 0.5);
+  z-index: 3;
 }
-.demo-toast .icon { width: 15px; height: 15px; color: #51DDD2; }
+.vault-lock { position: relative; width: 26px; height: 26px; color: #004A46; }
+.vault-lock .icon { position: absolute; inset: 0; width: 26px; height: 26px; }
+.vault-lock .locked { opacity: 0; }
+.vault-lock .open { color: #835A00; }
+.vault-dots { display: flex; align-items: center; gap: 6px; }
+.vault-dots i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid #090E0E; }
+.vault-dots .v1, .vault-dots .v2 { background: #00736C; border-color: #00736C; }
+.vault-dots b { width: 1.5px; height: 14px; background: #C3CCCB; }
+.vault-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
 
-/* A fingertip: a soft disc with a ring, placed on what gets tapped. */
-.demo-finger {
+.coin {
   position: absolute;
-  width: 34px;
-  height: 34px;
-  margin: -17px 0 0 -17px;
-  border-radius: 50%;
-  background: rgba(9, 14, 14, 0.18);
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+  left: 50%;
+  top: 50%;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #F3BA3C;
+  color: #2A1D00;
+  font-size: 13px;
+  font-weight: 500;
+  font-style: normal;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
   opacity: 0;
+  z-index: 2;
+}
+
+.story-captions {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  width: min(560px, 90vw);
+  height: 48px;
   z-index: 5;
 }
-.fa1 { left: 26.5%; top: 36.6%; }   /* Bob's "New payment" */
-.fa2, .fb2 { left: 50%; top: 91%; } /* the sheet's button */
-.fb1 { left: 50%; top: 9%; }        /* the notification */
-
-/* The relay between the phones. */
-.demo-lane { position: relative; width: 150px; height: 60px; flex: none; margin-bottom: 30px; }
-.lane-line { position: absolute; left: 8px; right: 8px; top: 50%; border-top: 2px dashed #A9C9C5; }
-.lane-label { position: absolute; left: 0; right: 0; top: calc(50% + 16px); text-align: center; font-size: 12px; color: var(--text-tertiary); }
-.lane-packet {
+.cap {
   position: absolute;
-  top: 50%;
-  left: 0;
-  width: 26px;
-  height: 26px;
-  margin-top: -13px;
-  border-radius: 8px;
-  box-shadow: 0 0 0 6px rgba(0, 115, 108, 0.12);
-  opacity: 0;
-}
-.packet-mark { display: block; width: 26px; height: 26px; }
-
-.demo-steps {
-  list-style: none;
-  counter-reset: step;
-  padding: 0;
-  margin: 44px 0 0;
+  inset: 0;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
+  place-items: center;
+  padding: 0 22px;
+  border-radius: 999px;
+  background: #0E1313;
+  color: #F1F5F5;
+  font-size: 15px;
+  text-align: center;
+  opacity: 0;
+  box-shadow: 0 0 0 1px #262D2D;
 }
-.demo-steps li { counter-increment: step; border-top: 2px solid rgba(0, 115, 108, 0.18); padding-top: 14px; position: relative; }
-.demo-steps li::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -2px;
-  height: 2px;
-  background: var(--brand);
-  transform-origin: left;
-  transform: scaleX(0);
+.cap.k5 { opacity: 1; }
+
+/* Phones stacked: Bob on top (dark), you below (light). */
+@media (max-width: 760px) {
+  .story-pin { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+  .sphone { height: min(36vh, 360px); padding: 6px; border-radius: 30px; }
+  .sscreen { border-radius: 25px; }
+  .who { top: 14px; font-size: 12px; }
+  .tap { width: 26px; height: 26px; margin: -13px 0 0 -13px; }
+  .snotif { font-size: 8px; padding: 6px 8px; border-radius: 10px; left: 4px; right: 4px; top: 4px; }
+  .snotif-app { font-size: 7px; }
+  .snotif-mark { width: 10px; height: 10px; }
+  .swirl-path.desk { display: none; }
+  .swirl-path.mob { display: inline; }
+  .flyer, .flyer-mark { width: 34px; height: 34px; }
+  .flyer { margin: -17px 0 0 -17px; }
+  .vault { left: 18%; padding: 10px 10px 8px; gap: 6px; border-radius: 16px; }
+  .vault-lock, .vault-lock .icon { width: 20px; height: 20px; }
+  .vault-dots i { width: 9px; height: 9px; }
+  .story-captions { bottom: auto; top: 50%; height: 38px; margin-top: -19px; left: auto; right: 12px; transform: none; width: 56vw; }
+  .cap { font-size: 12px; padding: 0 14px; }
 }
-.demo-steps b { display: block; font-weight: 500; margin-bottom: 4px; }
-.demo-steps b::before { content: "0" counter(step) "  "; font-family: var(--mono); font-size: 12px; color: var(--text-tertiary); font-weight: 400; }
-.demo-steps span { color: var(--text-secondary); font-size: 15px; }
 
-/* The timeline (percentages of --T). */
-.demo-card *, .demo-card *::before { animation-duration: var(--T); animation-iteration-count: infinite; animation-timing-function: cubic-bezier(0.3, 0.7, 0.2, 1); }
-.fa1 { animation-name: tap-a1; }
-.fa2 { animation-name: tap-a2; }
-.fb1 { animation-name: tap-b1; }
-.fb2 { animation-name: tap-b2; }
-.sa { animation-name: scrim-a; }
-.sb { animation-name: scrim-b; }
-.compose { animation-name: sheet-a; }
-.review { animation-name: sheet-b; }
-.ra { animation-name: ripple-a; }
-.rb { animation-name: ripple-b; }
-.ta1 { animation-name: toast-a1; }
-.ta2 { animation-name: toast-sent-a; }
-.tb { animation-name: toast-sent-b; }
-.lane-packet.out { animation-name: packet-out; }
-.lane-packet.back { animation-name: packet-back; }
-.demo-notif { animation-name: notif; }
-.sheet-ok { animation-name: ok-pop; }
-.sheet-dots .two { animation-name: vote-fill; }
-.b1 { animation-name: show-b1; }
-.b2 { animation-name: show-b2; }
-.s1 { animation-name: show-s1; }
-.s2 { animation-name: show-s2; }
-.s3 { animation-name: show-s3; }
-.demo-steps .c1 { animation-name: step1; }
-.demo-steps .c2 { animation-name: step2; }
-.demo-steps .c3 { animation-name: step3; }
-.demo-steps .c4 { animation-name: step4; }
-.demo-steps .c1::before { animation-name: bar1; }
-.demo-steps .c2::before { animation-name: bar2; }
-.demo-steps .c3::before { animation-name: bar3; }
-.demo-steps .c4::before { animation-name: bar4; }
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .story { height: 640vh; view-timeline-name: --story; }
+    .story-pin { position: sticky; top: 0; }
+    .story-pin * {
+      animation-timeline: --story;
+      animation-range: contain 0% contain 100%;
+      animation-fill-mode: both;
+      animation-timing-function: linear;
+      animation-duration: auto;
+    }
+    .sphone.a { animation-name: a-focus; }
+    .sphone.b { animation-name: b-focus; }
+    .bob-home { animation-name: bob-home; }
+    .bob-propose { animation-name: bob-propose; }
+    .bob-approve { animation-name: bob-approve; }
+    .bob-approved { animation-name: bob-approved; }
+    .me-home { animation-name: me-home; }
+    .snotif { animation-name: snotif; }
+    .me-review { animation-name: me-review; }
+    .me-sent { animation-name: me-sent; }
+    .t1 { animation-name: tap1; }
+    .t2 { animation-name: tap2; }
+    .t3 { animation-name: tap3; }
+    .t4 { animation-name: tap4; }
+    .t5 { animation-name: tap5; }
+    .swirl-path { animation-name: swirl; }
+    .flyer { animation-name: fly-desk; }
+    .vault { animation-name: vault; }
+    .vault-lock .locked { animation-name: locked; }
+    .vault-lock .open { animation-name: opened; }
+    .vault-dots .v1 { animation-name: v1; }
+    .vault-dots .v2 { animation-name: v2; }
+    .coin { animation-name: coin; }
+    .k1 { animation-name: k1; }
+    .k2 { animation-name: k2; }
+    .k3 { animation-name: k3; }
+    .k4 { animation-name: k4; }
+    .k5 { animation-name: k5; }
+    @media (max-width: 760px) {
+      .flyer { animation-name: fly-mob; }
+      .coin { animation-name: coin-mob; }
+    }
+  }
+}
 
-@keyframes tap-a1 { 0%, 2% { opacity: 0; transform: scale(1.5); } 4% { opacity: 1; transform: scale(1); } 5.5% { transform: scale(0.8); } 7.5%, 100% { opacity: 0; transform: scale(0.8); } }
-@keyframes tap-a2 { 0%, 16% { opacity: 0; transform: scale(1.5); } 18% { opacity: 1; transform: scale(1); } 19.5% { transform: scale(0.8); } 21.5%, 100% { opacity: 0; transform: scale(0.8); } }
-@keyframes tap-b1 { 0%, 43% { opacity: 0; transform: scale(1.5); } 45% { opacity: 1; transform: scale(1); } 46.5% { transform: scale(0.8); } 48.5%, 100% { opacity: 0; transform: scale(0.8); } }
-@keyframes tap-b2 { 0%, 60% { opacity: 0; transform: scale(1.5); } 62% { opacity: 1; transform: scale(1); } 63.5% { transform: scale(0.8); } 65.5%, 100% { opacity: 0; transform: scale(0.8); } }
-@keyframes scrim-a { 0%, 6% { opacity: 0; } 10%, 22% { opacity: 1; } 27%, 100% { opacity: 0; } }
-@keyframes scrim-b { 0%, 47% { opacity: 0; } 52%, 73% { opacity: 1; } 78%, 100% { opacity: 0; } }
-@keyframes sheet-a { 0%, 6% { transform: translateY(105%); } 12%, 21% { transform: translateY(0); } 28%, 100% { transform: translateY(105%); } }
-@keyframes sheet-b { 0%, 47% { transform: translateY(105%); } 54%, 73% { transform: translateY(0); } 80%, 100% { transform: translateY(105%); } }
-@keyframes ripple-a { 0%, 19% { opacity: 0; transform: scale(0.3); } 19.5% { opacity: 0.8; } 25%, 100% { opacity: 0; transform: scale(16); } }
-@keyframes ripple-b { 0%, 63% { opacity: 0; transform: scale(0.3); } 63.5% { opacity: 0.8; } 69%, 100% { opacity: 0; transform: scale(16); } }
-@keyframes toast-a1 { 0%, 27% { opacity: 0; transform: translateY(16px); } 30%, 58% { opacity: 1; transform: none; } 62%, 100% { opacity: 0; transform: translateY(16px); } }
-@keyframes toast-sent-a { 0%, 74% { opacity: 0; transform: translateY(16px); } 77%, 93% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; transform: translateY(16px); } }
-@keyframes toast-sent-b { 0%, 79% { opacity: 0; transform: translateY(16px); } 82%, 93% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; transform: translateY(16px); } }
-@keyframes packet-out { 0%, 25% { opacity: 0; left: 0; } 27% { opacity: 1; left: 0; } 36% { opacity: 1; left: calc(100% - 26px); } 38%, 100% { opacity: 0; left: calc(100% - 26px); } }
-@keyframes packet-back { 0%, 67% { opacity: 0; left: calc(100% - 26px); } 69% { opacity: 1; left: calc(100% - 26px); } 76% { opacity: 1; left: 0; } 78%, 100% { opacity: 0; left: 0; } }
-@keyframes notif { 0%, 37% { opacity: 0; transform: translateY(-130%); } 41%, 45.5% { opacity: 1; transform: none; } 46.5% { transform: scale(0.97); } 50%, 100% { opacity: 0; transform: translateY(-60%); } }
-@keyframes ok-pop { 0%, 56% { transform: scale(0); } 59% { transform: scale(1.3); } 61%, 100% { transform: scale(1); } }
-@keyframes vote-fill { 0%, 64% { background: transparent; border-color: #090E0E; } 65%, 80% { background: #00736C; border-color: #00736C; } 81%, 100% { background: transparent; border-color: #090E0E; } }
-@keyframes show-b1 { 0%, 63.5% { opacity: 1; } 64.5%, 80% { opacity: 0; } 81%, 100% { opacity: 1; } }
-@keyframes show-b2 { 0%, 63.5% { opacity: 0; } 64.5%, 80% { opacity: 1; } 81%, 100% { opacity: 0; } }
-@keyframes show-s1 { 0%, 64% { opacity: 1; } 65%, 80% { opacity: 0; } 81%, 100% { opacity: 1; } }
-@keyframes show-s2 { 0%, 64% { opacity: 0; } 65%, 69% { opacity: 1; } 70%, 100% { opacity: 0; } }
-@keyframes show-s3 { 0%, 69% { opacity: 0; } 70%, 80% { opacity: 1; } 81%, 100% { opacity: 0; } }
-@keyframes step1 { 0%, 29% { opacity: 1; } 32%, 97% { opacity: 0.45; } 100% { opacity: 1; } }
-@keyframes step2 { 0%, 30% { opacity: 0.45; } 33%, 51% { opacity: 1; } 54%, 100% { opacity: 0.45; } }
-@keyframes step3 { 0%, 52% { opacity: 0.45; } 55%, 72% { opacity: 1; } 75%, 100% { opacity: 0.45; } }
-@keyframes step4 { 0%, 73% { opacity: 0.45; } 76%, 96% { opacity: 1; } 99%, 100% { opacity: 0.45; } }
-@keyframes bar1 { 0% { transform: scaleX(0); } 30% { transform: scaleX(1); } 31%, 100% { transform: scaleX(0); } }
-@keyframes bar2 { 0%, 31% { transform: scaleX(0); } 52% { transform: scaleX(1); } 53%, 100% { transform: scaleX(0); } }
-@keyframes bar3 { 0%, 53% { transform: scaleX(0); } 73% { transform: scaleX(1); } 74%, 100% { transform: scaleX(0); } }
-@keyframes bar4 { 0%, 74% { transform: scaleX(0); } 97% { transform: scaleX(1); } 98%, 100% { transform: scaleX(0); } }
+@keyframes a-focus { 0%, 47% { transform: scale(1); opacity: 1; } 53%, 100% { transform: scale(0.88); opacity: 0.45; } }
+@keyframes b-focus { 0%, 34% { transform: scale(0.88); opacity: 0.45; } 39%, 49% { transform: scale(0.9); opacity: 0.7; } 54%, 100% { transform: scale(1); opacity: 1; } }
+
+@keyframes bob-home { 0%, 8% { opacity: 1; transform: none; } 10%, 100% { opacity: 0; transform: translateX(-24%); } }
+@keyframes bob-propose { 0%, 8% { opacity: 0; transform: translateX(30%); } 10%, 19% { opacity: 1; transform: none; } 21%, 100% { opacity: 0; transform: translateX(-24%); } }
+@keyframes bob-approve {
+  0%, 19% { opacity: 0; transform: translate(30%, 0); }
+  21%, 41% { opacity: 1; transform: translate(0, 0); }
+  45%, 48% { opacity: 1; transform: translate(0, -29.7%); }
+  50%, 100% { opacity: 0; transform: translate(0, -29.7%); }
+}
+@keyframes bob-approved { 0%, 48% { opacity: 0; } 50%, 100% { opacity: 1; } }
+
+@keyframes me-home { 0%, 55% { opacity: 1; } 58%, 100% { opacity: 1; } }
+@keyframes snotif { 0%, 37% { opacity: 0; transform: translateY(-130%); } 40%, 54% { opacity: 1; transform: none; } 55% { opacity: 1; transform: scale(0.96); } 57%, 100% { opacity: 0; transform: translateY(-40%); } }
+@keyframes me-review {
+  0%, 55% { opacity: 1; transform: translate(0, 100%); }
+  59%, 62% { opacity: 1; transform: translate(0, 0); }
+  66%, 76% { opacity: 1; transform: translate(0, -29.7%); }
+  78%, 100% { opacity: 0; transform: translate(-24%, -29.7%); }
+}
+@keyframes me-sent { 0%, 76% { opacity: 0; transform: translateX(30%); } 79%, 100% { opacity: 1; transform: none; } }
+
+@keyframes tap1 { 0%, 5% { opacity: 0; transform: scale(1.5); } 6.5% { opacity: 1; transform: scale(1); } 7.5% { transform: scale(0.8); } 9%, 100% { opacity: 0; transform: scale(0.8); } }
+@keyframes tap2 { 0%, 16% { opacity: 0; transform: scale(1.5); } 17.5% { opacity: 1; transform: scale(1); } 18.5% { transform: scale(0.8); } 20%, 100% { opacity: 0; transform: scale(0.8); } }
+@keyframes tap3 { 0%, 45.5% { opacity: 0; transform: scale(1.5); } 46.5% { opacity: 1; transform: scale(1); } 47.5% { transform: scale(0.8); } 49%, 100% { opacity: 0; transform: scale(0.8); } }
+@keyframes tap4 { 0%, 52% { opacity: 0; transform: scale(1.5); } 53.5% { opacity: 1; transform: scale(1); } 54.5% { transform: scale(0.8); } 56%, 100% { opacity: 0; transform: scale(0.8); } }
+@keyframes tap5 { 0%, 70% { opacity: 0; transform: scale(1.5); } 71.5% { opacity: 1; transform: scale(1); } 72.5% { transform: scale(0.8); } 74%, 100% { opacity: 0; transform: scale(0.8); } }
+
+@keyframes swirl { 0%, 22% { stroke-dashoffset: 100; opacity: 1; } 38% { stroke-dashoffset: 0; opacity: 1; } 46% { stroke-dashoffset: 0; opacity: 0.25; } 56%, 100% { stroke-dashoffset: 0; opacity: 0; } }
+
+@keyframes vault { 0%, 12% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); } 18%, 73% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 76% { transform: translate(-50%, -50%) scale(1.14); box-shadow: 0 0 0 10px rgba(243, 186, 60, 0.25), 0 20px 50px -20px rgba(0, 0, 0, 0.5); } 80%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+@keyframes locked { 0%, 74% { opacity: 1; } 75%, 100% { opacity: 0; } }
+@keyframes opened { 0%, 74% { opacity: 0; transform: scale(0.6); } 76%, 100% { opacity: 1; transform: none; } }
+@keyframes v1 { 0%, 48.5% { background: transparent; border-color: #090E0E; transform: none; } 49.5% { transform: scale(1.5); } 50.5%, 100% { background: #00736C; border-color: #00736C; transform: none; } }
+@keyframes v2 { 0%, 72.5% { background: transparent; border-color: #090E0E; transform: none; } 73.5% { transform: scale(1.5); } 74.5%, 100% { background: #00736C; border-color: #00736C; transform: none; } }
+@keyframes coin { 0%, 76% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); } 78% { opacity: 1; transform: translate(-50%, -120%) scale(1); } 88% { opacity: 1; transform: translate(-50%, -38vh) scale(1); } 92%, 100% { opacity: 0; transform: translate(-50%, -46vh) scale(0.9); } }
+@keyframes coin-mob { 0%, 76% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); } 78% { opacity: 1; transform: translate(-50%, -120%); } 90% { opacity: 1; transform: translate(40vw, -120%); } 94%, 100% { opacity: 0; transform: translate(48vw, -120%); } }
+
+@keyframes k1 { 0%, 18% { opacity: 1; } 21%, 100% { opacity: 0; } }
+@keyframes k2 { 0%, 21% { opacity: 0; } 24%, 37% { opacity: 1; } 40%, 100% { opacity: 0; } }
+@keyframes k3 { 0%, 40% { opacity: 0; } 43%, 51% { opacity: 1; } 54%, 100% { opacity: 0; } }
+@keyframes k4 { 0%, 54% { opacity: 0; } 57%, 75% { opacity: 1; } 78%, 100% { opacity: 0; } }
+@keyframes k5 { 0%, 78% { opacity: 0; } 81%, 100% { opacity: 1; } }
+
+@keyframes fly-desk {
+  0%, 22% { left: 36.0%; top: 34.0%; opacity: 0; transform: scale(0.6); }
+  22.8% { opacity: 1; transform: scale(1); }
+  22.00% { left: 36.0%; top: 34.0%; }
+  23.07% { left: 41.3%; top: 19.3%; }
+  24.13% { left: 46.9%; top: 11.1%; }
+  25.20% { left: 51.7%; top: 8.9%; }
+  26.27% { left: 54.4%; top: 12.7%; }
+  27.33% { left: 54.0%; top: 22.0%; }
+  28.40% { left: 51.6%; top: 28.1%; }
+  29.47% { left: 48.6%; top: 30.0%; }
+  30.53% { left: 46.4%; top: 28.4%; }
+  31.60% { left: 46.2%; top: 23.9%; }
+  32.67% { left: 49.0%; top: 17.0%; }
+  33.73% { left: 53.3%; top: 11.6%; }
+  34.80% { left: 57.7%; top: 9.6%; }
+  35.87% { left: 62.0%; top: 10.5%; }
+  36.93% { left: 66.2%; top: 13.8%; }
+  38.00% { left: 70.0%; top: 19.0%; }
+  39.5%, 100% { left: 70.0%; top: 19.0%; opacity: 0; transform: scale(0.4); }
+}
+@keyframes fly-mob {
+  0%, 22% { left: 62.0%; top: 40.0%; opacity: 0; transform: scale(0.6); }
+  22.8% { opacity: 1; transform: scale(1); }
+  22.00% { left: 62.0%; top: 40.0%; }
+  23.07% { left: 74.8%; top: 42.6%; }
+  24.13% { left: 81.9%; top: 47.0%; }
+  25.20% { left: 83.7%; top: 51.6%; }
+  26.27% { left: 80.4%; top: 54.8%; }
+  27.33% { left: 72.0%; top: 55.0%; }
+  28.40% { left: 65.7%; top: 52.5%; }
+  29.47% { left: 63.3%; top: 49.5%; }
+  30.53% { left: 64.5%; top: 47.0%; }
+  31.60% { left: 68.9%; top: 46.1%; }
+  32.67% { left: 76.0%; top: 48.0%; }
+  33.73% { left: 79.5%; top: 51.4%; }
+  34.80% { left: 78.7%; top: 55.1%; }
+  35.87% { left: 74.6%; top: 58.5%; }
+  36.93% { left: 68.0%; top: 61.0%; }
+  38.00% { left: 60.0%; top: 62.0%; }
+  39.5%, 100% { left: 60.0%; top: 62.0%; opacity: 0; transform: scale(0.4); }
+}
+
 
 /* The idea. */
 .vision {
@@ -757,12 +804,6 @@ code { font-size: 0.95em; }
 }
 
 @media (max-width: 900px) {
-  .phones { gap: 16px; }
-  .phone.front { width: 250px; }
-  .phone.side { width: 200px; margin-bottom: 28px; }
-  .demo-card { padding: 40px 12px 28px; }
-  .demo-stage { zoom: 0.62; }
-  .demo-steps { grid-template-columns: 1fr 1fr; }
   .panel { border-radius: 32px; padding: 88px 20px 24px; margin: 0 12px; }
   .feature { grid-template-columns: 1fr; gap: 40px; padding: 56px 4px; }
   .feature.flip .copy { order: 0; }
@@ -777,11 +818,6 @@ code { font-size: 0.95em; }
   .nav-side.left, .nav-side.right a:first-child { display: none; }
   .hero { padding-top: 64px; }
   .hero .sub { font-size: 17px; }
-  .notch { font-size: 12px; padding: 10px 20px 12px; }
-  .phone.side { display: none; }
-  .demo-stage { zoom: 0.46; }
-  .demo-lane { width: 90px; }
-  .phone.front { width: 250px; }
   .ticks { grid-template-columns: 1fr 1fr; gap: 12px 20px; }
   .feature h3 { font-size: 30px; }
   .foot ul { grid-template-columns: 1fr; }
@@ -854,7 +890,6 @@ code { font-size: 0.95em; }
 .home .hero > :nth-child(2) { animation-delay: 1.55s; }
 .home .hero > :nth-child(3) { animation-delay: 1.65s; }
 .home .hero > :nth-child(4) { animation-delay: 1.75s; }
-.home .stage { animation: rise 1s var(--rise) 1.85s both; }
 
 @keyframes mark-in { from { opacity: 0; transform: scale(0.8); } }
 @keyframes upper-in { from { opacity: 0; transform: translate(-22%, -38%); } }
@@ -915,16 +950,9 @@ code { font-size: 0.95em; }
 @keyframes ink { from { background-position: 100% 0; } to { background-position: 0 0; } }
 @keyframes drift { from { transform: translateY(-40%) scale(1.08); } to { transform: translateY(-58%) scale(1); } }
 @keyframes ghost { from { opacity: 0; transform: translateY(40%); } }
-@keyframes side-l { from { transform: translateX(120px) rotate(-6deg); opacity: 0; } }
-@keyframes side-r { from { transform: translateX(-120px) rotate(6deg); opacity: 0; } }
 
 @supports (animation-timeline: view()) {
-  /* The side phones fan out from behind the front one. */
-  .phone.side:first-child { animation: side-l both var(--rise); animation-timeline: view(); animation-range: entry 0% cover 30%; }
-  .phone.side:last-child { animation: side-r both var(--rise); animation-timeline: view(); animation-range: entry 0% cover 30%; }
 
-  /* The demo's heading rises into view. */
-  .demo-head { animation: rise-in both var(--rise); animation-timeline: view(); animation-range: entry 0% cover 30%; }
 
   /* The idea fills with ink as it scrolls past. */
   .statement {
@@ -960,9 +988,8 @@ code { font-size: 0.95em; }
 
 @media (prefers-reduced-motion: reduce) {
   .intro { display: none; }
-  .home .nav-logo, .home .nav-side, .home .hero > *, .home .stage,
-  .demo-card *, .demo-card *::before, .demo-head,
-  .phone, .statement, .panel, .feature .copy, .feature .widget,
+  .home .nav-logo, .home .nav-side, .home .hero > *,
+  .statement, .panel, .feature .copy, .feature .widget,
   .faq h2, .qa details, .qa .more, .closing-copy, .closing-art, .ghost,
   .dots i, .votes .approve, .switch::after, .chain .hidden, .verdict .icon { animation: none; }
   .statement { color: var(--text); background: none; }

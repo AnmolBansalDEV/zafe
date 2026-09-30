@@ -39,11 +39,12 @@ rust.ProposalInfo _proposal({
   List<String> rejections = const [],
   rust.MyVote myVote = rust.MyVote.none,
   bool ready = false,
+  bool mine = false,
   String? txid,
 }) => rust.ProposalInfo(
   id: 'p1',
   author: _bob,
-  isMine: false,
+  isMine: mine,
   payments: [
     rust.PaymentInfo(
       address: _addr,
@@ -98,13 +99,18 @@ Future<void> _loadFonts() async {
   }
 }
 
-Widget _actions(String primary, {String? note, String? secondary}) => Column(
+Widget _actions(
+  String primary, {
+  String? note,
+  String? secondary,
+  String icon = AppIcons.check,
+}) => Column(
   crossAxisAlignment: CrossAxisAlignment.stretch,
   children: [
     const SizedBox(height: AppSpacing.lg),
     AppButton(
       expand: true,
-      leading: const AppIcon(AppIcons.check, size: 20),
+      leading: AppIcon(icon, size: 20),
       onPressed: () {},
       child: Text(primary),
     ),
@@ -218,6 +224,88 @@ final _scenarios = <String, (String, List<Widget>)>{
               SignerRow(keyHex: m, me: _me),
           ],
         ),
+      ),
+    ],
+  ),
+  // The website's story (infra/site): Bob proposes and approves on his phone (shown
+  // in dark), you approve on yours (shown in light) and it's sent.
+  'story_bob_propose': (
+    'Review',
+    [
+      PaymentCard(
+        label: 'NEW PAYMENT',
+        amountText: '12.50',
+        address: _addr,
+        onFullAddress: () {},
+      ),
+      const SizedBox(height: AppSpacing.lg),
+      const MobileSurfaceCard(
+        cornerRadius: AppRadii.large,
+        child: Column(
+          children: [
+            DetailRow(label: 'Message', value: 'Grant: Q4 audit milestone'),
+            DetailDivider(),
+            DetailRow(label: 'Approvals needed', value: '2 of 3 signers'),
+            DetailDivider(),
+            DetailRow(label: 'Tx fee', value: 'Set by ZIP 317'),
+          ],
+        ),
+      ),
+      const SizedBox(height: AppSpacing.sm),
+      Builder(
+        builder: (context) => Text(
+          'Nothing is sent yet. Each signer checks this payment on their own device and '
+          'approves with one tap; 2 approvals complete it.',
+          style: AppTypography.bodySmall.copyWith(
+            color: context.colors.text.secondary,
+          ),
+        ),
+      ),
+      _actions('Propose payment', icon: AppIcons.plane, secondary: 'Cancel'),
+    ],
+  ),
+  'story_bob_approve': (
+    'Your payment',
+    [
+      ProposalBody(
+        proposal: _proposal(mine: true),
+        members: _members,
+        me: _bob,
+      ),
+      _actions(
+        'Approve and sign',
+        note:
+            'Approving signs the payment on this device. It can\'t be withdrawn afterwards.',
+      ),
+    ],
+  ),
+  'story_bob_approved': (
+    'Your payment',
+    [
+      ProposalBody(
+        proposal: _proposal(
+          mine: true,
+          approvals: [_bob],
+          myVote: rust.MyVote.approved,
+        ),
+        members: _members,
+        me: _bob,
+      ),
+    ],
+  ),
+  'story_me_sent': (
+    'Sent',
+    [
+      ProposalBody(
+        proposal: _proposal(
+          stage: rust.ProposalStage.sent,
+          approvals: [_bob, _me],
+          myVote: rust.MyVote.approved,
+          txid:
+              '9f3c2a1b0e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a291807f6e5d4c3b2a1f0e9',
+        ),
+        members: _members,
+        me: _me,
       ),
     ],
   ),

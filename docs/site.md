@@ -3,6 +3,37 @@
 The landing page (`infra/site/src/pages/index.astro`) follows this brief. Keep it current
 when the page changes.
 
+## Decisions (2026-10-01, sixth round): the scroll story
+
+User feedback: the pillar-like step columns were still there, and the two-phone demo was
+"half-assed" because it rebuilt the UI instead of using the app's screens. Wanted: scroll
+based, the page split vertically into dark and light, the proposal on a dark-mode phone,
+a swirl arrow carrying the notification to a light-mode phone, the dark phone approving,
+then the light phone in focus submitting; visual enough that someone who has never heard
+of a multisig gets the idea without reading a flow.
+
+- **One pinned scene** (`.story`, 640vh; `position: sticky` inside) split down the middle:
+  Bob's phone on a dark half, yours on a light half. The page scroll drives everything
+  through a view timeline (`view-timeline-name: --story`, `animation-range: contain`),
+  so scrolling back rewinds it.
+- **Real screens only**: `story_*` scenarios in `app/tool/screens/proposal_render_test.dart`
+  (Bob's review step with "Propose payment", his proposal before and after approving;
+  your review and your sent screen) plus Home, rendered by the app's widgets in dark (Bob)
+  and light (you). The two approve screens are rendered tall and scroll inside the phone
+  to the button. The only built UI is the system notification banner (it's the OS's, not
+  the app's).
+- **The multisig idea is carried by the vault on the seam**: three signer dots with a
+  divider after two ("2 of 3"). Bob's approval fills the first, yours the second, the
+  lock turns to open and a gold 12.50 TAZ coin leaves. One caption per beat, a few words
+  each: "Bob proposes a payment." → "Everyone in the vault is notified." → "Bob approves.
+  1 of 2." → "You approve. That's 2." → "Sent. On-chain, it looks like any payment."
+- **Focus**: the phone that's acting is full size; the other dims and shrinks. Screens
+  change like the app navigates (push left) and the review opens like a sheet from below.
+- The three-phone stage and the step columns are gone; the story is the showcase.
+- Phones stack (dark on top) under 760px, with a swirl drawn for that layout.
+- Without scroll timelines (Firefox today) or with reduced motion: one screen showing the
+  end (Bob approved, you sent, vault open, last caption).
+
 ## Decisions (2026-10-01, fifth round)
 
 - The flow cards went. In their place, after headnote.in's animated product mockups (they

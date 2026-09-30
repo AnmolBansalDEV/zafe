@@ -23,11 +23,19 @@ OUT = os.path.join(ROOT, "infra", "site", "public", "assets")
 
 # (output name, source under app/build without the _light/_dark suffix, crop box). Screen
 # renders are 780 px wide (390 logical at 2x); boxes are in those pixels.
+PHONE = (0, 0, 780, 1688)  # a phone viewport: 390 x 844 at 2x
+TALL = (0, 0, 780, 2400)   # taller than the phone: the story scrolls it to the button
+
 CROPS = [
-    # Three members' phones for the hero showcase: a phone viewport (390 x 844 at 2x).
-    ("phone_home", "screen_preview/home", (0, 0, 780, 1688)),
-    ("phone_review", "screen_preview/proposal_review", (0, 0, 780, 1688)),
-    ("phone_sent", "screen_preview/proposal_sent", (0, 0, 780, 1688)),
+    # The scroll story: Bob's phone in dark mode, yours in light (proposal_render_test's
+    # story_* scenarios and home_render_test with HOME_NOTICE=0).
+    ("story_bob_home", "screen_preview/home", PHONE, "dark"),
+    ("story_bob_propose", "screen_preview/story_bob_propose", PHONE, "dark"),
+    ("story_bob_approve", "screen_preview/story_bob_approve", TALL, "dark"),
+    ("story_bob_approved", "screen_preview/story_bob_approved", PHONE, "dark"),
+    ("story_me_home", "screen_preview/home", PHONE, "light"),
+    ("story_me_review", "screen_preview/proposal_review", TALL, "light"),
+    ("story_me_sent", "screen_preview/story_me_sent", PHONE, "light"),
     # The vault door with its keys, behind the closing call to action (a dark card, so
     # the dark render).
     ("art_vault", "illustration_preview/welcome_vault", (0, 120, 1080, 1240), "dark"),
