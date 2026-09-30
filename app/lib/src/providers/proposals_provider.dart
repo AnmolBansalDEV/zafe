@@ -82,6 +82,9 @@ class ProposalsState {
 /// restarting the app).
 class ProposalsNotifier extends Notifier<ProposalsState> {
   bool _refreshing = false;
+
+  /// The proving key is built once per process (see `_prewarm`).
+  static bool _prewarmed = false;
   final _subscriptions = <String, StreamSubscription<rust.SendProgress>>{};
 
   @override
@@ -133,6 +136,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
         ),
       );
       _autoSend();
+      _prewarm();
       await _answerRequests(paths);
     } catch (e) {
       debugPrint('refresh failed: ${describeError(e)}');
@@ -140,6 +144,25 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
     } finally {
       _refreshing = false;
     }
+  }
+
+  /// Once any payment is approved, this device may be the one to send it: build the
+  /// proving key in the background (once per process) so the send doesn't wait for it.
+  void _prewarm() {
+    if (_prewarmed) return;
+    final approved = state.items.any(
+      (p) =>
+          p.stage == rust.ProposalStage.approved &&
+          !proposalExpired(p, _height),
+    );
+    if (!approved) return;
+    _prewarmed = true;
+    unawaited(
+      rust.prewarmProver().catchError((Object e) {
+        _prewarmed = false;
+        debugPrint('prover prewarm failed: ${describeError(e)}');
+      }),
+    );
   }
 
   /// The member whose approval completed the signatures sends, if the proposer asked for

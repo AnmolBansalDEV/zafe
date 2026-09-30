@@ -536,6 +536,13 @@ pub fn restart_signing(state_dir: String, proposal_id: String) -> Result<(), Zaf
     Ok(())
 }
 
+/// Builds the proving and verifying keys now (seconds on a phone, then kept for the
+/// process), so sending an approved payment starts proving at once. Returns when built.
+pub fn prewarm_prover() {
+    node::proving_key();
+    node::verifying_key();
+}
+
 /// Answers signing requests for proposals this member approved (each is re-verified first).
 /// Called on every poll. Returns how many were answered.
 pub fn answer_signing_requests(

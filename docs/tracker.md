@@ -151,7 +151,10 @@ Open
       (smaller binary; target-specific rusqlite features); the key lives in the same secure
       storage as the vault material, so it protects against file-level copies (backups,
       forensic dumps of app data), not against an attacker who can read the Keystore
-- [ ] Pre-warm the proving key when a proposal becomes Approved (2–4 s on a phone)
+- [x] Pre-warm the proving key when a proposal becomes Approved (2026-09-30): bridge
+      `prewarm_prover` (proving + verifying key `OnceLock`s), started once per process by
+      `ProposalsNotifier` when any unexpired proposal is approved. Costs ~113 MB for the
+      process lifetime on a phone; only on devices that see an approved payment
 - [ ] Low-end device benchmark (V7 still open: Cortex-A55-class phone)
 - [x] App icon, launcher name/branding: original vault-dial icon (adaptive + themed
       monochrome, legacy mipmaps, iOS AppIcon), label "Zafe", native splash in the window

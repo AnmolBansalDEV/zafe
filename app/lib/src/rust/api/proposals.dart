@@ -142,6 +142,11 @@ void restartSigning({required String stateDir, required String proposalId}) =>
       proposalId: proposalId,
     );
 
+/// Builds the proving and verifying keys now (seconds on a phone, then kept for the
+/// process), so sending an approved payment starts proving at once. Returns when built.
+Future<void> prewarmProver() =>
+    RustLib.instance.api.crateApiProposalsPrewarmProver();
+
 /// Answers signing requests for proposals this member approved (each is re-verified first).
 /// Called on every poll. Returns how many were answered.
 Future<int> answerSigningRequests({
