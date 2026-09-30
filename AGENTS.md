@@ -180,7 +180,9 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
     `zafe-supported-version`; the client turns it into `RelayClientError::VersionRejected`
     → bridge `ZafeErrorKind::UpdateRequired` (app older) or `RelayOutdated` (relay older).
     Relay DB: `PRAGMA user_version` = `RELAY_DB`; a newer DB, or one from before
-    versioning (tables but version 0), is refused at startup: delete it.
+    versioning (tables but version 0), is refused at startup: delete it. Bumps:
+    **2** (2026-09-30) added the quota counters `mailboxes.delivery_bytes/log_bytes`;
+    a schema-1 DB is migrated at startup (`migrate_from_v1`: ALTER + backfill).
   - **Device state**: invites (`zafe-invite-v1:`, `INVITE`; another version →
     `UnsupportedVersion`, not "bad invite"), identity seeds (`IdentitySeeds::to_bytes`,
     66 bytes: secure storage, CLI `identity.bin`, backups), vault material
@@ -283,6 +285,14 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   drain a member's bucket. The IP middleware needs `into_make_service_with_connect_info`
   (without ConnectInfo and no proxy header it skips). New flows that poll the relay must
   stay under the hosted rate: `node_keygen` and `bridge_e2e` run with it.
+- **Relay quotas** (`zafe_relay::quota`): same pattern (`Relay::with_quotas`, off in
+  `Relay::new()`, `Quotas::hosted()` in the binary: 10k undelivered envelopes per
+  recipient, 256 MiB deliveries + 512 MiB log per mailbox). Byte totals are running
+  counters on `mailboxes`: **every write or delete of `deliveries` / `log_entries` must
+  update them in the same transaction** (`post_envelope`, `log_append`, `prune`). Over
+  quota → `RelayError::QuotaExceeded` → HTTP 507 → `RelayClientError::StorageFull` →
+  `ZafeErrorKind::RelayStorageFull`. Gotcha: no `--` comments inside `SCHEMA`'s CREATE
+  TABLE text: SQLite stores it and `ALTER TABLE ... DROP COLUMN` then fails to re-parse.
 - **Relay deploy**: `GET /health`; `PORT` → `0.0.0.0:$PORT` unless `ZAFE_RELAY_LISTEN`;
   FCM key from `ZAFE_FCM_SERVICE_ACCOUNT` (file) or `ZAFE_FCM_SERVICE_ACCOUNT_JSON`
   (inline, for Fly secrets). The image's entrypoint chowns `/data` then drops to uid

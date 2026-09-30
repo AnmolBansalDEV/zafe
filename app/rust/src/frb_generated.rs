@@ -1935,7 +1935,8 @@ impl SseDecode for crate::api::error::ZafeErrorKind {
             6 => crate::api::error::ZafeErrorKind::InvalidInput,
             7 => crate::api::error::ZafeErrorKind::UpdateRequired,
             8 => crate::api::error::ZafeErrorKind::RelayOutdated,
-            9 => crate::api::error::ZafeErrorKind::Other,
+            9 => crate::api::error::ZafeErrorKind::RelayStorageFull,
+            10 => crate::api::error::ZafeErrorKind::Other,
             _ => unreachable!("Invalid variant for ZafeErrorKind: {}", inner),
         };
     }
@@ -2547,7 +2548,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::error::ZafeErrorKind {
             Self::InvalidInput => 6.into_dart(),
             Self::UpdateRequired => 7.into_dart(),
             Self::RelayOutdated => 8.into_dart(),
-            Self::Other => 9.into_dart(),
+            Self::RelayStorageFull => 9.into_dart(),
+            Self::Other => 10.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -3026,7 +3028,8 @@ impl SseEncode for crate::api::error::ZafeErrorKind {
                 crate::api::error::ZafeErrorKind::InvalidInput => 6,
                 crate::api::error::ZafeErrorKind::UpdateRequired => 7,
                 crate::api::error::ZafeErrorKind::RelayOutdated => 8,
-                crate::api::error::ZafeErrorKind::Other => 9,
+                crate::api::error::ZafeErrorKind::RelayStorageFull => 9,
+                crate::api::error::ZafeErrorKind::Other => 10,
                 _ => {
                     unimplemented!("");
                 }

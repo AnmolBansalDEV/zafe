@@ -9,17 +9,27 @@ use zafe_core::{
     wallet::regtest_network,
 };
 use zafe_proto::Identity;
-use zafe_relay::limits::{Limits, Rate};
+use zafe_relay::{
+    limits::{Limits, Rate},
+    quota::Quotas,
+};
 
 /// A relay over HTTP with `limits` (the hosted defaults unless a test needs others, so
 /// these flows prove they fit in them).
 async fn start_relay(limits: Limits) -> String {
+    start_relay_with(limits, Quotas::hosted()).await
+}
+
+async fn start_relay_with(limits: Limits, quotas: Quotas) -> String {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
         axum::serve(
             listener,
-            zafe_relay::Relay::new().with_limits(limits).router(),
+            zafe_relay::Relay::new()
+                .with_limits(limits)
+                .with_quotas(quotas)
+                .router(),
         )
         .await
         .unwrap();
@@ -164,5 +174,49 @@ async fn a_rate_limited_client_gets_a_typed_error() {
             ))
         ),
         "{again:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_full_relay_gets_a_typed_error() {
+    use zafe_core::relay_client::RelayClientError;
+    use zafe_proto::{Envelope, Kind};
+
+    let relay = RelayClient::new(
+        start_relay_with(
+            Limits::hosted(),
+            Quotas {
+                envelopes_per_recipient: Some(1),
+                ..Quotas::none()
+            },
+        )
+        .await,
+    );
+    let mut rng = StdRng::seed_from_u64(62);
+    let a = Identity::generate(&mut rng);
+    let b = Identity::generate(&mut rng);
+    let mailbox = [7u8; 16];
+    relay
+        .create_mailbox(&a, mailbox, &[1; 32], 2)
+        .await
+        .unwrap();
+    relay.join(&b, mailbox, [1; 32]).await.unwrap();
+    let envelope = |seq| {
+        Envelope::sealed(
+            &a,
+            b.public(),
+            mailbox,
+            seq,
+            Kind::Approval,
+            b"hi",
+            &mut StdRng::seed_from_u64(seq),
+        )
+        .unwrap()
+    };
+    relay.send(&envelope(1)).await.unwrap();
+    let err = relay.send(&envelope(2)).await.unwrap_err();
+    assert!(
+        matches!(&err, RelayClientError::StorageFull { detail } if detail.contains("inbox")),
+        "{err:?}"
     );
 }

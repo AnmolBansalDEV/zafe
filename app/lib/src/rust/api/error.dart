@@ -54,5 +54,9 @@ enum ZafeErrorKind {
 
   /// The relay is older than this app and must be updated by whoever runs it.
   relayOutdated,
+
+  /// The relay's storage quota for this vault is full; it frees up as old messages
+  /// expire (30 days), or whoever runs the relay raises it.
+  relayStorageFull,
   other,
 }
