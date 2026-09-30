@@ -34,6 +34,13 @@ scripts/android-bench.sh
 
 # The app's payment flow through the Flutter bridge API (3 members, regtest, Docker)
 cargo test -p rust_lib_zafe --test bridge_e2e -- --ignored --nocapture
+
+# TLS clients (local rustls server) + live public testnet lightwalletd over TLS
+cargo test -p zafe-core --test tls -- --include-ignored
+
+# Relay image (from the repo root); run on a spare port, never 8787 (emulator harness)
+docker build -f infra/relay/Dockerfile -t zafe-relay:dev .
+docker run -d --name zr -p 18899:8080 zafe-relay:dev && curl localhost:18899/health; docker rm -f zr
 ```
 
 Commits end with the attribution lines the harness gives (Co-Authored-By, and
@@ -50,6 +57,8 @@ crates/zafe-proto   identities, signed/HPKE envelopes, vault log, relay API type
 crates/zafe-relay   blind axum relay on SQLite (ZAFE_RELAY_DB), push hook, pruning
 crates/zafe-cli     `zafe` binary: headless member for tests (dev-only plain-file state)
 infra/regtest       Zakura + lightwalletd regtest with NU6.3 active (up.sh / down.sh)
+infra/relay         relay Dockerfile, fly.toml template, VPS recipe (systemd + Caddy),
+                    backups; README says what the user must do to deploy (not deployed)
 scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
 ```
 
@@ -143,6 +152,26 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
 - `zcash_primitives` `non-standard-fees` is a **dev-dependency only** (tests model an
   overpaying proposer).
 - `cargo build -p a -p b --examples` builds only examples — build bins separately.
+- **TLS (clients)**: rustls + **ring** + **webpki-roots** (bundled Mozilla roots)
+  everywhere: reqwest `rustls-tls` (relay client, relay's FCM client) and tonic
+  `tls-ring` + `tls-webpki-roots` (+ `zcash_client_backend/lightwalletd-tonic-tls-webpki-roots`).
+  Why: no OpenSSL to cross-compile, ring builds with the NDK (aws-lc-rs needs cmake/NASM),
+  and bundled roots behave the same on Android/iOS without platform-verifier plumbing
+  (trade-off: roots update with the crate, not the OS; no user-installed CAs). Keep only
+  one rustls provider in the tree (ring): with both, rustls can't pick a default.
+  Gotcha: `tonic::Channel::from_shared("https://…")` does **not** turn TLS on
+  ("Connecting to HTTPS without TLS enabled"); `wallet::connect` sets
+  `ClientTlsConfig::new().with_webpki_roots()` for https. `RelayClient::with_extra_root`
+  adds a trust anchor (private CA / tests) and keeps verification on. Transport errors
+  now carry their cause chain (e.g. `UnknownIssuer`).
+- **Relay deploy**: `GET /health`; `PORT` → `0.0.0.0:$PORT` unless `ZAFE_RELAY_LISTEN`;
+  FCM key from `ZAFE_FCM_SERVICE_ACCOUNT` (file) or `ZAFE_FCM_SERVICE_ACCOUNT_JSON`
+  (inline, for Fly secrets). The image's entrypoint chowns `/data` then drops to uid
+  10001 with `setpriv` (Fly volumes mount root-owned). The Docker context must contain
+  **every workspace member** (`app/rust` too) or `cargo build --locked` fails;
+  `.dockerignore` whitelists them. One machine per SQLite file, never scale out.
+- **Public testnet lightwalletd**: `https://testnet.zec.rocks:443` (Ironwood-aware;
+  Ironwood live on testnet since block 4,134,000). Mainnet: `https://zec.rocks:443`.
 - `propose_transfer` / `create_pczt_from_proposal` need explicit error type params
   (commitment_tree::Error, GreedyInputSelectorError, zip317::FeeError).
 
@@ -269,7 +298,11 @@ Learned while studying it:
   `lib/main.dart` (RustLib.init → `VaultBootstrap.load()` → ProviderScope override).
   Secrets (identity, invite, key material) live in `flutter_secure_storage` via
   `core/storage/zafe_secure_store.dart`. Network/relay/lightwalletd come from dart-defines
-  (`ZAFE_NETWORK`, default regtest) in `core/config/network_config.dart`.
+  (`ZAFE_NETWORK`, default regtest) in `core/config/network_config.dart`: presets per
+  network (`regtest` local http; `test`/`testnet`: zec.rocks TLS lightwalletd + a
+  placeholder relay `https://relay.zafe.invalid` until one is deployed, shown as "Not
+  configured" in Settings), overridden by `ZAFE_RELAY_URL` / `ZAFE_LIGHTWALLETD_URL`.
+  Dart const expressions can't read fields of const objects, hence the parallel consts.
 - **Bridge errors are typed**: API functions return `Result<T, ZafeError>` (`api/error.rs`,
   `kind` + `message`); Dart maps `ZafeErrorKind` to copy in `core/errors/zafe_error_copy.dart`.
   FRB treats a `type Result<T> = ...` alias as **anyhow** — always write

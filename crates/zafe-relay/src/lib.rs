@@ -19,7 +19,7 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::post,
+    routing::{get, post},
     Router,
 };
 use rusqlite::{params, Connection, OptionalExtension};
@@ -211,6 +211,7 @@ impl Relay {
 
     pub fn router(self) -> Router {
         Router::new()
+            .route("/health", get(health))
             .route("/v1/mailbox/create", post(create))
             .route("/v1/mailbox/join", post(join))
             .route("/v1/mailbox/seal", post(seal))
@@ -635,6 +636,20 @@ async fn log_append(State(relay): State<Relay>, body: Bytes) -> RelayResult {
         relay.notifier.notify(platform, &token);
     }
     ok(&AppendResult::Appended { index: len as u64 })
+}
+
+/// Liveness and readiness for load balancers and uptime checks: 200 `ok` when the
+/// database answers a trivial query, 503 otherwise. Reveals nothing about mailboxes.
+async fn health(State(relay): State<Relay>) -> Response {
+    let alive = match relay.db.lock() {
+        Ok(db) => db.query_row("SELECT 1", [], |r| r.get::<_, i64>(0)).is_ok(),
+        Err(_) => false,
+    };
+    if alive {
+        (StatusCode::OK, "ok").into_response()
+    } else {
+        (StatusCode::SERVICE_UNAVAILABLE, "unavailable").into_response()
+    }
 }
 
 async fn log_read(State(relay): State<Relay>, body: Bytes) -> RelayResult {
