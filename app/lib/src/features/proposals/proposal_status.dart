@@ -66,7 +66,8 @@ class ProposalStatusChip extends StatelessWidget {
         : switch (proposal.stage) {
             rust.ProposalStage.open => (
               AppIcons.time,
-              '${proposal.approvals.length} of ${proposal.threshold} approved',
+              // The count is on the line below the chip.
+              'Collecting votes',
               colors.text.secondary,
             ),
             rust.ProposalStage.approved => (
@@ -93,9 +94,9 @@ class ProposalStatusChip extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        AppIcon(icon, size: 16, color: color),
+        AppIcon(icon, size: 13, color: color),
         const SizedBox(width: AppSpacing.xxs),
-        Text(label, style: AppTypography.labelLarge.copyWith(color: color)),
+        Text(label, style: AppTypography.labelMedium.copyWith(color: color)),
       ],
     );
   }

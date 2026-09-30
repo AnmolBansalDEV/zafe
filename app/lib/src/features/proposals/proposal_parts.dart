@@ -108,8 +108,9 @@ class ProposalBody extends ConsumerWidget {
 }
 
 /// Status, the approval threshold as signer dots, and one row per signer with their
-/// vote.
-class ProposalApprovalsCard extends StatelessWidget {
+/// vote. The signer list is folded away once the payment is finished (sent, rejected
+/// or cancelled) and open while votes still matter.
+class ProposalApprovalsCard extends StatefulWidget {
   const ProposalApprovalsCard({
     super.key,
     required this.proposal,
@@ -123,9 +124,25 @@ class ProposalApprovalsCard extends StatelessWidget {
   final bool sending;
 
   @override
+  State<ProposalApprovalsCard> createState() => _ProposalApprovalsCardState();
+}
+
+class _ProposalApprovalsCardState extends State<ProposalApprovalsCard> {
+  bool? _expanded;
+
+  bool get _finished => switch (widget.proposal.stage) {
+    rust.ProposalStage.open || rust.ProposalStage.approved => false,
+    _ => true,
+  };
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final p = proposal;
+    final p = widget.proposal;
+    final members = widget.members;
+    final me = widget.me;
+    final sending = widget.sending;
+    final expanded = _expanded ?? !_finished;
     return MobileSurfaceCard(
       cornerRadius: AppRadii.large,
       padding: const EdgeInsets.fromLTRB(
@@ -173,18 +190,57 @@ class ProposalApprovalsCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.s),
-          Container(height: 1, color: colors.border.regular),
           const SizedBox(height: AppSpacing.xs),
-          for (final m in members)
-            SignerRow(
-              keyHex: m,
-              me: me,
-              trailing: _VoteTag(
-                approved: p.approvals.contains(m),
-                rejected: p.rejections.contains(m),
-                stage: p.stage,
+          Container(height: 1, color: colors.border.regular),
+          AppTappable(
+            onTap: () => setState(() => _expanded = !expanded),
+            semanticsLabel: expanded ? 'Hide signers' : 'Show signers',
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.s),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      expanded ? 'Hide signers' : 'Show signers',
+                      style: AppTypography.labelMedium.copyWith(
+                        color: colors.text.secondary,
+                      ),
+                    ),
+                  ),
+                  AnimatedRotation(
+                    turns: expanded ? -0.25 : 0.25,
+                    duration: const Duration(milliseconds: 200),
+                    child: AppIcon(
+                      AppIcons.chevronForward,
+                      size: 16,
+                      color: colors.icon.muted,
+                    ),
+                  ),
+                ],
               ),
             ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            alignment: Alignment.topCenter,
+            child: expanded
+                ? Column(
+                    children: [
+                      for (final m in members)
+                        SignerRow(
+                          keyHex: m,
+                          me: me,
+                          trailing: _VoteTag(
+                            approved: p.approvals.contains(m),
+                            rejected: p.rejections.contains(m),
+                            stage: p.stage,
+                          ),
+                        ),
+                    ],
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
         ],
       ),
     );
