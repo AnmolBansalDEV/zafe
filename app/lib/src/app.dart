@@ -13,6 +13,7 @@ import 'features/backup/restore_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/onboarding/create_vault_screen.dart';
 import 'features/onboarding/join_vault_screen.dart';
+import 'features/onboarding/scan_invite_screen.dart';
 import 'features/onboarding/setup_screen.dart';
 import 'features/onboarding/welcome_screen.dart';
 import 'features/proposals/activity_screen.dart';
@@ -24,6 +25,7 @@ import 'features/settings/settings_screen.dart';
 import 'providers/theme_mode_provider.dart';
 import 'notifications/vault_watch.dart';
 import 'providers/vault_provider.dart';
+import 'services/invite_links.dart';
 
 final _routerProvider = Provider<GoRouter>((ref) {
   final vault = ref.read(vaultProvider);
@@ -58,6 +60,36 @@ final _routerProvider = Provider<GoRouter>((ref) {
   ref.onDispose(() => notificationTaps.removeListener(onTap));
   WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(openTapped()));
 
+  // Invite links open the Join screen with the invite filled in; joining still takes a
+  // tap there and the safety number check after it. From inside a vault it's "Add vault".
+  // A link that arrives during key generation or the backup prompt right after it waits
+  // for the next navigation away from them.
+  void openInviteLink() {
+    final invite = inviteLinks.value;
+    if (invite == null) return;
+    final vaults = ref.read(vaultProvider);
+    if (vaults.isSettingUp && (vaults.membership?.sealed ?? false)) return;
+    final here = router.routerDelegate.currentConfiguration.uri.path;
+    if (here == '/backup-prompt') return;
+    inviteLinks.value = null;
+    if (vaults.activeId != null) {
+      ref.read(vaultProvider.notifier).beginAddVault();
+    }
+    router.go('/welcome'); // so back from Join lands on onboarding
+    router.push(
+      Uri(path: '/join', queryParameters: {'invite': invite}).toString(),
+    );
+  }
+
+  inviteLinks.addListener(openInviteLink);
+  ref.onDispose(() => inviteLinks.removeListener(openInviteLink));
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    void retry() => scheduleMicrotask(openInviteLink);
+    router.routerDelegate.addListener(retry);
+    ref.onDispose(() => router.routerDelegate.removeListener(retry));
+    openInviteLink();
+  });
+
   return router = GoRouter(
     initialLocation: initial,
     redirect: (context, state) {
@@ -90,7 +122,13 @@ final _routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/join',
-        pageBuilder: (_, _) => page(const JoinVaultScreen()),
+        pageBuilder: (_, state) => page(
+          JoinVaultScreen(initialInvite: state.uri.queryParameters['invite']),
+        ),
+      ),
+      GoRoute(
+        path: '/scan-invite',
+        pageBuilder: (_, _) => page(const ScanInviteScreen()),
       ),
       GoRoute(path: '/setup', pageBuilder: (_, _) => page(const SetupScreen())),
       GoRoute(path: '/home', pageBuilder: (_, _) => page(const HomeScreen())),

@@ -37,7 +37,12 @@ Last updated: 2026-09-30 (Vizor core resynced to `4bff2e7`; send progress and ac
    Settings toggle + status. A full slice; deferred on 2026-09-29 as "not small".
 4. [ ] **Incoming history**: home shows proposals only; received funds and a real activity
    list (Vizor activity feed, month sections) are missing.
-5. [ ] **Scan invite QR** on Join (camera); today it's paste only.
+5. [x] **Scan invite QR** on Join (camera, `mobile_scanner`; accepts the raw invite or the
+   invite link; permission-denied state with "Open settings"). Invite links
+   `zafe://join?invite=...` (app_links; cold and warm start; from inside a vault it's
+   "Add vault"), "Share link" on the setup screen, and the setup QR now carries the link.
+   **Needs on-device verification** (camera, deep link cold/warm, permission denied);
+   only unit tests and `flutter analyze` ran. iOS untested (URL scheme + camera string added).
 
 ## M1 — app v1 on testnet (spec §16)
 
@@ -52,7 +57,13 @@ Open
 - [ ] Auto-submit (see Next up)
 - [ ] Push notifications (see Next up)
 - [ ] Hosted relay deployment (testnet); relay is SQLite today, Postgres for the hosted tier
-- [ ] Invite by link (deep link `zafe://` / universal link) in addition to QR/paste
+- [x] Invite by link: `zafe://join?invite=...` custom scheme (see Next up 5)
+- [ ] Universal/App Links (`https://…/join#invite`) so a link works for people without
+      Zafe installed (landing page + `assetlinks.json` / AASA). Put the invite in the URL
+      fragment so the web server never sees the join token
+- [ ] iOS: `permission_handler` needs `PERMISSION_CAMERA=1` in the Podfile
+      `GCC_PREPROCESSOR_DEFINITIONS` if we ever request through it (today only
+      `openAppSettings` is used; `mobile_scanner` asks for the camera itself)
 - [ ] Cancel a proposal (author) in the UI; the log already supports `Cancelled`
 - [ ] Proposal expiry: show it in the UI, offer "propose again" when it lapses, make the window configurable at vault creation (D2)
 - [ ] Privacy: a 7-day expiry delta differs from the 40-block wallet default, so vault spends are distinguishable on chain by expiry. Consider rounding or a shared convention

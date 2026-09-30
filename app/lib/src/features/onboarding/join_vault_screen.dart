@@ -11,10 +11,14 @@ import '../../core/widgets/app_toast.dart';
 import '../../core/widgets/mobile_text_field.dart';
 import '../../providers/vault_provider.dart';
 import '../../rust/api/vault.dart' as rust;
+import 'invite_link.dart';
 import 'onboarding_art.dart';
 
 class JoinVaultScreen extends ConsumerStatefulWidget {
-  const JoinVaultScreen({super.key});
+  const JoinVaultScreen({super.key, this.initialInvite});
+
+  /// Filled in from an invite link. Joining still needs a tap.
+  final String? initialInvite;
 
   @override
   ConsumerState<JoinVaultScreen> createState() => _JoinVaultScreenState();
@@ -25,6 +29,40 @@ class _JoinVaultScreenState extends ConsumerState<JoinVaultScreen> {
   final _focus = FocusNode();
   rust.InviteInfo? _info;
   bool _busy = false;
+  bool _fromLink = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _prefill(widget.initialInvite);
+  }
+
+  @override
+  void didUpdateWidget(JoinVaultScreen old) {
+    super.didUpdateWidget(old);
+    if (widget.initialInvite != old.initialInvite) {
+      _prefill(widget.initialInvite);
+      setState(() {});
+    }
+  }
+
+  void _prefill(String? invite) {
+    if (invite == null || invite.isEmpty) return;
+    _invite.text = invite;
+    _fromLink = true;
+    _info = _tryParse(invite);
+  }
+
+  /// Accepts a raw invite or an invite link (pasted, typed or scanned).
+  static rust.InviteInfo? _tryParse(String text) {
+    final invite = extractInvite(text);
+    if (invite == null) return null;
+    try {
+      return rust.parseInvite(invite: invite);
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   void dispose() {
@@ -34,18 +72,23 @@ class _JoinVaultScreenState extends ConsumerState<JoinVaultScreen> {
   }
 
   void _parse() {
-    try {
-      _info = rust.parseInvite(invite: _invite.text.trim());
-    } catch (_) {
-      _info = null;
-    }
+    _info = _tryParse(_invite.text);
     setState(() {});
+  }
+
+  Future<void> _scan() async {
+    final scanned = await context.push<String>('/scan-invite');
+    if (scanned == null || !mounted) return;
+    _invite.text = scanned;
+    _fromLink = false;
+    _parse();
   }
 
   Future<void> _paste() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     if (data?.text != null) {
       _invite.text = data!.text!.trim();
+      _fromLink = false;
       _parse();
     }
   }
@@ -53,7 +96,9 @@ class _JoinVaultScreenState extends ConsumerState<JoinVaultScreen> {
   Future<void> _join() async {
     setState(() => _busy = true);
     try {
-      await ref.read(vaultProvider.notifier).joinVault(_invite.text);
+      await ref
+          .read(vaultProvider.notifier)
+          .joinVault(extractInvite(_invite.text) ?? _invite.text);
       if (mounted) context.go('/setup');
     } catch (e) {
       if (mounted) {
@@ -94,8 +139,11 @@ class _JoinVaultScreenState extends ConsumerState<JoinVaultScreen> {
         MobileTextField(
           controller: _invite,
           focusNode: _focus,
-          hintText: 'Paste the invite you received',
-          onChanged: (_) => _parse(),
+          hintText: 'Paste the invite or link you received',
+          onChanged: (_) {
+            _fromLink = false;
+            _parse();
+          },
           trailing: AppButton(
             variant: AppButtonVariant.secondary,
             size: AppButtonSize.mediumLarge,
@@ -104,6 +152,14 @@ class _JoinVaultScreenState extends ConsumerState<JoinVaultScreen> {
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
+        AppButton(
+          expand: true,
+          variant: AppButtonVariant.secondary,
+          onPressed: _busy ? null : _scan,
+          leading: const AppIcon(AppIcons.qr, size: 20),
+          child: const Text('Scan QR code'),
+        ),
+        const SizedBox(height: AppSpacing.md),
         if (info != null)
           Text(
             '"${info.name}": ${info.threshold} of ${info.members} signatures needed.',
@@ -116,6 +172,17 @@ class _JoinVaultScreenState extends ConsumerState<JoinVaultScreen> {
               color: colors.text.destructive,
             ),
           ),
+        if (info != null && _fromLink) ...[
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Opened from a link. Join only if you were expecting this invite from '
+            'someone you know. You\'ll compare a safety number with every member '
+            'before any keys are made.',
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.text.secondary,
+            ),
+          ),
+        ],
       ],
     );
   }

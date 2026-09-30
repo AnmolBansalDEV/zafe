@@ -1807,3 +1807,28 @@ pub fn decode_request(bytes: &[u8]) -> Result<SigningRequest, NodeError> {
             .collect::<Result<_, _>>()?,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Invite;
+
+    /// The app embeds invites in `zafe://join?invite=...` links and QR codes unescaped,
+    /// which relies on this character set; it also bounds the QR size.
+    #[test]
+    fn invite_text_is_url_safe_and_small() {
+        let invite = Invite {
+            mailbox: [7; 16],
+            join_token: [9; 32],
+            creator: [3; 32],
+            threshold: 2,
+            members: 3,
+            name: "Grants committee — Ops fund 2026".into(),
+        };
+        let text = invite.encode();
+        assert!(text
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"-:._~".contains(&b)));
+        assert!(text.len() < 300, "{} chars", text.len());
+        assert_eq!(Invite::decode(&text).unwrap(), invite);
+    }
+}
