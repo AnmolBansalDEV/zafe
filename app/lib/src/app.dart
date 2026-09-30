@@ -1,3 +1,4 @@
+import 'core/platform/secure_screen.dart';
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart' show CupertinoPage;
@@ -129,14 +130,22 @@ final _routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/join',
         pageBuilder: (_, state) => page(
-          JoinVaultScreen(initialInvite: state.uri.queryParameters['invite']),
+          SecureScreen(
+            child: JoinVaultScreen(
+              initialInvite: state.uri.queryParameters['invite'],
+            ),
+          ),
         ),
       ),
       GoRoute(
         path: '/scan-invite',
         pageBuilder: (_, _) => page(const ScanInviteScreen()),
       ),
-      GoRoute(path: '/setup', pageBuilder: (_, _) => page(const SetupScreen())),
+      // Screens showing invites or backups block screenshots (SecureScreen).
+      GoRoute(
+        path: '/setup',
+        pageBuilder: (_, _) => page(const SecureScreen(child: SetupScreen())),
+      ),
       GoRoute(path: '/home', pageBuilder: (_, _) => page(const HomeScreen())),
       GoRoute(
         path: '/receive',
@@ -153,7 +162,7 @@ final _routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/export',
-        pageBuilder: (_, _) => page(const ExportScreen()),
+        pageBuilder: (_, _) => page(const SecureScreen(child: ExportScreen())),
       ),
       GoRoute(
         path: '/backup-prompt',
@@ -161,7 +170,7 @@ final _routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/restore',
-        pageBuilder: (_, _) => page(const RestoreScreen()),
+        pageBuilder: (_, _) => page(const SecureScreen(child: RestoreScreen())),
       ),
       GoRoute(
         path: '/settings',

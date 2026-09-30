@@ -459,6 +459,11 @@ Learned while studying it:
   bootstrap): every amount goes through `amountWithTicker(text, hide:)`. Vizor's
   `hideAmountIfPrivacyMode` only appends the unit to the *mask*, so passing a bare amount
   drops the ticker when visible. Payment rows use a 3-star mask (Vizor's activity rows).
+- **Secret screens** block capture: wrap a route's page in `SecureScreen`
+  (`core/platform/secure_screen.dart`, counted) → `xyz.zafe/secure_screen` `setSecure`
+  in `MainActivity.kt` (`FLAG_SECURE`). The first Zafe channel with an Android handler:
+  `xyz.zafe/haptics` and `window_appearance` have none yet (Dart swallows
+  `MissingPluginException`). Check with `adb shell dumpsys window windows | grep SECURE`.
 - Settings (`/settings`, opened from the vault name on home): vault info, signer key,
   hide amounts, theme (`themeModeProvider`, persisted), endpoints (read-only; compile-time
   dart-defines), open-source licenses (fonts + NOTICE registered in `main.dart`).

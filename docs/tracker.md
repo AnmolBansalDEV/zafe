@@ -367,7 +367,11 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
   an isolated circuit, `open_isolated_lwd_channel` in `rust/src/wallet/sync_engine/lwd.rs`)
 - *(idea)* Fiat values next to amounts (Vizor shows USD; needs a price source, Tor-aware;
   Vizor fetches through `lib/src/core/network/network_http_client.dart`)
-- *(idea)* Sensitive-screen protection (Vizor's `SensitivePrivacyOverlay` + Android
+- [x] Sensitive-screen protection, Android (2026-09-30): `SecureScreen` (counted) sets
+  `FLAG_SECURE` through `xyz.zafe/secure_screen` (`MainActivity`) on /setup, /join,
+  /export and /restore; checked on the emulator (flag on while open, off after).
+  Still open: iOS capture shield and screenshot warning, an app-switcher privacy overlay.
+  Earlier idea text: Sensitive-screen protection (Vizor's `SensitivePrivacyOverlay` + Android
   `FLAG_SECURE`) for invite, safety number and backup screens. Upstream now also blocks
   capture on iOS (`SecureScreenshotShield` in `ios/Runner/AppDelegate.swift`) and warns
   after screenshots (`lib/src/core/platform/screenshot_observer.dart`)
