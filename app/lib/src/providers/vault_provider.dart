@@ -339,12 +339,18 @@ class VaultNotifier extends Notifier<VaultState> {
     // Keep the last error on screen while retrying, so the status doesn't flicker
     // between "Syncing..." and the failure every poll.
     state = state.copyWith(syncing: true);
+    // Breadcrumbs: the one unexplained hang (first sync after keygen) left nothing in
+    // flight in Rust or on the platform side; if it recurs, the log names the last step.
+    var step = 'paths';
     try {
       final balance = await () async {
         final paths = await ZafePaths.get();
+        step = 'wallet key';
+        final dbKey = await ZafeSecureStore.instance.walletKey(vaultId);
+        step = 'rust sync';
         return rust.syncVault(
           dbDir: paths.dbDir,
-          dbKey: await ZafeSecureStore.instance.walletKey(vaultId),
+          dbKey: dbKey,
           lightwalletdUrl: _endpoints.lightwalletdUrl,
           relayUrl: _endpoints.relayUrl,
           seeds: seeds,
@@ -368,7 +374,7 @@ class VaultNotifier extends Notifier<VaultState> {
         ),
       );
     } catch (e) {
-      debugPrint('sync failed: ${describeError(e)}');
+      debugPrint('sync failed at $step: ${describeError(e)}');
       state = state.copyWith(syncing: false, syncError: e);
     }
   }

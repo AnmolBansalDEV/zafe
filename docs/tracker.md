@@ -341,8 +341,9 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       Rust and platform threads were idle (native + Java stack dumps), no `sync failed`
       log, `ZafeSecureStore._creatingWalletKey` empty; a restart synced at once. Not
       reproducible with lightwalletd down (that fails cleanly). Guarded: `sync()` now times
-      out after 6 minutes so `syncing` can't stick. Root cause unknown; add breadcrumbs if
-      it recurs
+      out after 6 minutes so `syncing` can't stick. Root cause unknown. Breadcrumbs added
+      (2026-09-30): the log line `sync failed at <step>` names paths / wallet key / rust
+      sync; watch for it in the phone dry run
 - [x] A payment to the vault's **own address** failed every member's check (verification
       counts the output as change): `node::propose` now refuses it up front
       (`WalletError::Payment` → `InvalidInput`, "that is this vault's own address"),
@@ -390,6 +391,10 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       "No response to onStartJob" for the WorkManager vault check. Likely load, but check
       that the job's startup (RustLib.init, Firebase, secure storage reads) doesn't block
       the main thread before WorkManager gets its answer
+      2026-09-30 analysis: "No response to onStartJob" is Android's main thread waiting
+      before any Dart runs; starting the background Flutter engine in a **debug** build
+      (JIT) under heavy host load is the likely cause. Check on a release build on the
+      phone before digging further
 - [x] Relay: storage quotas for the hosted tier (2026-09-30): `zafe_relay::quota`, per
       mailbox: undelivered envelopes per recipient (indexed count), delivery bytes and
       log bytes (running counters on `mailboxes`, schema `RELAY_DB` 2 with a migration
