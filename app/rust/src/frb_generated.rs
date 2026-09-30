@@ -1724,10 +1724,16 @@ impl SseDecode for crate::api::vault::Balance {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_height = <u32>::sse_decode(deserializer);
         let mut var_spendableZat = <u64>::sse_decode(deserializer);
+        let mut var_lockedZat = <u64>::sse_decode(deserializer);
+        let mut var_changePendingZat = <u64>::sse_decode(deserializer);
+        let mut var_incomingPendingZat = <u64>::sse_decode(deserializer);
         let mut var_totalZat = <u64>::sse_decode(deserializer);
         return crate::api::vault::Balance {
             height: var_height,
             spendable_zat: var_spendableZat,
+            locked_zat: var_lockedZat,
+            change_pending_zat: var_changePendingZat,
+            incoming_pending_zat: var_incomingPendingZat,
             total_zat: var_totalZat,
         };
     }
@@ -2524,6 +2530,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::vault::Balance {
         [
             self.height.into_into_dart().into_dart(),
             self.spendable_zat.into_into_dart().into_dart(),
+            self.locked_zat.into_into_dart().into_dart(),
+            self.change_pending_zat.into_into_dart().into_dart(),
+            self.incoming_pending_zat.into_into_dart().into_dart(),
             self.total_zat.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -3237,6 +3246,9 @@ impl SseEncode for crate::api::vault::Balance {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <u32>::sse_encode(self.height, serializer);
         <u64>::sse_encode(self.spendable_zat, serializer);
+        <u64>::sse_encode(self.locked_zat, serializer);
+        <u64>::sse_encode(self.change_pending_zat, serializer);
+        <u64>::sse_encode(self.incoming_pending_zat, serializer);
         <u64>::sse_encode(self.total_zat, serializer);
     }
 }

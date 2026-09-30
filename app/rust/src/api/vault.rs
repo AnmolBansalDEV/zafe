@@ -251,6 +251,12 @@ pub fn vault_viewing_key(material: Vec<u8>) -> Result<String, ZafeError> {
 pub struct Balance {
     pub height: u32,
     pub spendable_zat: u64,
+    /// Held for open or sent payments until they're mined or expire.
+    pub locked_zat: u64,
+    /// The vault's own change from a payment, waiting for confirmations.
+    pub change_pending_zat: u64,
+    /// Received money waiting for confirmations.
+    pub incoming_pending_zat: u64,
     pub total_zat: u64,
 }
 
@@ -376,6 +382,9 @@ pub fn sync_vault(
         Ok(Balance {
             height,
             spendable_zat: b.ironwood_spendable,
+            locked_zat: b.ironwood_locked,
+            change_pending_zat: b.ironwood_change_pending,
+            incoming_pending_zat: b.ironwood_pending,
             total_zat: b.total,
         })
     })

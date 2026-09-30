@@ -142,17 +142,34 @@ Future<void> registerPush({
 class Balance {
   final int height;
   final BigInt spendableZat;
+
+  /// Held for open or sent payments until they're mined or expire.
+  final BigInt lockedZat;
+
+  /// The vault's own change from a payment, waiting for confirmations.
+  final BigInt changePendingZat;
+
+  /// Received money waiting for confirmations.
+  final BigInt incomingPendingZat;
   final BigInt totalZat;
 
   const Balance({
     required this.height,
     required this.spendableZat,
+    required this.lockedZat,
+    required this.changePendingZat,
+    required this.incomingPendingZat,
     required this.totalZat,
   });
 
   @override
   int get hashCode =>
-      height.hashCode ^ spendableZat.hashCode ^ totalZat.hashCode;
+      height.hashCode ^
+      spendableZat.hashCode ^
+      lockedZat.hashCode ^
+      changePendingZat.hashCode ^
+      incomingPendingZat.hashCode ^
+      totalZat.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -161,6 +178,9 @@ class Balance {
           runtimeType == other.runtimeType &&
           height == other.height &&
           spendableZat == other.spendableZat &&
+          lockedZat == other.lockedZat &&
+          changePendingZat == other.changePendingZat &&
+          incomingPendingZat == other.incomingPendingZat &&
           totalZat == other.totalZat;
 }
 

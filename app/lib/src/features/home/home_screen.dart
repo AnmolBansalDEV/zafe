@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/config/network_config.dart';
 import '../../core/feedback/app_haptics.dart';
+import '../../core/formatting/balance_notes.dart';
 import '../../core/formatting/zec_amount.dart';
 import '../../core/layout/mobile/mobile_top_nav.dart';
 import '../../core/layout/mobile/mobile_top_scroll_fade.dart';
@@ -175,8 +176,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 64 + 48),
                     children: [
                       _BalanceCard(
-                        spendableZat: vault.balance?.spendableZat,
                         totalZat: vault.balance?.totalZat,
+                        notes: vault.balance == null
+                            ? const []
+                            : balanceNotes(
+                                incomingPendingZat:
+                                    vault.balance!.incomingPendingZat,
+                                changePendingZat:
+                                    vault.balance!.changePendingZat,
+                                lockedZat: vault.balance!.lockedZat,
+                                ticker: kZcashDefaultCurrencyTicker,
+                              ),
                         hidden: ref.watch(privacyModeProvider),
                         threshold: summary.threshold,
                         members: summary.members.length,
@@ -299,15 +309,16 @@ class _VaultAvatar extends StatelessWidget {
 /// and the approval rule as signer dots along the bottom.
 class _BalanceCard extends StatelessWidget {
   const _BalanceCard({
-    required this.spendableZat,
     required this.totalZat,
+    required this.notes,
     required this.hidden,
     required this.onToggle,
     required this.threshold,
     required this.members,
   });
 
-  final BigInt? spendableZat;
+  /// Money in the total that can't be spent yet, one line per kind.
+  final List<String> notes;
   final BigInt? totalZat;
   final bool hidden;
   final VoidCallback onToggle;
@@ -324,10 +335,6 @@ class _BalanceCard extends StatelessWidget {
     final amount = total == null
         ? '—'
         : ZecAmount.fromZatoshi(total).compactBalance.amountText;
-    final pending =
-        (total != null && spendableZat != null && total > spendableZat!)
-        ? ZecAmount.fromZatoshi(total - spendableZat!).balance.amountText
-        : null;
     const homeText = Color(0xFFF4F4F2);
 
     return Container(
@@ -416,13 +423,16 @@ class _BalanceCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: AppSpacing.xs),
-                if (pending != null && !hidden)
-                  Text(
-                    '+$pending $kZcashDefaultCurrencyTicker confirming',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: homeText.withValues(alpha: 0.7),
+                if (!hidden)
+                  for (final note in notes.take(2))
+                    Text(
+                      note,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.bodySmall.copyWith(
+                        color: homeText.withValues(alpha: 0.7),
+                      ),
                     ),
-                  ),
                 const SizedBox(height: AppSpacing.sm),
                 _ThresholdStrip(threshold: threshold, members: members),
               ],

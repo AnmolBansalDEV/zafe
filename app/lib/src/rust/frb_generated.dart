@@ -1979,12 +1979,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Balance dco_decode_balance(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return Balance(
       height: dco_decode_u_32(arr[0]),
       spendableZat: dco_decode_u_64(arr[1]),
-      totalZat: dco_decode_u_64(arr[2]),
+      lockedZat: dco_decode_u_64(arr[2]),
+      changePendingZat: dco_decode_u_64(arr[3]),
+      incomingPendingZat: dco_decode_u_64(arr[4]),
+      totalZat: dco_decode_u_64(arr[5]),
     );
   }
 
@@ -2533,10 +2536,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_height = sse_decode_u_32(deserializer);
     var var_spendableZat = sse_decode_u_64(deserializer);
+    var var_lockedZat = sse_decode_u_64(deserializer);
+    var var_changePendingZat = sse_decode_u_64(deserializer);
+    var var_incomingPendingZat = sse_decode_u_64(deserializer);
     var var_totalZat = sse_decode_u_64(deserializer);
     return Balance(
       height: var_height,
       spendableZat: var_spendableZat,
+      lockedZat: var_lockedZat,
+      changePendingZat: var_changePendingZat,
+      incomingPendingZat: var_incomingPendingZat,
       totalZat: var_totalZat,
     );
   }
@@ -3210,6 +3219,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_32(self.height, serializer);
     sse_encode_u_64(self.spendableZat, serializer);
+    sse_encode_u_64(self.lockedZat, serializer);
+    sse_encode_u_64(self.changePendingZat, serializer);
+    sse_encode_u_64(self.incomingPendingZat, serializer);
     sse_encode_u_64(self.totalZat, serializer);
   }
 

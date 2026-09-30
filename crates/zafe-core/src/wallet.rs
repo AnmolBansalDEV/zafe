@@ -351,6 +351,12 @@ pub struct ReceivedPayment {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VaultBalance {
     pub ironwood_spendable: u64,
+    /// Held for open or sent proposals (note reservation); counted in the total.
+    pub ironwood_locked: u64,
+    /// The vault's own change waiting for confirmations.
+    pub ironwood_change_pending: u64,
+    /// Other received notes waiting for confirmations (or for scanning).
+    pub ironwood_pending: u64,
     pub ironwood_total: u64,
     pub total: u64,
 }
@@ -524,6 +530,9 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
         else {
             return Ok(VaultBalance {
                 ironwood_spendable: 0,
+                ironwood_locked: 0,
+                ironwood_change_pending: 0,
+                ironwood_pending: 0,
                 ironwood_total: 0,
                 total: 0,
             });
@@ -534,6 +543,15 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
             .ok_or_else(|| WalletError::Db("account missing from summary".into()))?;
         Ok(VaultBalance {
             ironwood_spendable: balance.ironwood_balance().spendable_value().into_u64(),
+            ironwood_locked: balance.ironwood_balance().locked_value().into_u64(),
+            ironwood_change_pending: balance
+                .ironwood_balance()
+                .change_pending_confirmation()
+                .into_u64(),
+            ironwood_pending: balance
+                .ironwood_balance()
+                .value_pending_spendability()
+                .into_u64(),
             ironwood_total: balance.ironwood_balance().total().into_u64(),
             total: balance.total().into_u64(),
         })
