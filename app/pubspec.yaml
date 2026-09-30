@@ -22,7 +22,7 @@ dependencies:
   local_auth: ^3.0.2
   mobile_scanner: ^7.4.2
   path_provider: ^2.1.5
-  permission_handler: ^13.0.2
+  permission_handler: ^12.0.1
   pretty_qr_code: ^3.6.0
   rust_lib_zafe:
     path: rust_builder
