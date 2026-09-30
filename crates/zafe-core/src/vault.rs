@@ -7,7 +7,10 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
-use zafe_proto::{IdentityPublic, LogEntry, LogKey};
+use zafe_proto::{
+    version::{self, DecodeError, Format, UnsupportedVersion},
+    IdentityPublic, LogEntry, LogKey,
+};
 
 use crate::session::ProposalId;
 
@@ -18,6 +21,10 @@ const PERSONAL_EVENT_SIG: &[u8] = b"Zafe descriptor signature v1";
 pub enum VaultError {
     #[error("encoding")]
     Encoding,
+    /// An event or descriptor in a version this build doesn't read. Fatal for the
+    /// `Created` entry; any later entry is ignored like other invalid entries.
+    #[error(transparent)]
+    UnsupportedVersion(#[from] UnsupportedVersion),
     #[error("log entry {0} cannot be decrypted with the current log key")]
     Undecryptable(u64),
     #[error("the log must start with a VaultCreated event")]
@@ -145,7 +152,9 @@ pub const EXPIRY_TIP_SLACK_BLOCKS: u32 = 96;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VaultDescriptor {
     pub vault_id: [u8; 16],
-    pub version: u8,
+    /// [`version::DESCRIPTOR`]. Part of the hash every member signs, so it can't be changed
+    /// after creation.
+    pub version: u16,
     pub name: String,
     /// "main", "test" or "regtest".
     pub network: String,
@@ -252,13 +261,23 @@ pub enum VaultEvent {
     },
 }
 
+impl From<DecodeError> for VaultError {
+    fn from(e: DecodeError) -> Self {
+        match e {
+            DecodeError::Unsupported(v) => VaultError::UnsupportedVersion(v),
+            DecodeError::Malformed(_) => VaultError::Encoding,
+        }
+    }
+}
+
 impl VaultEvent {
+    /// `version (u16) || postcard(event)`: the plaintext of a log entry.
     pub fn to_bytes(&self) -> Result<Vec<u8>, VaultError> {
-        postcard::to_allocvec(self).map_err(|_| VaultError::Encoding)
+        Ok(version::encode(Format::VaultEvent, self)?)
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, VaultError> {
-        postcard::from_bytes(bytes).map_err(|_| VaultError::Encoding)
+        Ok(version::decode(Format::VaultEvent, bytes)?)
     }
 }
 
@@ -351,6 +370,7 @@ impl VaultState {
         else {
             return Err(VaultError::NotCreatedFirst);
         };
+        version::check(Format::Descriptor, descriptor.version)?;
         if descriptor.member(&first.header.author).is_none() {
             return Err(VaultError::NotAMember(first.header.index));
         }
@@ -380,6 +400,15 @@ impl VaultState {
             self.ignored.push((index, e));
         }
         self.applied = index + 1;
+    }
+
+    /// Entries skipped because they come from a newer version of Zafe: other members can
+    /// see something this build can't, so the app should ask to update.
+    pub fn newer_version_entries(&self) -> usize {
+        self.ignored
+            .iter()
+            .filter(|(_, e)| matches!(e, VaultError::UnsupportedVersion(v) if v.is_newer()))
+            .count()
     }
 
     /// Whether `event` by `author` would be valid on top of the current state. Callers

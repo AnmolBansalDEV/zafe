@@ -9,7 +9,7 @@
 //! Format (all integers little-endian):
 //!
 //! ```text
-//! magic "ZAFEBAK" (7) | version u8 = 1 | m_cost_kib u32 | t_cost u32 | p_cost u32
+//! magic "ZAFEBAK" (7) | version u8 = version::BACKUP | m_cost_kib u32 | t_cost u32 | p_cost u32
 //! | salt (16) | nonce (24) | XChaCha20-Poly1305 ciphertext of postcard(Contents)
 //! ```
 //!
@@ -27,10 +27,15 @@ use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
-use crate::node::VaultMaterial;
+use zafe_proto::{
+    version::{self, Format, UnsupportedVersion},
+    IdentitySeeds, ProtoError,
+};
+
+use crate::node::{NodeError, VaultMaterial};
 
 const MAGIC: &[u8; 7] = b"ZAFEBAK";
-const VERSION: u8 = 1;
+const VERSION: u8 = version::BACKUP as u8;
 const HEADER_LEN: usize = 7 + 1 + 4 * 3 + 16 + 24;
 const TEXT_PREFIX: &str = "zafe-backup-v1:";
 
@@ -56,12 +61,13 @@ impl KdfParams {
     const MAX_T_COST: u32 = 16;
 }
 
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[derive(Debug, thiserror::Error, PartialEq, Eq, Clone)]
 pub enum BackupError {
     #[error("not a Zafe vault backup")]
     NotABackup,
-    #[error("this backup was made by a newer version of Zafe")]
-    UnsupportedVersion,
+    /// The backup, or the identity or material inside it, is in another version.
+    #[error(transparent)]
+    UnsupportedVersion(#[from] UnsupportedVersion),
     #[error("wrong passphrase, or the backup is damaged")]
     WrongPassphraseOrDamaged,
     #[error("the backup's key-derivation settings are out of range")]
@@ -77,9 +83,9 @@ pub enum BackupError {
 /// What a backup holds.
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Contents {
-    /// `sig_seed || enc_seed` (64 bytes).
+    /// `IdentitySeeds::to_bytes` (versioned), as stored on the device.
     pub identity_seeds: Vec<u8>,
-    /// `postcard(VaultMaterial)`, as stored on the device.
+    /// `VaultMaterial::to_bytes` (versioned), as stored on the device.
     pub material: Vec<u8>,
     pub invite: String,
     /// Unix seconds when the backup was made (display only).
@@ -99,17 +105,15 @@ impl Contents {
     /// Checks that the contents are a usable vault: the material parses and the identity
     /// is one of the vault's members.
     pub fn validate(&self) -> Result<VaultMaterial, BackupError> {
-        let material: VaultMaterial = postcard::from_bytes(&self.material)
-            .map_err(|_| BackupError::Encoding("vault material".into()))?;
-        let seeds: [u8; 64] = self
-            .identity_seeds
-            .as_slice()
-            .try_into()
-            .map_err(|_| BackupError::Encoding("identity".into()))?;
-        let me = zafe_proto::Identity::from_seeds(zafe_proto::IdentitySeeds {
-            sig_seed: seeds[..32].try_into().expect("32"),
-            enc_seed: seeds[32..].try_into().expect("32"),
-        });
+        let material = VaultMaterial::from_bytes(&self.material).map_err(|e| match e {
+            NodeError::UnsupportedVersion(v) => BackupError::UnsupportedVersion(v),
+            _ => BackupError::Encoding("vault material".into()),
+        })?;
+        let seeds = IdentitySeeds::from_bytes(&self.identity_seeds).map_err(|e| match e {
+            ProtoError::UnsupportedVersion(v) => BackupError::UnsupportedVersion(v),
+            _ => BackupError::Encoding("identity".into()),
+        })?;
+        let me = zafe_proto::Identity::from_seeds(seeds);
         if material.descriptor.member(&me.public().sig_pk).is_none() {
             return Err(BackupError::NotAMember);
         }
@@ -180,9 +184,7 @@ pub fn decrypt(bytes: &[u8], passphrase: &str) -> Result<Contents, BackupError> 
     if !is_backup(bytes) {
         return Err(BackupError::NotABackup);
     }
-    if bytes[7] != VERSION {
-        return Err(BackupError::UnsupportedVersion);
-    }
+    version::check(Format::Backup, u16::from(bytes[7]))?;
     let u32_at = |i: usize| u32::from_le_bytes(bytes[i..i + 4].try_into().expect("4"));
     let params = KdfParams {
         m_cost_kib: u32_at(8),

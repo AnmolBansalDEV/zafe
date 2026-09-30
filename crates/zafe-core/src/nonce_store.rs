@@ -4,10 +4,14 @@
 //! excluded from backups and device transfer (spec §9.4): Android `allowBackup="false"`,
 //! iOS `isExcludedFromBackup`. Restoring an old copy could make a member sign twice with the
 //! same nonces, which leaks their key share.
+//!
+//! Files are versioned (`zafe_proto::version`). A file in a version this build can't read
+//! counts as missing: its nonces are never used, which is always safe.
 
 use std::{fs, path::PathBuf};
 
 use reddsa::frost::redpallas::round1::{SigningCommitments, SigningNonces};
+use zafe_proto::version::{self, Format};
 
 use crate::session::{NonceStore, PoolStore, ProposalId, SessionError};
 
@@ -28,7 +32,7 @@ impl FileNonceStore {
 
     fn read(&self, proposal: &ProposalId, hash: &[u8; 32]) -> Option<Vec<SigningNonces>> {
         let encoded: Vec<Vec<u8>> =
-            postcard::from_bytes(&fs::read(self.file(proposal, hash)).ok()?).ok()?;
+            version::decode(Format::Nonces, &fs::read(self.file(proposal, hash)).ok()?).ok()?;
         encoded
             .iter()
             .map(|b| SigningNonces::deserialize(b).ok())
@@ -65,7 +69,7 @@ impl NonceStore for FileNonceStore {
             .iter()
             .map(|n| n.serialize().map_err(|e| storage(&e)))
             .collect::<Result<Vec<_>, _>>()?;
-        let bytes = postcard::to_allocvec(&encoded).map_err(|e| storage(&e))?;
+        let bytes = version::encode(Format::Nonces, &encoded).map_err(|e| storage(&e))?;
         fs::create_dir_all(&self.0).map_err(|e| storage(&e))?;
         // Write then rename, so a crash never leaves a truncated nonce file.
         let path = self.file(&proposal, &hash);
@@ -115,7 +119,10 @@ impl FilePoolStore {
 impl PoolStore for FilePoolStore {
     fn put(&mut self, commitment: &[u8], nonces: SigningNonces) -> Result<(), SessionError> {
         let storage = |e: &dyn std::fmt::Debug| SessionError::Storage(format!("{e:?}"));
-        let bytes = nonces.serialize().map_err(|e| storage(&e))?;
+        let bytes = version::frame(
+            Format::PoolNonce,
+            &nonces.serialize().map_err(|e| storage(&e))?,
+        );
         fs::create_dir_all(&self.0).map_err(|e| storage(&e))?;
         let path = self.file(commitment);
         let tmp = path.with_extension("tmp");
@@ -131,7 +138,7 @@ impl PoolStore for FilePoolStore {
         let path = self.file(commitment);
         let bytes = fs::read(&path).ok()?;
         fs::remove_file(&path).ok()?; // delete before use: never reusable
-        SigningNonces::deserialize(&bytes).ok()
+        SigningNonces::deserialize(version::unframe(Format::PoolNonce, &bytes).ok()?).ok()
     }
 
     fn forget(&mut self, commitment: &[u8]) {

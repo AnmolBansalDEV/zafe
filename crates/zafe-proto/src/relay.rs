@@ -1,5 +1,9 @@
-//! Relay API types (spec §6). All bodies are postcard-encoded; every request is signed by
-//! a member identity. The relay never sees plaintext vault data.
+//! Relay API types (spec §6). Request and response bodies are postcard behind a
+//! [`version::RELAY_API`] tag (envelopes and log entries carry their own tags); every
+//! request is signed by a member identity, over the API version too. A relay answers a
+//! body tagged with a version it doesn't speak with HTTP 426 and
+//! [`UNSUPPORTED_VERSION_HEADER`] set to the version it supports. The relay never sees
+//! plaintext vault data.
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -7,10 +11,15 @@ use crate::{
     envelope::{encode, Envelope, MailboxId},
     identity::{Identity, IdentityPublic},
     log::LogEntry,
+    version::{self, Format},
     ProtoError,
 };
 
 const SIGNATURE_DOMAIN: &[u8] = b"Zafe relay request v1";
+
+/// Response header of a 426 (Upgrade Required): the version of the rejected format that
+/// the relay supports.
+pub const UNSUPPORTED_VERSION_HEADER: &str = "zafe-supported-version";
 
 /// Read requests must be at most this old (and not from the future) when they arrive.
 pub const MAX_REQUEST_SKEW_SECS: u64 = 300;
@@ -42,16 +51,17 @@ impl<T: Serialize + DeserializeOwned> Signed<T> {
     }
 
     pub fn to_bytes(&self) -> Result<Vec<u8>, ProtoError> {
-        encode(self)
+        encode_body(self)
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, ProtoError> {
-        postcard::from_bytes(bytes).map_err(|_| ProtoError::Encoding)
+        decode_body(bytes)
     }
 }
 
 fn signed_bytes<T: Serialize>(payload: &T) -> Result<Vec<u8>, ProtoError> {
     let mut out = SIGNATURE_DOMAIN.to_vec();
+    out.extend_from_slice(&version::RELAY_API.to_le_bytes());
     out.extend_from_slice(&encode(payload)?);
     Ok(out)
 }
@@ -120,13 +130,36 @@ pub struct MembersResponse {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InboxResponse {
-    /// `(cursor, envelope)` in delivery order.
-    pub envelopes: Vec<(u64, Envelope)>,
+    /// `(cursor, Envelope::to_bytes)` in delivery order. Kept as bytes so one envelope in
+    /// a version this client can't read doesn't make the whole page unreadable.
+    pub envelopes: Vec<(u64, Vec<u8>)>,
+}
+
+impl InboxResponse {
+    /// The envelopes this build can decode (others are dropped, like badly signed ones).
+    pub fn decoded(&self) -> Vec<(u64, Envelope)> {
+        self.envelopes
+            .iter()
+            .filter_map(|(cursor, bytes)| Some((*cursor, Envelope::from_bytes(bytes).ok()?)))
+            .collect()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LogResponse {
-    pub entries: Vec<LogEntry>,
+    /// `LogEntry::to_bytes` of each entry, in index order.
+    pub entries: Vec<Vec<u8>>,
+}
+
+impl LogResponse {
+    /// Decodes every entry. An entry in an unknown version stops here with
+    /// [`ProtoError::UnsupportedVersion`]: the chain can't be followed past it.
+    pub fn decoded(&self) -> Result<Vec<LogEntry>, ProtoError> {
+        self.entries
+            .iter()
+            .map(|b| LogEntry::from_bytes(b))
+            .collect()
+    }
 }
 
 /// Result of a log append.
@@ -152,12 +185,14 @@ pub fn join_token_hash(token: &[u8; 32]) -> [u8; 32] {
         .expect("32 bytes")
 }
 
+/// A relay API body: `version (u16) || postcard(value)`.
 pub fn encode_body<T: Serialize>(value: &T) -> Result<Vec<u8>, ProtoError> {
-    encode(value)
+    Ok(version::encode(Format::RelayApi, value)?)
 }
 
+/// Decodes a relay API body, rejecting other API versions.
 pub fn decode_body<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, ProtoError> {
-    postcard::from_bytes(bytes).map_err(|_| ProtoError::Encoding)
+    Ok(version::decode(Format::RelayApi, bytes)?)
 }
 
 /// Push notification platform for a member device.

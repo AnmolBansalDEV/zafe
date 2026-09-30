@@ -5,11 +5,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{de::DeserializeOwned, Serialize};
 use zafe_proto::{
     relay::{
-        decode_body, encode_body, join_token_hash, AppendResult, CreateMailbox, InboxRead,
-        InboxResponse, Join, LogRead, LogResponse, MembersRead, MembersResponse, PushPlatform,
-        RegisterPush, Remove, Seal, Signed,
+        decode_body, join_token_hash, AppendResult, CreateMailbox, InboxRead, InboxResponse, Join,
+        LogRead, LogResponse, MembersRead, MembersResponse, PushPlatform, RegisterPush, Remove,
+        Seal, Signed, UNSUPPORTED_VERSION_HEADER,
     },
-    Envelope, Identity, LogEntry, MailboxId,
+    version::{Format, UnsupportedVersion},
+    Envelope, Identity, LogEntry, MailboxId, ProtoError,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -20,6 +21,48 @@ pub enum RelayClientError {
     Transport(String),
     #[error("encoding")]
     Encoding,
+    /// The relay refused this client's version of `format` (HTTP 426). `ours` newer than
+    /// `relay_supports` means the relay needs updating; older means the app does.
+    #[error("the relay speaks {format} version {relay_supports}, this app {ours}")]
+    VersionRejected {
+        format: Format,
+        ours: u16,
+        relay_supports: u16,
+    },
+    /// The relay sent data in a version this build can't read.
+    #[error(transparent)]
+    UnsupportedVersion(#[from] UnsupportedVersion),
+}
+
+impl RelayClientError {
+    /// This app is older than what it talked to: updating the app fixes it.
+    pub fn app_outdated(&self) -> bool {
+        match self {
+            RelayClientError::VersionRejected {
+                ours,
+                relay_supports,
+                ..
+            } => ours < relay_supports,
+            RelayClientError::UnsupportedVersion(v) => v.is_newer(),
+            _ => false,
+        }
+    }
+}
+
+fn decoding(e: ProtoError) -> RelayClientError {
+    match e {
+        ProtoError::UnsupportedVersion(v) => RelayClientError::UnsupportedVersion(v),
+        _ => RelayClientError::Encoding,
+    }
+}
+
+/// The format a request body to `path` is tagged with.
+fn body_format(path: &str) -> Format {
+    match path {
+        "/v1/envelope" => Format::Envelope,
+        "/v1/log/append" => Format::LogEntry,
+        _ => Format::RelayApi,
+    }
 }
 
 #[derive(Clone)]
@@ -87,6 +130,19 @@ impl RelayClient {
             .await
             .map_err(transport)?;
         let status = response.status();
+        if status.as_u16() == 426 {
+            let format = body_format(path);
+            let relay_supports = response
+                .headers()
+                .get(UNSUPPORTED_VERSION_HEADER)
+                .and_then(|v| v.to_str().ok()?.parse().ok())
+                .unwrap_or(0);
+            return Err(RelayClientError::VersionRejected {
+                format,
+                ours: format.current(),
+                relay_supports,
+            });
+        }
         let bytes = response.bytes().await.map_err(transport)?;
         if !status.is_success() {
             return Err(RelayClientError::Status {
@@ -110,7 +166,7 @@ impl RelayClient {
         let body = Signed::new(who, payload)
             .and_then(|s| s.to_bytes())
             .map_err(|_| RelayClientError::Encoding)?;
-        decode_body(&self.post(path, body).await?).map_err(|_| RelayClientError::Encoding)
+        decode_body(&self.post(path, body).await?).map_err(decoding)
     }
 
     pub async fn create_mailbox(
@@ -206,10 +262,11 @@ impl RelayClient {
         let body = envelope
             .to_bytes()
             .map_err(|_| RelayClientError::Encoding)?;
-        decode_body(&self.post("/v1/envelope", body).await?).map_err(|_| RelayClientError::Encoding)
+        decode_body(&self.post("/v1/envelope", body).await?).map_err(decoding)
     }
 
-    /// Envelopes delivered to `who` after cursor `after`, oldest first.
+    /// Envelopes delivered to `who` after cursor `after`, oldest first. Envelopes in a
+    /// version this build can't read are dropped.
     pub async fn inbox(
         &self,
         who: &Identity,
@@ -227,13 +284,12 @@ impl RelayClient {
                 },
             )
             .await?;
-        Ok(response.envelopes)
+        Ok(response.decoded())
     }
 
     pub async fn append_log(&self, entry: &LogEntry) -> Result<AppendResult, RelayClientError> {
-        let body = encode_body(entry).map_err(|_| RelayClientError::Encoding)?;
-        decode_body(&self.post("/v1/log/append", body).await?)
-            .map_err(|_| RelayClientError::Encoding)
+        let body = entry.to_bytes().map_err(|_| RelayClientError::Encoding)?;
+        decode_body(&self.post("/v1/log/append", body).await?).map_err(decoding)
     }
 
     pub async fn read_log(
@@ -253,6 +309,6 @@ impl RelayClient {
                 },
             )
             .await?;
-        Ok(response.entries)
+        response.decoded().map_err(decoding)
     }
 }

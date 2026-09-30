@@ -9,8 +9,9 @@ use super::error::{ZafeError, ZafeErrorKind};
 impl From<backup::BackupError> for ZafeError {
     fn from(e: backup::BackupError) -> Self {
         use backup::BackupError::*;
-        let kind = match e {
-            WeakPassphrase(_) | NotABackup | WrongPassphraseOrDamaged | UnsupportedVersion => {
+        let kind = match &e {
+            UnsupportedVersion(v) if v.is_newer() => ZafeErrorKind::UpdateRequired,
+            WeakPassphrase(_) | NotABackup | WrongPassphraseOrDamaged | UnsupportedVersion(_) => {
                 ZafeErrorKind::InvalidInput
             }
             NotAMember | BadParams => ZafeErrorKind::Verification,
@@ -20,7 +21,12 @@ impl From<backup::BackupError> for ZafeError {
             WeakPassphrase(hint) => format!("Passphrase too weak: {hint}"),
             NotABackup => "This isn't a Zafe vault backup".into(),
             WrongPassphraseOrDamaged => "Wrong passphrase, or the backup is damaged".into(),
-            UnsupportedVersion => "This backup needs a newer version of Zafe".into(),
+            UnsupportedVersion(v) if v.is_newer() => {
+                "This backup needs a newer version of Zafe".into()
+            }
+            UnsupportedVersion(_) => {
+                "This backup was made by an older version of Zafe that this one can't read".into()
+            }
             other => other.to_string(),
         };
         ZafeError::new(kind, message)

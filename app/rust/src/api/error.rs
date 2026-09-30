@@ -2,6 +2,7 @@
 //! `kind` for copy and recovery actions, and shows `message` only as detail.
 
 use zafe_core::{node::NodeError, relay_client::RelayClientError, wallet::WalletError};
+use zafe_proto::UnsupportedVersion;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ZafeErrorKind {
@@ -17,6 +18,10 @@ pub enum ZafeErrorKind {
     InsufficientFunds,
     /// Bad address, amount, memo or invite.
     InvalidInput,
+    /// Data, a message or the relay comes from a newer version of Zafe: update the app.
+    UpdateRequired,
+    /// The relay is older than this app and must be updated by whoever runs it.
+    RelayOutdated,
     Other,
 }
 
@@ -47,9 +52,34 @@ impl std::fmt::Display for ZafeError {
 
 impl std::error::Error for ZafeError {}
 
+/// Newer data means "update the app"; older data this build no longer reads is `Other`
+/// (pre-release formats have no migrations: reset or restore).
+fn version_kind(v: &UnsupportedVersion) -> ZafeErrorKind {
+    if v.is_newer() {
+        ZafeErrorKind::UpdateRequired
+    } else {
+        ZafeErrorKind::Other
+    }
+}
+
+impl From<UnsupportedVersion> for ZafeError {
+    fn from(v: UnsupportedVersion) -> Self {
+        Self::new(version_kind(&v), v.to_string())
+    }
+}
+
 impl From<NodeError> for ZafeError {
     fn from(e: NodeError) -> Self {
         let kind = match &e {
+            NodeError::UnsupportedVersion(v)
+            | NodeError::Relay(RelayClientError::UnsupportedVersion(v)) => version_kind(v),
+            NodeError::Relay(r @ RelayClientError::VersionRejected { .. }) => {
+                if r.app_outdated() {
+                    ZafeErrorKind::UpdateRequired
+                } else {
+                    ZafeErrorKind::RelayOutdated
+                }
+            }
             NodeError::Relay(RelayClientError::Transport(_)) => ZafeErrorKind::Network,
             NodeError::NotReady(_) => ZafeErrorKind::NotReady,
             NodeError::Timeout(_) => ZafeErrorKind::Timeout,

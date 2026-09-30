@@ -143,7 +143,8 @@ class Balance {
           totalZat == other.totalZat;
 }
 
-/// A new member identity. `seeds` (64 bytes) is secret: store it in secure storage.
+/// A new member identity. `seeds` (versioned, see `IdentitySeeds::to_bytes`) is secret:
+/// store it in secure storage.
 class IdentityInfo {
   final Uint8List seeds;
   final String publicKeyHex;

@@ -126,8 +126,7 @@ impl Home {
 
     fn identity(&self) -> Result<Identity> {
         let bytes = fs::read(self.path("identity.bin")).context("no identity; run `zafe init`")?;
-        let (sig_seed, enc_seed): ([u8; 32], [u8; 32]) = postcard::from_bytes(&bytes)?;
-        Ok(Identity::from_seeds(IdentitySeeds { sig_seed, enc_seed }))
+        Ok(Identity::from_seeds(IdentitySeeds::from_bytes(&bytes)?))
     }
 
     fn invite(&self) -> Result<Invite> {
@@ -139,7 +138,7 @@ impl Home {
     fn material(&self) -> Result<VaultMaterial> {
         let bytes = fs::read(self.path("vault.bin"))
             .context("vault not created yet; run `zafe vault keygen`")?;
-        Ok(postcard::from_bytes(&bytes)?)
+        Ok(VaultMaterial::from_bytes(&bytes)?)
     }
 }
 
@@ -200,11 +199,7 @@ async fn main() -> Result<()> {
                 bail!("identity already exists in {}", home.0.display());
             }
             let id = Identity::generate(&mut rng);
-            let seeds = id.seeds();
-            fs::write(
-                home.path("identity.bin"),
-                postcard::to_allocvec(&(seeds.sig_seed, seeds.enc_seed))?,
-            )?;
+            fs::write(home.path("identity.bin"), id.seeds().to_bytes())?;
             println!("identity {}", hex::encode(id.public().sig_pk));
         }
         Command::Vault(cmd) => vault(cmd, &home, &relay, &cli.lightwalletd, &mut rng).await?,
@@ -299,10 +294,8 @@ async fn main() -> Result<()> {
             }
         }
         Command::Backup { passphrase } => {
-            let id = home.identity()?;
-            let s = id.seeds();
             let contents = zafe_core::backup::Contents {
-                identity_seeds: [s.sig_seed.as_slice(), s.enc_seed.as_slice()].concat(),
+                identity_seeds: home.identity()?.seeds().to_bytes(),
                 material: fs::read(home.path("vault.bin"))
                     .context("vault not created yet; run `zafe vault keygen`")?,
                 invite: fs::read_to_string(home.path("invite.txt"))?,
@@ -359,10 +352,10 @@ async fn main() -> Result<()> {
             let id = parse_proposal(&proposal)?;
             // Commitment sets already put in a request must never be reused.
             let used_path = home.path("requests/used_commitments.bin");
-            let mut used: std::collections::BTreeSet<[u8; 32]> = fs::read(&used_path)
-                .ok()
-                .and_then(|b| postcard::from_bytes(&b).ok())
-                .unwrap_or_default();
+            let mut used = match fs::read(&used_path) {
+                Ok(bytes) => node::decode_used_commitments(&bytes)?,
+                Err(_) => Default::default(),
+            };
             let sent = node::request_signatures(
                 &relay,
                 &home.identity()?,
@@ -376,7 +369,7 @@ async fn main() -> Result<()> {
             .await?;
             used.extend(sent.used_commitments);
             fs::create_dir_all(home.path("requests"))?;
-            fs::write(&used_path, postcard::to_allocvec(&used)?)?;
+            fs::write(&used_path, node::encode_used_commitments(&used)?)?;
             fs::write(
                 home.path(&format!("requests/{proposal}.bin")),
                 node::encode_request(&sent.request)?,
@@ -396,7 +389,7 @@ async fn main() -> Result<()> {
             {
                 fs::write(
                     home.path(&format!("requests/{proposal}.own")),
-                    postcard::to_allocvec(&own)?,
+                    node::encode_own_shares(&own)?,
                 )?;
             }
             println!(
@@ -432,7 +425,7 @@ async fn main() -> Result<()> {
             let own: Option<Vec<Vec<u8>>> =
                 fs::read(home.path(&format!("requests/{proposal}.own")))
                     .ok()
-                    .map(|b| postcard::from_bytes(&b))
+                    .map(|b| node::decode_own_shares(&b))
                     .transpose()?;
             let mut client = connect(&cli.lightwalletd).await?;
             let txid = node::finalize(
@@ -515,7 +508,7 @@ async fn vault(
                 Duration::from_secs(timeout_secs),
             )
             .await?;
-            fs::write(home.path("vault.bin"), postcard::to_allocvec(&material)?)?;
+            fs::write(home.path("vault.bin"), material.to_bytes()?)?;
             println!("vault created: {}", material.descriptor.address);
         }
         VaultCmd::Show => {
