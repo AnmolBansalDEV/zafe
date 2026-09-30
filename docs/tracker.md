@@ -148,9 +148,10 @@ Open
 - [ ] Unlock gate follow-ups: it is a UI gate only (key material in secure storage is not
       bound to user authentication; a Keystore key with `setUserAuthenticationRequired` /
       Keychain `.userPresence` would make it cryptographic, but background round-2 signing
-      needs the key while locked, spec V8). `LaunchTheme` should use a `Theme.AppCompat`
-      parent or the biometric prompt can crash on Android 8 and below (minSdk 24). No
-      "open security settings" shortcut from the no-screen-lock warning
+      needs the key while locked, spec V8). No "open security settings" shortcut from the
+      no-screen-lock warning. Done 2026-09-30: Launch/NormalTheme use AppCompat parents
+      (+ explicit `androidx.appcompat`), so the biometric prompt can't crash on Android 8
+      and below; checked the app still launches (emulator, API 35)
 - [x] SQLCipher for the wallet DB (spec §14; done 2026-09-30): per-vault random key in
       secure storage, `PRAGMA key` on every connection, unreadable/plain DBs are deleted
       and resynced. Vendored OpenSSL (static libcrypto) on every target
