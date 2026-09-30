@@ -604,7 +604,8 @@ Learned while studying it:
   while another tab shows (indexed stack), so its 15 s poll keeps running.
 - **Vault emblem** (`features/vaults/vault_emblem.dart`): Home's avatar and the
   switcher show one of 8 drawn motifs (dial, keyhole, peaks, waves, coins, gem, sun,
-  orbit) on a dark tile, motif and palette from an FNV-1a hash of the vault id, so every
+  orbit) on a dark tile in one of 6 Verdigris/gold/bronze palettes, both picked by an
+  FNV-1a hash of the vault id (keep the palette count and order), so every
   member sees the same picture. Preview: `flutter test tool/screens/emblem_render_test.dart`
   → `app/build/screen_preview/vault_emblems.png`.
 - **Cached balance** for the switcher lives in secure storage (`ZafeSecureStore.balance`,

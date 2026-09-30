@@ -65,16 +65,29 @@ class EmblemLook {
   final Color ink;
   final Color accent;
 
-  // (tile, ink, accent): dark tiles in both themes (pictures, not surfaces); verdigris
-  // is the brand, gold is keys and funds, plus a few quiet companions. Keep six
-  // entries in this order: the vault id's hash picks one, so members agree.
+  // (tile, ink, accent): dark tiles in both themes (pictures, not surfaces). Verdigris is
+  // the brand and gold is keys and funds, with pale verdigris and bronze as companions;
+  // no violet, coral or blue (see docs/brand.md). Keep six entries in this order: the
+  // vault id's hash picks one, so members agree.
   static const _palettes = <(Color, Color, Color)>[
-    (Color(0xFF091312), Color(0xFF51DDD2), Color(0xFFE9C46A)),
-    (Color(0xFF1B170C), Color(0xFFE9C46A), Color(0xFF51DDD2)),
-    (Color(0xFF0C1719), Color(0xFFD9F5F2), Color(0xFF51DDD2)),
-    (Color(0xFF15111C), Color(0xFFB9A5F0), Color(0xFFE9C46A)),
-    (Color(0xFF1C1210), Color(0xFFF0A07A), Color(0xFFE9C46A)),
-    (Color(0xFF10151D), Color(0xFF8FB8F0), Color(0xFF51DDD2)),
+    (Color(0xFF091312), Color(0xFF51DDD2), Color(0xFFF3BA3C)), // teal on ink
+    (
+      Color(0xFF1B170C),
+      Color(0xFFF3BA3C),
+      Color(0xFF51DDD2),
+    ), // gold on dark bronze
+    (Color(0xFF0C1719), Color(0xFFD9F5F2), Color(0xFF51DDD2)), // pale verdigris
+    (
+      Color(0xFF004A46),
+      Color(0xFFD9F5F2),
+      Color(0xFFF3BA3C),
+    ), // the app icon's tile
+    (Color(0xFF1A140B), Color(0xFFC9923A), Color(0xFFD9F5F2)), // deep bronze
+    (
+      Color(0xFF0B1716),
+      Color(0xFF84E1D9),
+      Color(0xFFF3BA3C),
+    ), // light verdigris
   ];
 }
 
