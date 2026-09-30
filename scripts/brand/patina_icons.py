@@ -13,7 +13,7 @@ and copies Phosphor's licence to app/assets/icons/licenses/Phosphor-MIT.txt.
 Usage: scripts/brand/patina_icons.py [path/to/phosphor-core/package]
 Without a path it runs `npm pack @phosphor-icons/core@2.1.1` in a temp dir.
 
-Keep MAP in sync with `AppIcons.patina` in app/lib/src/core/widgets/app_icon.dart.
+Keep MAP in sync with `AppIcons` in app/lib/src/core/widgets/app_icon.dart.
 """
 import pathlib
 import re
@@ -28,35 +28,61 @@ OUT = ROOT / "app/assets/icons/patina"
 LICENSES = ROOT / "app/assets/icons/licenses"
 VERSION = "2.1.1"
 
-# AppIcons name -> Phosphor icon.
+# AppIcons name -> Phosphor icon. Every AppIcons name except the marks
+# (zcash_currency) and the code-drawn loader.
 MAP = {
-    "home": "house",
-    "history": "clock-counter-clockwise",
-    "users": "users-three",
-    "cog": "gear-six",
-    "plane": "paper-plane-tilt",
-    "arrow_down_circle": "arrow-circle-down",
     "add_new": "plus-circle",
-    "warning": "warning",
-    "warning_circle": "warning-circle",
-    "share": "export",
-    "chevron_forward": "caret-right",
-    "chevron_backward": "caret-left",
-    "eye": "eye",
-    "eye_closed": "eye-slash",
-    "shield_keyhole": "shield-check",
-    "edit_filled": "pencil-simple",
-    "time": "clock",
-    "cross": "x",
+    "arrow_down": "arrow-down",
+    "arrow_down_circle": "arrow-circle-down",
+    "book": "book-open",
+    "camera_denied": "camera-slash",
+    "cancel": "minus",
     "check": "check",
     "check_circle": "check-circle",
-    "arrow_down": "arrow-down",
+    "chevron_backward": "caret-left",
+    "chevron_forward": "caret-right",
+    "cog": "gear-six",
+    "copy": "copy",
+    "cross": "x",
+    "day": "sun",
+    "edit": "pencil-line",
+    "edit_filled": "pencil-simple",
+    "endpoint": "plugs-connected",
+    "eye": "eye",
+    "eye_closed": "eye-slash",
+    "globe": "globe",
+    "help": "question",
+    "history": "clock-counter-clockwise",
+    "home": "house",
+    "import_wallet": "clipboard-text",
+    "key": "key",
+    "link": "link",
+    "lock": "lock",
+    "monitor": "monitor",
+    "night": "moon",
+    "plane": "paper-plane-tilt",
+    "plus": "plus",
+    "qr": "qr-code",
+    "renew": "arrows-clockwise",
+    "share": "export",
+    "shield_keyhole": "shield-check",
+    "theme": "circle-half",
+    "time": "clock",
+    "trash": "trash",
+    "unlock": "lock-open",
+    "user": "user",
+    "users": "users-three",
+    "wallet": "wallet",
+    "warning": "warning",
+    "warning_circle": "warning-circle",
 }
 
 # Line icons: Phosphor's duotone for these is a different drawing (a closed triangle for
-# the carets) or adds a backdrop (a square behind the x and the check), so they use the
+# the carets) or adds a backdrop (a square behind the x, check, plus and minus, a disc
+# behind the arrows), so they use the
 # regular weight, outline only.
-LINE_ONLY = {"cross", "check", "chevron_forward", "chevron_backward", "arrow_down"}
+LINE_ONLY = {"cross", "check", "chevron_forward", "chevron_backward", "arrow_down",
+             "plus", "cancel", "renew"}
 
 OUTLINE = 'fill="#000000" stroke="#000000" stroke-width="2" stroke-linejoin="round"'
 

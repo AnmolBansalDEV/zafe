@@ -8,7 +8,7 @@ Copyright the Vizor authors, licensed under the Apache License, Version 2.0
 Derived files (lib/src/core/theme, lib/src/core/layout, lib/src/core/widgets,
 lib/src/core/feedback, lib/src/core/formatting, lib/src/core/motion,
 lib/src/core/privacy/privacy_mask.dart, lib/src/services/native_modal_corners.dart,
-assets/icons; resynced with upstream commit 4bff2e7) were
+assets/icons/zcash_currency.svg; resynced with upstream commit 4bff2e7) were
 modified for Zafe: imports made relative, platform channel names renamed to xyz.zafe/*,
 account/avatar widgets removed, AppButton wrapped in button semantics, the transaction
 progress screen's background image replaced by an optional background widget, and
@@ -23,7 +23,7 @@ Zafe restyles the derived code with its own palette, typefaces and shapes.
 Fonts in assets/fonts (Space Grotesk, DM Sans, JetBrains Mono) are licensed under the SIL
 Open Font License 1.1; see assets/fonts/licenses.
 
-Icons in assets/icons/patina are derived from Phosphor Icons
+All other icons, in assets/icons/patina, are derived from Phosphor Icons
 (https://github.com/phosphor-icons/core), Copyright (c) 2023 Phosphor Icons, licensed
 under the MIT License (assets/icons/licenses/Phosphor-MIT.txt). They were modified for
 Zafe: recoloured into two tones and the outlines thickened
