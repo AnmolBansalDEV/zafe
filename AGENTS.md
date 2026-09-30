@@ -650,6 +650,12 @@ Learned while studying it:
   last-seen snapshot (`<appSupport>/notifications/seen.json`, a file because prefs caches
   per isolate) and shows local notifications; the app records the snapshot on every
   refresh so nothing seen in-app is re-announced. Tapping opens `/proposal/:id`.
+- **Notification icon**: `res/drawable/ic_notification.xml`, a vector of the icon's Z
+  written by `scripts/brand/brand.py` (`write_notification_icon`); Android uses only
+  its alpha, so a full-colour launcher icon shows as a filled square. Used by
+  `flutter_local_notifications` (init + `icon:`, tinted `#4F7A08`) and as FCM's
+  `default_notification_icon`. `res/raw/keep.xml` keeps it through release resource
+  shrinking (Dart refers to it by name only).
 - **FCM is opt-in per build**: drop the Firebase project's `google-services.json` into
   `app/android/app/` (gitignored) and the Gradle plugin applies itself; without it the app
   builds and relies on background checks. Relay: `ZAFE_FCM_SERVICE_ACCOUNT=<key.json>`

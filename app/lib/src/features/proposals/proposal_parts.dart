@@ -5,6 +5,7 @@ import '../../core/errors/zafe_error_copy.dart';
 import '../../core/formatting/member_label.dart';
 import '../../core/formatting/zec_amount.dart';
 import '../../core/privacy/amount_display.dart';
+import '../../core/layout/mobile/app_mobile_sheet.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_copy_feedback.dart';
 import '../../core/widgets/app_icon.dart';
@@ -327,6 +328,7 @@ class _ReviewRows extends ConsumerWidget {
                 const DetailDivider(),
                 DetailRow(
                   label: 'Checked on this device',
+                  onHelp: () => showDeviceCheckSheet(context),
                   value: 'Matches',
                   trailing: AppIcon(
                     AppIcons.checkCircle,
@@ -341,6 +343,7 @@ class _ReviewRows extends ConsumerWidget {
               children: [
                 DetailRow(
                   label: 'Checked on this device',
+                  onHelp: () => showDeviceCheckSheet(context),
                   value: 'Does not match',
                   trailing: AppIcon(
                     AppIcons.warning,
@@ -603,3 +606,87 @@ class SweepCard extends StatelessWidget {
     );
   }
 }
+
+/// Explains "Checked on this device": what the phone verified in the transaction itself.
+Future<void> showDeviceCheckSheet(
+  BuildContext context,
+) => showAppMobileSheet<void>(
+  context: context,
+  builder: (sheet) {
+    final colors = sheet.colors;
+    Widget point(String title, String body) => Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.s),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: AppIcon(
+              AppIcons.checkCircle,
+              size: 16,
+              color: colors.icon.success,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '$title ',
+                    style: TextStyle(color: colors.text.accent),
+                  ),
+                  TextSpan(text: body),
+                ],
+              ),
+              style: AppTypography.bodyMedium.copyWith(
+                color: colors.text.secondary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return MobileModalScaffold(
+      title: 'Checked on this device',
+      onClose: () => Navigator.of(sheet).pop(),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Your approval signs the transaction itself, not this summary. So this '
+            'phone opened the transaction with the vault\'s keys and checked it '
+            'against what you see here, without trusting the proposer or the relay:',
+            style: AppTypography.bodyMedium.copyWith(color: colors.text.accent),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          point(
+            'Payments.',
+            'Each recipient, amount and memo is exactly as shown.',
+          ),
+          point('Funds.', 'It only spends money that belongs to the vault.'),
+          point(
+            'Change.',
+            'Everything left over comes back to the vault; nothing goes to a hidden '
+                'recipient.',
+          ),
+          point(
+            'Fee.',
+            'The fee is the standard network fee, not a way to pay someone extra.',
+          ),
+          point(
+            'Network.',
+            'It is valid on this network and expires as the vault expects.',
+          ),
+          Text(
+            '"Matches" means every check passed. If one fails you see "Does not '
+            'match" and the reason: don\'t approve it. The phone checks again just '
+            'before signing.',
+            style: AppTypography.bodySmall.copyWith(color: colors.text.muted),
+          ),
+        ],
+      ),
+    );
+  },
+);

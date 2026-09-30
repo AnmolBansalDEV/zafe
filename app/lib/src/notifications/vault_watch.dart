@@ -53,7 +53,7 @@ Future<void> firebaseBackgroundHandler(RemoteMessage message) async {
 Future<void> _initNotifications() async {
   await _notifications.initialize(
     settings: const InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      android: AndroidInitializationSettings('@drawable/ic_notification'),
       iOS: DarwinInitializationSettings(
         requestAlertPermission: false,
         requestBadgePermission: false,
@@ -380,6 +380,9 @@ Future<void> _checkVault(
                 'Payments that need you, payments sent or rejected, and money received',
             importance: Importance.high,
             priority: Priority.high,
+            // The Z from the app icon (scripts/brand/brand.py), tinted brand lime.
+            icon: 'ic_notification',
+            color: Color(0xFF4F7A08),
           ),
           iOS: DarwinNotificationDetails(),
         ),

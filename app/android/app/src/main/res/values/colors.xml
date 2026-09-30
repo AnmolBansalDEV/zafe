@@ -4,4 +4,6 @@
     <color name="zafe_window">#F4F4F3</color>
     <!-- Adaptive icon background: the lime tile (scripts/brand/brand.py LIME). -->
     <color name="zafe_icon_tile">#C9EE6E</color>
+    <!-- Notification accent (the light-mode lime; readable on both shades). -->
+    <color name="zafe_notification">#4F7A08</color>
 </resources>

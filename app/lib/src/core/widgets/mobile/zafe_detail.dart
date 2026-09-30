@@ -300,10 +300,14 @@ class DetailRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.trailing,
+    this.onHelp,
   });
   final String label;
   final String value;
   final Widget? trailing;
+
+  /// Adds a help icon after the label that calls this (e.g. to open an explanation).
+  final VoidCallback? onHelp;
 
   @override
   Widget build(BuildContext context) {
@@ -318,6 +322,19 @@ class DetailRow extends StatelessWidget {
               color: colors.text.secondary,
             ),
           ),
+          if (onHelp != null)
+            AppTappable(
+              onTap: onHelp,
+              semanticsLabel: 'What is "$label"?',
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.xxs),
+                child: AppIcon(
+                  AppIcons.help,
+                  size: 16,
+                  color: colors.icon.muted,
+                ),
+              ),
+            ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(

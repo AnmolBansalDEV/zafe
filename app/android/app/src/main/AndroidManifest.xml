@@ -17,6 +17,12 @@
         android:dataExtractionRules="@xml/data_extraction_rules">
         <!-- FCM: use our vault-activity channel for any notification it shows itself. -->
         <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_notification" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/zafe_notification" />
+        <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="vault_activity" />
         <activity
