@@ -8,7 +8,7 @@ use std::{path::PathBuf, process::Command, thread, time::Duration};
 
 use rust_lib_zafe::api::{
     proposals::{self, MyVote, PaymentInput, ProposalStage, SendStage},
-    vault,
+    received, vault,
 };
 
 const NAME: &str = "zafe-bridge";
@@ -194,6 +194,20 @@ fn payment_flow_through_bridge() {
         sync(m);
     }
 
+    // The mining rewards show up as received payments (coinbase, mined, with block times).
+    let received_list =
+        |m: &Member| received::list_received(m.db_dir.clone(), m.material.clone()).unwrap();
+    let incoming = received_list(&members[0]);
+    assert!(!incoming.is_empty(), "no received payments listed");
+    assert!(incoming.iter().all(|r| r.is_coinbase
+        && r.mined_height > 0
+        && r.block_time_secs > 0
+        && r.confirmations >= 1));
+    assert!(incoming.iter().map(|r| r.amount_zat).sum::<u64>() >= balance.total_zat);
+    assert!(incoming
+        .windows(2)
+        .all(|w| w[0].mined_height >= w[1].mined_height));
+
     // Inputs as the Dart screens validate them.
     let payee = outside_address();
     assert!(proposals::check_address("regtest".into(), payee.clone()).valid);
@@ -352,6 +366,10 @@ fn payment_flow_through_bridge() {
     thread::sleep(Duration::from_secs(3));
     let after = sync(&members[2]);
     println!("after: height {} total {}", after.height, after.total_zat);
+    // The vault's own payment (and its change) is not an incoming payment.
+    let incoming_after = received_list(&members[2]);
+    assert!(incoming_after.iter().all(|r| r.txid != txid));
+    assert!(incoming_after.iter().all(|r| r.is_coinbase));
 
     // --- One tap. Every member refreshed its proposal list above, which published its
     // commitments, so this proposal is signed at approval time: A and B each approve once,

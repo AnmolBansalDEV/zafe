@@ -20,8 +20,9 @@ import '../backup/backup_prompt_screen.dart' show backupStatusProvider;
 import '../vaults/vault_switcher_sheet.dart';
 import '../../providers/privacy_mode_provider.dart';
 import '../../providers/proposals_provider.dart';
+import '../../providers/received_provider.dart';
 import '../../core/privacy/privacy_mask.dart';
-import '../proposals/proposal_status.dart';
+import '../proposals/activity_feed.dart';
 import '../../core/widgets/mobile/mobile_surface_card.dart';
 import '../../providers/vault_provider.dart';
 
@@ -178,6 +179,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       ],
                       _Payments(
                         proposals: ref.watch(proposalsProvider),
+                        received: ref.watch(receivedProvider),
                         hideAmounts: ref.watch(privacyModeProvider),
                       ),
                       const SizedBox(height: AppSpacing.md),
@@ -510,14 +512,22 @@ class _SignersCard extends StatelessWidget {
 /// "Recent activity": header with "See all", up to 10 rows 12 apart, and
 /// the empty state.
 class _Payments extends StatelessWidget {
-  const _Payments({required this.proposals, required this.hideAmounts});
+  const _Payments({
+    required this.proposals,
+    required this.received,
+    required this.hideAmounts,
+  });
   final ProposalsState proposals;
+  final ReceivedState received;
   final bool hideAmounts;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final items = proposals.items.take(10).toList();
+    final items = mergeActivity(
+      proposals.items,
+      received.items,
+    ).take(10).toList();
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.xs,
@@ -594,11 +604,7 @@ class _Payments extends StatelessWidget {
             ),
           for (var i = 0; i < items.length; i++) ...[
             if (i > 0) const SizedBox(height: AppSpacing.s),
-            ProposalRow(
-              proposal: items[i],
-              hideAmount: hideAmounts,
-              onTap: () => context.push('/proposal/${items[i].id}'),
-            ),
+            ActivityRow(item: items[i], hideAmount: hideAmounts),
           ],
         ],
       ),

@@ -19,9 +19,11 @@ import 'features/proposals/activity_screen.dart';
 import 'features/proposals/proposal_screen.dart';
 import 'features/proposals/sending_screen.dart';
 import 'features/receive/receive_screen.dart';
+import 'features/received/received_screen.dart';
 import 'features/send/send_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'providers/theme_mode_provider.dart';
+import 'notifications/vault_updates.dart' show kReceivedPrefix;
 import 'notifications/vault_watch.dart';
 import 'providers/vault_provider.dart';
 
@@ -50,7 +52,11 @@ final _routerProvider = Provider<GoRouter>((ref) {
       await ref.read(vaultProvider.notifier).switchTo(vaultId);
       router.go('/home');
     }
-    router.push('/proposal/$proposalId');
+    router.push(
+      proposalId.startsWith(kReceivedPrefix)
+          ? '/received/${proposalId.substring(kReceivedPrefix.length)}'
+          : '/proposal/$proposalId',
+    );
   }
 
   void onTap() => unawaited(openTapped());
@@ -97,6 +103,11 @@ final _routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/receive',
         pageBuilder: (_, _) => page(const ReceiveScreen()),
+      ),
+      GoRoute(
+        path: '/received/:txid',
+        pageBuilder: (_, state) =>
+            page(ReceivedScreen(txid: state.pathParameters['txid']!)),
       ),
       GoRoute(
         path: '/activity',

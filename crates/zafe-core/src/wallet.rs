@@ -6,7 +6,7 @@
 //! derivation, so the wallet tracks note witnesses (a `ViewOnly` account would not).
 
 use std::{
-    path::Path,
+    path::{Path, PathBuf},
     str::FromStr,
     sync::{Arc, Mutex},
 };
@@ -116,6 +116,24 @@ pub struct PaymentRequest {
     pub memo: Option<MemoBytes>,
 }
 
+/// Money the vault received from outside: one per transaction that pays the vault and
+/// spends none of its notes (so never the change of the vault's own payments).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReceivedPayment {
+    /// Transaction id, in the usual (byte-reversed) hex display order.
+    pub txid: String,
+    /// Sum of the vault's non-change outputs in the transaction.
+    pub amount_zat: u64,
+    /// `None` while unmined (the wallet only learns of unmined transactions it created).
+    pub mined_height: Option<u32>,
+    /// Unix seconds of the mining block, when the wallet has scanned it.
+    pub block_time: Option<u32>,
+    /// Text memos of the received outputs (empty and non-text memos are left out).
+    pub memos: Vec<String>,
+    /// Whether this is a coinbase transaction (mining reward).
+    pub coinbase: bool,
+}
+
 /// Balances of the vault account, in zatoshis.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct VaultBalance {
@@ -129,6 +147,7 @@ pub struct VaultWallet<P: Parameters + Clone + Send + 'static> {
     params: P,
     account: AccountUuid,
     cache: MemBlockCache,
+    path: PathBuf,
 }
 
 impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
@@ -194,6 +213,7 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
             params,
             account,
             cache: MemBlockCache::default(),
+            path: path.to_path_buf(),
         })
     }
 
@@ -219,6 +239,7 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
             params,
             account: *account,
             cache: MemBlockCache::default(),
+            path: path.to_path_buf(),
         })
     }
 
@@ -256,6 +277,13 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
             ironwood_total: balance.ironwood_balance().total().into_u64(),
             total: balance.total().into_u64(),
         })
+    }
+
+    /// Payments the vault received, newest first (unmined ones first). Excludes transactions
+    /// that spend any vault note: their outputs back to the vault are change (or a self
+    /// transfer), not incoming money. Expired unmined transactions are left out.
+    pub fn received_payments(&self) -> Result<Vec<ReceivedPayment>, WalletError> {
+        received_payments_at(&self.path, self.account.expose_uuid().as_bytes())
     }
 
     /// Selects notes, builds and IO-finalizes a PCZT paying `payments`, with change back to
@@ -330,6 +358,98 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
             BundlePadding::DEFAULT,
         )
         .map_err(|e| WalletError::Proposal(format!("{e:?}")))
+    }
+}
+
+/// `VaultWallet::received_payments` for the account with this UUID in the database at `path`.
+fn received_payments_at(
+    path: &Path,
+    account: &[u8; 16],
+) -> Result<Vec<ReceivedPayment>, WalletError> {
+    // `WalletDb` doesn't expose its connection, so read the database's views
+    // (`v_received_outputs`, `v_received_output_spends`) on a second, read-only connection.
+    // Callers already serialize wallet access.
+    let conn = rusqlite::Connection::open_with_flags(
+        path,
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(db_err)?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT t.id_tx, t.txid, t.mined_height, b.time, SUM(ro.value),
+                    (t.tx_index IS NOT NULL AND t.tx_index = 0)
+             FROM v_received_outputs ro
+             JOIN accounts a ON a.id = ro.account_id
+             JOIN transactions t ON t.id_tx = ro.transaction_id
+             LEFT JOIN blocks b ON b.height = t.mined_height
+             WHERE a.uuid = ?1
+               AND ro.is_change = 0
+               AND NOT EXISTS (
+                   SELECT 1 FROM v_received_output_spends s
+                   WHERE s.transaction_id = t.id_tx AND s.account_id = a.id)
+               AND NOT (t.mined_height IS NULL AND t.expiry_height BETWEEN 1
+                        AND COALESCE((SELECT MAX(height) FROM blocks), 0))
+             GROUP BY t.id_tx
+             ORDER BY t.mined_height IS NOT NULL, t.mined_height DESC, t.id_tx DESC",
+        )
+        .map_err(db_err)?;
+    let rows = stmt
+        .query_map([account.as_slice()], |r| {
+            Ok((
+                r.get::<_, i64>(0)?,
+                r.get::<_, Vec<u8>>(1)?,
+                r.get::<_, Option<u32>>(2)?,
+                r.get::<_, Option<u32>>(3)?,
+                r.get::<_, i64>(4)?,
+                r.get::<_, bool>(5)?,
+            ))
+        })
+        .map_err(db_err)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(db_err)?;
+    let mut memo_stmt = conn
+        .prepare(
+            "SELECT ro.memo FROM v_received_outputs ro
+             JOIN accounts a ON a.id = ro.account_id
+             WHERE a.uuid = ?1 AND ro.transaction_id = ?2 AND ro.is_change = 0
+               AND ro.memo IS NOT NULL
+             ORDER BY ro.pool, ro.output_index",
+        )
+        .map_err(db_err)?;
+    rows.into_iter()
+        .map(|(id_tx, txid, mined_height, block_time, value, coinbase)| {
+            let txid: [u8; 32] = txid
+                .try_into()
+                .map_err(|_| WalletError::Db("txid is not 32 bytes".into()))?;
+            let memos = memo_stmt
+                .query_map(rusqlite::params![account.as_slice(), id_tx], |r| {
+                    r.get::<_, Vec<u8>>(0)
+                })
+                .map_err(db_err)?
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(db_err)?
+                .iter()
+                .filter_map(|m| memo_text(m))
+                .collect();
+            Ok(ReceivedPayment {
+                txid: zcash_protocol::TxId::from_bytes(txid).to_string(),
+                amount_zat: u64::try_from(value)
+                    .map_err(|_| WalletError::Db("negative received value".into()))?,
+                mined_height,
+                block_time,
+                memos,
+                coinbase,
+            })
+        })
+        .collect()
+}
+
+/// The text of a memo, or `None` for an empty, non-text or malformed one.
+pub fn memo_text(bytes: &[u8]) -> Option<String> {
+    let memo = zcash_protocol::memo::Memo::try_from(MemoBytes::from_bytes(bytes).ok()?).ok()?;
+    match memo {
+        zcash_protocol::memo::Memo::Text(t) if !t.is_empty() => Some(t.to_string()),
+        _ => None,
     }
 }
 
@@ -463,5 +583,157 @@ impl Parameters for ZafeNetwork {
             Self::Test => zcash_protocol::consensus::TestNetwork.activation_height(nu),
             Self::Regtest(n) => n.activation_height(nu),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::keys::{VaultKeys, VaultSecret};
+    use orchard::keys::{FullViewingKey, SpendingKey};
+    use zcash_client_backend::data_api::chain::ChainState;
+    use zcash_primitives::block::BlockHash;
+
+    fn text_memo(text: &str) -> Vec<u8> {
+        zcash_protocol::memo::Memo::from_bytes(text.as_bytes())
+            .unwrap()
+            .encode()
+            .as_array()
+            .to_vec()
+    }
+
+    /// Builds a wallet database with one vault account and hand-written chain data, then
+    /// checks which transactions count as received payments.
+    #[test]
+    #[allow(clippy::type_complexity)]
+    fn received_payments_exclude_own_spends_and_expired() {
+        let dir = std::env::temp_dir().join(format!("zafe-recv-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("wallet.sqlite");
+        let _ = std::fs::remove_file(&path);
+        let net = regtest_network();
+
+        let ak: [u8; 32] = FullViewingKey::from(&SpendingKey::from_bytes([3u8; 32]).unwrap())
+            .to_bytes()[..32]
+            .try_into()
+            .unwrap();
+        let ufvk = VaultKeys::derive(&VaultSecret::from_bytes([9u8; 32]), &ak)
+            .unwrap()
+            .ufvk()
+            .unwrap();
+        let mut db = WalletDb::for_path(&path, net, SystemClock, OsRng).unwrap();
+        init_wallet_db(&mut db, None).unwrap();
+        let birthday = AccountBirthday::from_parts(
+            ChainState::empty(BlockHeight::from_u32(1), BlockHash([0; 32])),
+            None,
+        );
+        let account = db
+            .import_account_ufvk(
+                "vault",
+                &ufvk,
+                &birthday,
+                AccountPurpose::Spending { derivation: None },
+                None,
+            )
+            .unwrap()
+            .id();
+
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        let account_id: i64 = conn
+            .query_row("SELECT id FROM accounts", [], |r| r.get(0))
+            .unwrap();
+        for (height, time) in [
+            (10u32, 1_700_000_000u32),
+            (12, 1_700_000_300),
+            (20, 1_700_001_000),
+        ] {
+            conn.execute(
+                "INSERT INTO blocks (height, hash, time, sapling_tree) VALUES (?1, ?2, ?3, x'00')",
+                rusqlite::params![height, vec![height as u8; 32], time],
+            )
+            .unwrap();
+        }
+        // (id, txid byte, mined height, tx index, expiry)
+        let txs: [(i64, u8, Option<u32>, Option<u32>, u32); 5] = [
+            (1, 0xa1, Some(10), Some(1), 50), // external payment, two outputs
+            (2, 0xa2, Some(12), Some(0), 0),  // coinbase
+            (3, 0xa3, Some(20), Some(1), 60), // the vault's own spend, with change
+            (4, 0xa4, None, None, 15),        // unmined and expired
+            (5, 0xa5, None, None, 100),       // unmined, still valid
+        ];
+        for (id, byte, mined, index, expiry) in txs {
+            conn.execute(
+                "INSERT INTO transactions (id_tx, txid, block, mined_height, tx_index,
+                     expiry_height, min_observed_height)
+                 VALUES (?1, ?2, ?3, ?3, ?4, ?5, 1)",
+                rusqlite::params![id, vec![byte; 32], mined, index, expiry],
+            )
+            .unwrap();
+        }
+        // (note id, tx, action, value, is_change, memo)
+        let notes: [(i64, i64, u32, i64, bool, Option<Vec<u8>>); 6] = [
+            (1, 1, 0, 100_000, false, Some(text_memo("rent"))),
+            (2, 1, 1, 50_000, false, Some(vec![0xf6])),
+            (3, 2, 0, 625_000_000, false, None),
+            (4, 3, 0, 40_000, true, None),
+            (5, 3, 1, 5_000, false, None), // a self-payment inside the vault's own spend
+            (6, 5, 0, 7_000, false, None),
+        ];
+        for (id, tx, action, value, change, memo) in notes {
+            conn.execute(
+                "INSERT INTO ironwood_received_notes (id, transaction_id, action_index,
+                     account_id, diversifier, value, rho, rseed, is_change, memo, note_version)
+                 VALUES (?1, ?2, ?3, ?4, x'00', ?5, x'00', x'00', ?6, ?7, 0)",
+                rusqlite::params![id, tx, action, account_id, value, change, memo],
+            )
+            .unwrap();
+        }
+        // Transaction 3 spends note 1 (the vault paying someone).
+        conn.execute(
+            "INSERT INTO ironwood_received_note_spends VALUES (1, 3)",
+            [],
+        )
+        .unwrap();
+        drop(conn);
+
+        let got = received_payments_at(&path, account.expose_uuid().as_bytes()).unwrap();
+        let txid = |b: u8| zcash_protocol::TxId::from_bytes([b; 32]).to_string();
+        assert_eq!(
+            got,
+            vec![
+                ReceivedPayment {
+                    txid: txid(0xa5),
+                    amount_zat: 7_000,
+                    mined_height: None,
+                    block_time: None,
+                    memos: vec![],
+                    coinbase: false,
+                },
+                ReceivedPayment {
+                    txid: txid(0xa2),
+                    amount_zat: 625_000_000,
+                    mined_height: Some(12),
+                    block_time: Some(1_700_000_300),
+                    memos: vec![],
+                    coinbase: true,
+                },
+                ReceivedPayment {
+                    txid: txid(0xa1),
+                    amount_zat: 150_000,
+                    mined_height: Some(10),
+                    block_time: Some(1_700_000_000),
+                    memos: vec!["rent".into()],
+                    coinbase: false,
+                },
+            ]
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn memo_text_skips_empty_and_binary() {
+        assert_eq!(memo_text(&text_memo("hi")), Some("hi".into()));
+        assert_eq!(memo_text(&[0xf6]), None);
+        assert_eq!(memo_text(&[0xff; 512]), None);
     }
 }

@@ -6,7 +6,7 @@ finished ones, tick them and add the commit. Spec references are to `spec.md`.
 
 Legend: `[ ]` open · `[x]` done · **(you)** needs the user · *(idea)* not yet decided
 
-Last updated: 2026-09-30 (Vizor core resynced to `4bff2e7`; send progress and activity screens)
+Last updated: 2026-09-30 (incoming payments in activity; earlier: Vizor core resynced to `4bff2e7`)
 
 ---
 
@@ -35,8 +35,15 @@ Last updated: 2026-09-30 (Vizor core resynced to `4bff2e7`; send progress and ac
    feature (arti), process-wide fail-closed route policy, bootstrap timeout, dormant when
    backgrounded; route both lightwalletd and the relay (relay client moves off reqwest).
    Settings toggle + status. A full slice; deferred on 2026-09-29 as "not small".
-4. [ ] **Incoming history**: home shows proposals only; received funds and a real activity
-   list (Vizor activity feed, month sections) are missing.
+4. [x] **Incoming history** (2026-09-30): received payments (any transaction paying the
+   vault that spends none of its notes, so never change; coinbase included) are read
+   from the wallet DB (`VaultWallet::received_payments`, bridge `api/received.rs`), merged
+   with proposals by time on Home and `/activity`, open `/received/:txid`, and are
+   announced by the background check ("payment received"). Tested: wallet unit test on a
+   hand-built DB, `bridge_e2e` (coinbase receipts listed, own spend excluded), Dart tests.
+   Not yet checked on a device/emulator. Notes: a received payment's sender is
+   unknowable (shielded), so there is no "from"; pending (unmined) receipts only appear if the wallet learns of them, which
+   `sync::run` doesn't do (no mempool scan).
 5. [ ] **Scan invite QR** on Join (camera); today it's paste only.
 
 ## M1 — app v1 on testnet (spec §16)

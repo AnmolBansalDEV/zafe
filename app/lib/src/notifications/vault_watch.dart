@@ -16,6 +16,7 @@ import '../core/storage/zafe_paths.dart';
 import '../core/storage/zafe_secure_store.dart';
 import '../providers/privacy_mode_provider.dart' show kPrivacyModeKey;
 import '../rust/api/proposals.dart' as rust;
+import '../rust/api/received.dart' as rust_received;
 import '../rust/api/vault.dart' as rust_vault;
 import '../rust/frb_generated.dart';
 import 'vault_updates.dart';
@@ -153,19 +154,34 @@ Future<SeenSnapshot?> _readSeen(String vaultId) async {
   }
 }
 
+/// Serializes snapshot writes in this isolate (proposals and received payments are
+/// recorded separately, and each write merges with the file).
+Future<void> _seenWrites = Future.value();
+
 /// Records what this device has seen of a vault (also called by the app on every refresh,
-/// so things seen in the app are never announced again from the background).
+/// so things seen in the app are never announced again from the background). A `null`
+/// list keeps what was recorded for that kind.
 Future<void> recordSeen(
   String vaultId,
-  List<rust.ProposalInfo> proposals,
-) async {
-  final f = await _seenFile(vaultId);
-  await f.parent.create(recursive: true);
-  final tmp = File('${f.path}.${DateTime.now().microsecondsSinceEpoch}.tmp');
-  try {
-    await tmp.writeAsString(jsonEncode(snapshotOf(proposals)));
-    await tmp.rename(f.path);
-  } catch (_) {}
+  List<rust.ProposalInfo>? proposals, {
+  List<rust_received.ReceivedInfo>? received,
+}) {
+  final write = _seenWrites.then((_) async {
+    final f = await _seenFile(vaultId);
+    await f.parent.create(recursive: true);
+    final tmp = File('${f.path}.${DateTime.now().microsecondsSinceEpoch}.tmp');
+    try {
+      final previous = await _readSeen(vaultId) ?? const {};
+      await tmp.writeAsString(
+        jsonEncode(
+          snapshotOf(proposals, received: received, previous: previous),
+        ),
+      );
+      await tmp.rename(f.path);
+    } catch (_) {}
+  });
+  _seenWrites = write.catchError((_) {});
+  return write;
 }
 
 /// Notification payloads carry both ids, so a tap can switch to the right vault.
@@ -247,6 +263,13 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
       );
       await VaultSummaries.write(v.id, balanceZat: balance.totalZat);
     } catch (_) {}
+    List<rust_received.ReceivedInfo>? received;
+    try {
+      received = await rust_received.listReceived(
+        dbDir: paths.dbDir,
+        material: material,
+      );
+    } catch (_) {}
     var proposals = await rust.listProposals(
       relayUrl: kZafeRelayUrl,
       stateDir: stateDir,
@@ -299,6 +322,7 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
       proposals: proposals,
       vaultName: summary.name,
       hideAmounts: hideAmounts,
+      received: received ?? const [],
     );
     for (final u in updates) {
       await _notifications.show(
@@ -310,7 +334,7 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
             _channelId,
             _channelName,
             channelDescription:
-                'Payments that need you, and payments sent or rejected',
+                'Payments that need you, payments sent or rejected, and money received',
             importance: Importance.high,
             priority: Priority.high,
           ),
@@ -319,7 +343,7 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
         payload: notificationPayload(v.id, u.proposalId),
       );
     }
-    await recordSeen(v.id, proposals);
+    await recordSeen(v.id, proposals, received: received);
     debugPrint(
       'vault check: ${summary.name}: ${updates.length} notification(s)',
     );

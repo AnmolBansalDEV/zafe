@@ -246,12 +246,27 @@ Learned while studying it:
   as a normal event (`SendStage::Failed` + `error: Option<ZafeError>`). The generated Dart
   `ZafeError` has no useful `toString`; log with `describeError`. Keep a plain-callback
   twin marked `#[frb(ignore)]` (`send_with_progress`) so Rust tests can drive it.
-- Flows: `/send` (recipient → amount → review → "Propose payment"), `/proposal/:id`
+- Flows: `/send` (recipient → amount → review → "Propose payment"), `/received/:txid`
+  (money received), `/proposal/:id`
   (independent check on this device, votes, approve/reject, "Collect signatures & send"),
   `/proposal/:id/send` (Vizor's transaction progress screen; the send lives in
   `ProposalsNotifier`, so leaving the screen doesn't stop it), `/activity` (all payments).
   Home polls every 15 s: proposals refresh + answering signing requests, then wallet sync.
   Wallet DB access is serialized by `wallet_lock()` in the bridge.
+- **Received payments** (`wallet::VaultWallet::received_payments`, bridge
+  `api/received.rs` `list_received`, `providers/received_provider.dart`): `WalletDb`
+  doesn't expose its connection, so it opens a second **read-only** rusqlite connection
+  (path kept on `VaultWallet`) and queries the `v_received_outputs` /
+  `v_received_output_spends` views: non-change outputs of transactions that spend no
+  vault note, `tx_index = 0` = coinbase, block time from `blocks`. Must run under
+  `wallet_lock()`. The provider reloads whenever the active vault's `Balance` changes
+  (every sync bumps the height). Activity rows are `ActivityItem`s
+  (`features/proposals/activity_feed.dart`, `mergeActivity`): pending receipts first,
+  then by time. The notification snapshot (`seen.json`) now also holds `rx:<txid>` keys
+  plus an `rx:*` marker; without the marker (older snapshots) receipts are recorded but
+  not announced, so an upgrade doesn't replay history. `recordSeen(id, proposals,
+  received:)` merges (a `null` list keeps that kind). Notification payload
+  `vaultId:rx:<txid>` opens `/received/<txid>`.
 - `VaultWallet::create` does all network calls **before** creating the DB file; the bridge
   also deletes a DB with no account (`VaultWallet::exists`). Previously the first sync with
   lightwalletd down left an empty DB that failed forever ("expected one account, found 0").
@@ -327,6 +342,10 @@ relay plus CLI members B and C and sets `adb reverse` for 8787/9067, so the app'
 defaults work on a device. Its `cli` subcommand does not rebuild: `cargo build -p zafe-cli`
 after core changes. agent-device tips: prefer `find "<text>" click`; refs go stale after
 every snapshot; `scroll down --until 'label="..."'` before pressing bottom buttons.
+
+In a fresh git worktree, plain `flutter analyze` reports ~50 errors in
+`rust_builder/cargokit/build_tool` until `dart pub get` runs there; `flutter analyze lib
+test` checks the app alone.
 
 App commands (from `app/`, after `source ~/android/env.sh`):
 `flutter_rust_bridge_codegen generate` (after changing `app/rust/src/api`), `flutter analyze`

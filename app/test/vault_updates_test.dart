@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zafe/src/notifications/vault_updates.dart';
 import 'package:zafe/src/rust/api/proposals.dart';
+import 'package:zafe/src/rust/api/received.dart';
 
 ProposalInfo proposal(
   String id, {
@@ -33,6 +34,16 @@ ProposalInfo proposal(
   ready: ready,
   completedByMe: false,
   autoSend: autoSend,
+);
+
+ReceivedInfo receipt(String txid, {bool coinbase = false}) => ReceivedInfo(
+  txid: txid,
+  amountZat: BigInt.from(250000000),
+  minedHeight: 10,
+  blockTimeSecs: 1700000000,
+  confirmations: 3,
+  memo: '',
+  isCoinbase: coinbase,
 );
 
 List<VaultUpdate> updates(
@@ -112,5 +123,57 @@ void main() {
   test('privacy mode leaves amounts and addresses out', () {
     final u = updates({}, [proposal('p1')], hide: true);
     expect(u.single.body, 'A payment');
+  });
+
+  group('received payments', () {
+    List<VaultUpdate> received(
+      SeenSnapshot? previous,
+      List<ReceivedInfo> now, {
+      bool hide = false,
+    }) => vaultUpdates(
+      previous: previous,
+      proposals: const [],
+      vaultName: 'Grants',
+      hideAmounts: hide,
+      received: now,
+    );
+
+    test('a new receipt is announced once', () {
+      final before = snapshotOf(const [], received: [receipt('t1')]);
+      final now = [receipt('t2'), receipt('t1')];
+      final u = received(before, now);
+      expect(u, hasLength(1));
+      expect(u.single.title, 'Grants: payment received');
+      expect(u.single.body, '+2.5 TAZ');
+      expect(u.single.proposalId, 'rx:t2');
+      expect(received(snapshotOf(const [], received: now), now), isEmpty);
+    });
+
+    test('snapshots from before receipts were tracked announce none', () {
+      final old = snapshotOf([proposal('p1')]);
+      expect(old.containsKey(kReceivedMarker), isFalse);
+      expect(received(old, [receipt('t1')]), isEmpty);
+    });
+
+    test('mining rewards and privacy mode', () {
+      final before = snapshotOf(const [], received: const []);
+      final u = received(before, [receipt('t1', coinbase: true)], hide: true);
+      expect(u.single.title, 'Grants: mining reward received');
+      expect(u.single.body, 'Open Zafe to see it.');
+    });
+
+    test('recording one kind keeps the other', () {
+      final both = snapshotOf([proposal('p1')], received: [receipt('t1')]);
+      final proposalsOnly = snapshotOf([proposal('p2')], previous: both);
+      expect(proposalsOnly.keys, containsAll(['p2', 'rx:t1', kReceivedMarker]));
+      expect(proposalsOnly.containsKey('p1'), isFalse);
+      final receivedOnly = snapshotOf(
+        null,
+        received: [receipt('t2')],
+        previous: both,
+      );
+      expect(receivedOnly.keys, containsAll(['p1', 'rx:t2', kReceivedMarker]));
+      expect(receivedOnly.containsKey('rx:t1'), isFalse);
+    });
   });
 }
