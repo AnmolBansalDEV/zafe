@@ -33,13 +33,8 @@ class ZecCoin extends StatelessWidget {
   );
 }
 
-// Payment card colours: the same theme-invariant ink card as the home vault card.
-const _cardInk = Color(0xFF111111);
-const _cardLime = Color(0xFFC9EE6E);
-const _cardText = Color(0xFFF4F4F2);
-
 /// The payment at the top of the review and proposal screens: amount in large type on
-/// the dark vault card, and the recipient (shielded address, compact) with a
+/// the vault card (`colors.vaultCard`, dark or light with the theme), and the recipient (shielded address, compact) with a
 /// "Full address" action.
 class PaymentCard extends StatelessWidget {
   const PaymentCard({
@@ -69,21 +64,27 @@ class PaymentCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final card = colors.vaultCard;
     final decoration = strikethrough
         ? TextDecoration.lineThrough
         : TextDecoration.none;
     return Container(
       decoration: BoxDecoration(
-        color: _cardInk,
+        color: card.background,
         borderRadius: BorderRadius.circular(AppRadii.large),
-        border: Border.all(color: const Color(0x1AC9EE6E), width: 1),
+        border: Border.all(color: card.border, width: 1),
         boxShadow: appSurfaceShadow(colors),
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
-          const Positioned.fill(
-            child: CustomPaint(painter: _PaymentDialPainter()),
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _PaymentDialPainter(
+                color: card.accent,
+                opacity: card.dialOpacity,
+              ),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 18, 16, 16),
@@ -95,16 +96,16 @@ class PaymentCard extends StatelessWidget {
                     Text(
                       label,
                       style: AppTypography.labelSmall.copyWith(
-                        color: _cardText.withValues(alpha: 0.7),
+                        color: card.textSecondary,
                         letterSpacing: 1.6,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(width: AppSpacing.xs),
-                    const AppIcon(
+                    AppIcon(
                       AppIcons.shieldKeyhole,
                       size: 14,
-                      color: _cardLime,
+                      color: card.accent,
                     ),
                   ],
                 ),
@@ -120,11 +121,11 @@ class PaymentCard extends StatelessWidget {
                           fontSize: 42,
                           height: 1.05,
                           letterSpacing: -1.6,
-                          color: _cardText.withValues(
+                          color: card.text.withValues(
                             alpha: strikethrough ? 0.55 : 1,
                           ),
                           decoration: decoration,
-                          decorationColor: _cardText.withValues(alpha: 0.55),
+                          decorationColor: card.text.withValues(alpha: 0.55),
                         ),
                       ),
                       TextSpan(
@@ -133,7 +134,7 @@ class PaymentCard extends StatelessWidget {
                           fontFamily: 'Space Grotesk',
                           fontWeight: FontWeight.w500,
                           fontSize: 20,
-                          color: _cardLime.withValues(
+                          color: card.ticker.withValues(
                             alpha: strikethrough ? 0.55 : 1,
                           ),
                         ),
@@ -172,12 +173,13 @@ class _Recipient extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final card = context.colors.vaultCard;
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
       decoration: BoxDecoration(
-        color: const Color(0x0DFFFFFF),
+        color: card.inset,
         borderRadius: BorderRadius.circular(AppRadii.small),
-        border: Border.all(color: const Color(0x14FFFFFF)),
+        border: Border.all(color: card.insetBorder),
       ),
       child: Row(
         children: [
@@ -187,10 +189,10 @@ class _Recipient extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const AppIcon(
+                    AppIcon(
                       AppIcons.shieldKeyhole,
                       size: 12,
-                      color: _cardLime,
+                      color: card.accent,
                     ),
                     const SizedBox(width: 4),
                     Flexible(
@@ -201,7 +203,7 @@ class _Recipient extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.labelSmall.copyWith(
-                          color: _cardText.withValues(alpha: 0.6),
+                          color: card.textSecondary,
                         ),
                       ),
                     ),
@@ -212,11 +214,11 @@ class _Recipient extends StatelessWidget {
                   compactAddress(address),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'JetBrains Mono',
                     fontSize: 13,
                     height: 1.3,
-                    color: _cardText,
+                    color: card.text,
                   ),
                 ),
               ],
@@ -230,18 +232,18 @@ class _Recipient extends StatelessWidget {
               height: 32,
               padding: const EdgeInsets.symmetric(horizontal: 10),
               decoration: BoxDecoration(
-                color: const Color(0x14FFFFFF),
+                color: card.chip,
                 borderRadius: BorderRadius.circular(AppRadii.xSmall),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const AppIcon(AppIcons.eye, size: 14, color: _cardText),
+                  AppIcon(AppIcons.eye, size: 14, color: card.text),
                   const SizedBox(width: 6),
                   Text(
                     'Full address',
                     style: AppTypography.labelSmall.copyWith(
-                      color: _cardText,
+                      color: card.text,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -257,7 +259,11 @@ class _Recipient extends StatelessWidget {
 
 /// A quarter of the vault dial (rings and ticks) behind the payment card's top-right.
 class _PaymentDialPainter extends CustomPainter {
-  const _PaymentDialPainter();
+  const _PaymentDialPainter({required this.color, required this.opacity});
+  final Color color;
+  final double opacity;
+
+  Color _a(double alpha) => color.withValues(alpha: alpha * opacity);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -267,19 +273,19 @@ class _PaymentDialPainter extends CustomPainter {
       center,
       glow,
       Paint()
-        ..shader = const RadialGradient(
-          colors: [Color(0x33C9EE6E), Color(0x00C9EE6E)],
+        ..shader = RadialGradient(
+          colors: [_a(0.2), _a(0)],
         ).createShader(Rect.fromCircle(center: center, radius: glow)),
     );
     final ring = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
     for (var i = 0; i < 4; i++) {
-      ring.color = Color.fromRGBO(201, 238, 110, 0.20 - i * 0.04);
+      ring.color = _a(0.20 - i * 0.04);
       canvas.drawCircle(center, 56.0 + i * 30, ring);
     }
     final tick = Paint()
-      ..color = const Color(0x55C9EE6E)
+      ..color = _a(0.33)
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
     const outer = 56.0 + 30;
@@ -291,7 +297,8 @@ class _PaymentDialPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _PaymentDialPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.opacity != opacity;
 }
 
 class DetailRow extends StatelessWidget {

@@ -65,15 +65,16 @@ class EmblemLook {
   final Color ink;
   final Color accent;
 
-  // (tile, ink, accent): dark tiles in both themes, like the vault card; lime is the
-  // brand, gold is keys and funds, plus a few quiet companions.
+  // (tile, ink, accent): dark tiles in both themes (pictures, not surfaces); verdigris
+  // is the brand, gold is keys and funds, plus a few quiet companions. Keep six
+  // entries in this order: the vault id's hash picks one, so members agree.
   static const _palettes = <(Color, Color, Color)>[
-    (Color(0xFF141A0B), Color(0xFFC9EE6E), Color(0xFFE9C46A)),
-    (Color(0xFF1B170C), Color(0xFFE9C46A), Color(0xFFC9EE6E)),
-    (Color(0xFF0C1719), Color(0xFF7FD6CF), Color(0xFFC9EE6E)),
+    (Color(0xFF091312), Color(0xFF51DDD2), Color(0xFFE9C46A)),
+    (Color(0xFF1B170C), Color(0xFFE9C46A), Color(0xFF51DDD2)),
+    (Color(0xFF0C1719), Color(0xFFD9F5F2), Color(0xFF51DDD2)),
     (Color(0xFF15111C), Color(0xFFB9A5F0), Color(0xFFE9C46A)),
     (Color(0xFF1C1210), Color(0xFFF0A07A), Color(0xFFE9C46A)),
-    (Color(0xFF10151D), Color(0xFF8FB8F0), Color(0xFFC9EE6E)),
+    (Color(0xFF10151D), Color(0xFF8FB8F0), Color(0xFF51DDD2)),
   ];
 }
 

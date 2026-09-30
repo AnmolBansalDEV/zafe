@@ -11,9 +11,11 @@ import '../app_icon.dart';
 
 enum MobileTransactionProgressPhase { inProgress, pending, succeeded, failed }
 
-const _sendingCircleColor = Color(0xFF4F7A08);
-const _successCircleColor = Color(0xFF00A460);
-const _failureCircleColor = Color(0xFF9338A7);
+// Same in both themes, each passing 3:1 against the white icon: deep verdigris
+// (brand) while sending, Zcash gold (value) once sent, rose (error) on failure.
+const _sendingCircleColor = Color(0xFF00736C);
+const _successCircleColor = Color(0xFFAE7C00);
+const _failureCircleColor = Color(0xFFA82571);
 const _statusIconColor = Color(0xFFFFFFFF);
 const _statusCircleSize = 64.0;
 const _statusIconSize = 32.0;

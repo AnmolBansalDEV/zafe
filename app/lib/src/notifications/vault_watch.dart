@@ -381,9 +381,9 @@ Future<void> _checkVault(
                 'Payments that need you, payments sent or rejected, and money received',
             importance: Importance.high,
             priority: Priority.high,
-            // The Z from the app icon (scripts/brand/brand.py), tinted brand lime.
+            // The Z from the app icon (scripts/brand/brand.py), tinted brand verdigris.
             icon: 'ic_notification',
-            color: Color(0xFF4F7A08),
+            color: Color(0xFF00736C),
           ),
           iOS: DarwinNotificationDetails(),
         ),

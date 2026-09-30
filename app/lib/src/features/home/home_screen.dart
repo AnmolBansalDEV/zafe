@@ -294,9 +294,6 @@ class _BalanceCard extends StatelessWidget {
   final int threshold;
   final int members;
 
-  static const _ink = Color(0xFF111111);
-  static const _lime = Color(0xFFC9EE6E);
-
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -304,21 +301,26 @@ class _BalanceCard extends StatelessWidget {
     final amount = total == null
         ? '—'
         : ZecAmount.fromZatoshi(total).compactBalance.amountText;
-    const homeText = Color(0xFFF4F4F2);
+    final card = colors.vaultCard;
 
     return Container(
       height: 216,
       decoration: BoxDecoration(
-        color: _ink,
+        color: card.background,
         borderRadius: BorderRadius.circular(AppRadii.large),
-        border: Border.all(color: const Color(0x1AC9EE6E), width: 1),
+        border: Border.all(color: card.border, width: 1),
         boxShadow: appSurfaceShadow(colors),
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
         children: [
-          const Positioned.fill(
-            child: CustomPaint(painter: _VaultDialPainter()),
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _VaultDialPainter(
+                color: card.accent,
+                opacity: card.dialOpacity,
+              ),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 18, 16, 18),
@@ -330,16 +332,16 @@ class _BalanceCard extends StatelessWidget {
                     Text(
                       'VAULT BALANCE',
                       style: AppTypography.labelSmall.copyWith(
-                        color: homeText.withValues(alpha: 0.7),
+                        color: card.textSecondary,
                         letterSpacing: 1.6,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(width: AppSpacing.xs),
-                    const AppIcon(
+                    AppIcon(
                       AppIcons.shieldKeyhole,
                       size: 14,
-                      color: _lime,
+                      color: card.accent,
                     ),
                     const Spacer(),
                     AppTappable(
@@ -349,14 +351,14 @@ class _BalanceCard extends StatelessWidget {
                         width: 32,
                         height: 32,
                         decoration: BoxDecoration(
-                          color: const Color(0x14FFFFFF),
+                          color: card.chip,
                           borderRadius: BorderRadius.circular(AppRadii.xSmall),
                         ),
                         alignment: Alignment.center,
                         child: AppIcon(
                           hidden ? AppIcons.eyeClosed : AppIcons.eye,
                           size: 16,
-                          color: homeText,
+                          color: card.text,
                         ),
                       ),
                     ),
@@ -368,22 +370,22 @@ class _BalanceCard extends StatelessWidget {
                     children: [
                       TextSpan(
                         text: hidden ? fixedPrivacyMask() : amount,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'Space Grotesk',
                           fontWeight: FontWeight.w500,
                           fontSize: 46,
                           height: 1.05,
                           letterSpacing: -1.8,
-                          color: homeText,
+                          color: card.text,
                         ),
                       ),
-                      const TextSpan(
+                      TextSpan(
                         text: ' $kZcashDefaultCurrencyTicker',
                         style: TextStyle(
                           fontFamily: 'Space Grotesk',
                           fontWeight: FontWeight.w500,
                           fontSize: 22,
-                          color: _lime,
+                          color: card.ticker,
                         ),
                       ),
                     ],
@@ -399,7 +401,7 @@ class _BalanceCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTypography.bodySmall.copyWith(
-                        color: homeText.withValues(alpha: 0.7),
+                        color: card.textSecondary,
                       ),
                     ),
                 const SizedBox(height: AppSpacing.sm),
@@ -413,7 +415,7 @@ class _BalanceCard extends StatelessWidget {
   }
 }
 
-/// The approval rule as dots: [threshold] filled lime dots out of [members].
+/// The approval rule as dots: [threshold] filled accent dots out of [members].
 class _ThresholdStrip extends StatelessWidget {
   const _ThresholdStrip({required this.threshold, required this.members});
   final int threshold;
@@ -421,6 +423,7 @@ class _ThresholdStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final card = context.colors.vaultCard;
     return Row(
       children: [
         for (var i = 0; i < members; i++)
@@ -430,11 +433,9 @@ class _ThresholdStrip extends StatelessWidget {
             margin: const EdgeInsets.only(right: 6),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: i < threshold ? _BalanceCard._lime : null,
+              color: i < threshold ? card.accent : null,
               border: Border.all(
-                color: i < threshold
-                    ? _BalanceCard._lime
-                    : const Color(0x66F4F4F2),
+                color: i < threshold ? card.accent : card.emptyDot,
                 width: 1.5,
               ),
             ),
@@ -443,7 +444,7 @@ class _ThresholdStrip extends StatelessWidget {
         Text(
           '$threshold of $members signers to send',
           style: AppTypography.labelSmall.copyWith(
-            color: const Color(0xB3F4F4F2),
+            color: card.textSecondary,
           ),
         ),
       ],
@@ -452,9 +453,13 @@ class _ThresholdStrip extends StatelessWidget {
 }
 
 /// Concentric safe-dial rings with tick marks, off the card's top-right corner, over a
-/// soft lime glow.
+/// soft glow, in the card's accent [color] (its alphas multiplied by [opacity]).
 class _VaultDialPainter extends CustomPainter {
-  const _VaultDialPainter();
+  const _VaultDialPainter({required this.color, required this.opacity});
+  final Color color;
+  final double opacity;
+
+  Color _a(double alpha) => color.withValues(alpha: alpha * opacity);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -465,7 +470,7 @@ class _VaultDialPainter extends CustomPainter {
       Paint()
         ..shader =
             RadialGradient(
-              colors: const [Color(0x40C9EE6E), Color(0x00C9EE6E)],
+              colors: [_a(0.25), _a(0)],
             ).createShader(
               Rect.fromCircle(center: center, radius: size.width * 0.75),
             ),
@@ -474,11 +479,11 @@ class _VaultDialPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
     for (var i = 0; i < 6; i++) {
-      ring.color = Color.fromRGBO(201, 238, 110, 0.22 - i * 0.03);
+      ring.color = _a(0.22 - i * 0.03);
       canvas.drawCircle(center, 44.0 + i * 26, ring);
     }
     final tick = Paint()
-      ..color = const Color(0x55C9EE6E)
+      ..color = _a(0.33)
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
     const outer = 44.0 + 2 * 26;
@@ -491,7 +496,8 @@ class _VaultDialPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _VaultDialPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.opacity != opacity;
 }
 
 /// Rows shown on Home; everything else is one tap away under "See all".
@@ -634,7 +640,7 @@ class _NoticeCard extends StatelessWidget {
         ),
         foregroundDecoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppRadii.large),
-          border: Border.all(color: const Color(0x12FFFFFF), width: 1.5),
+          border: Border.all(color: colors.border.subtleOpacity, width: 1.5),
         ),
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.xxs),

@@ -59,27 +59,28 @@ class AppPrimaryButtonColors {
   final Color label;
   final Color labelHover;
 
-  // Zafe: lime primary buttons with a near-black label in both themes.
+  // Zafe (Verdigris): a light teal fill with a deep teal label in dark mode, a deep
+  // teal fill with a white label in light mode (docs/brand.md §3).
   static const dark = AppPrimaryButtonColors(
     bg: BrandPrimitives.p400Dark,
     bgHover: BrandPrimitives.p500Dark,
-    bgPressed: BrandPrimitives.p300Dark,
+    bgPressed: BrandPrimitives.p500Dark,
     border: Primitives.p900Alpha10Dark,
     borderHover: Primitives.p900Alpha10Dark,
     borderPressed: Primitives.p900Alpha10Dark,
-    label: Primitives.p0Dark,
-    labelHover: Primitives.p0Dark,
+    label: BrandPrimitives.p50Dark,
+    labelHover: BrandPrimitives.p50Dark,
   );
 
   static const light = AppPrimaryButtonColors(
-    bg: BrandPrimitives.p150Light,
-    bgHover: BrandPrimitives.p200Light,
-    bgPressed: BrandPrimitives.p200Light,
+    bg: BrandPrimitives.p300Light,
+    bgHover: BrandPrimitives.p400Light,
+    bgPressed: BrandPrimitives.p400Light,
     border: Primitives.p900Alpha10Light,
     borderHover: Primitives.p900Alpha10Light,
     borderPressed: Primitives.p900Alpha10Light,
-    label: BrandPrimitives.p900Light,
-    labelHover: BrandPrimitives.p900Light,
+    label: Primitives.p0Light,
+    labelHover: Primitives.p0Light,
   );
 }
 

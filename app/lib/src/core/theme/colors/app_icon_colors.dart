@@ -11,11 +11,10 @@ import '../primitives.dart';
 /// * [disabled] — Icons on disabled controls.
 /// * [inverse] — Icons on inverted surfaces.
 /// * [onPrimary] — Icons placed inside a primary button.
-/// * [warning] — Caution icons. Backed by the current gold utility token for
-///   compatibility with existing warning call sites.
+/// * [warning] — Caution icons (orange warning ladder).
 /// * [destructive] — Destructive-state icons.
 /// * [destructiveLight] — Softer destructive icon for secondary error affordances.
-/// * [success] — Positive / success utility icons.
+/// * [success] — Positive / success icons: Zcash gold, the value colour.
 /// * [brand] — Brand-colored icons.
 class AppIconColors {
   const AppIconColors({
@@ -51,10 +50,10 @@ class AppIconColors {
     disabled: Primitives.p300Dark,
     inverse: Primitives.p0Dark,
     onPrimary: Primitives.p0Dark,
-    warning: GoldPrimitives.p500Dark,
+    warning: OrangePrimitives.p500Dark,
     destructive: PlumPrimitives.p400Dark,
     destructiveLight: PlumPrimitives.p300Dark,
-    success: GreenPrimitives.p300Dark,
+    success: GoldPrimitives.p500Dark,
     brand: BrandPrimitives.p400Dark,
   );
 
@@ -65,10 +64,10 @@ class AppIconColors {
     disabled: Primitives.p300Light,
     inverse: Primitives.p0Light,
     onPrimary: Primitives.p0Light,
-    warning: GoldPrimitives.p300Light,
+    warning: OrangePrimitives.p400Light,
     destructive: PlumPrimitives.p300Light,
     destructiveLight: PlumPrimitives.p200Light,
-    success: GreenPrimitives.p500Light,
+    success: GoldPrimitives.p400Light,
     brand: BrandPrimitives.p300Light,
   );
 }

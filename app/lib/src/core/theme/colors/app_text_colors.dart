@@ -11,9 +11,9 @@ import '../primitives.dart';
 /// * [disabled] — Inactive, unavailable labels.
 /// * [inverse] — Text placed on inverted surfaces (e.g. dark text on a light
 ///   chip inside dark mode).
-/// * [warning] — Inline caution copy. Backed by the current gold utility
-///   token for compatibility with existing warning call sites.
-/// * [positiveStrong] — Positive-state copy backed by the green utility ramp.
+/// * [warning] — Inline caution copy (orange warning ladder).
+/// * [positiveStrong] — Positive-state copy and money received: Zcash gold
+///   (the value colour; teal and green are too close to tell apart).
 /// * [destructive] — Destructive utility copy.
 /// * [destructiveLight] — Softer destructive copy for secondary error text.
 /// * [success] — Positive / success utility copy.
@@ -57,8 +57,8 @@ class AppTextColors {
     muted: Primitives.p500Dark,
     disabled: Primitives.p400Dark,
     inverse: Primitives.p0Dark,
-    warning: GoldPrimitives.p500Dark,
-    positiveStrong: GreenPrimitives.p400Dark,
+    warning: OrangePrimitives.p500Dark,
+    positiveStrong: GoldPrimitives.p500Dark,
     destructive: PlumPrimitives.p500Dark,
     destructiveLight: PlumPrimitives.p400Dark,
     success: GoldPrimitives.p500Dark,
@@ -75,8 +75,8 @@ class AppTextColors {
     muted: Primitives.p500Light,
     disabled: Primitives.p400Light,
     inverse: Primitives.p0Light,
-    warning: GoldPrimitives.p400Light,
-    positiveStrong: GreenPrimitives.p500Light,
+    warning: OrangePrimitives.p400Light,
+    positiveStrong: GoldPrimitives.p400Light,
     destructive: PlumPrimitives.p300Light,
     destructiveLight: PlumPrimitives.p150Light,
     success: GoldPrimitives.p400Light,

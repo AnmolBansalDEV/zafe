@@ -65,7 +65,7 @@ class AppBackgroundColors {
   final Color homeCard;
 
   static const dark = AppBackgroundColors(
-    window: Color(0xFF0A0A0A),
+    window: Color(0xFF080B0B),
     ground: Primitives.p50Dark,
     base: Primitives.p100Dark,
     raised: Primitives.p150Dark,
@@ -83,12 +83,12 @@ class AppBackgroundColors {
     utilityDestructiveAlpha: PlumPrimitives.p400Alpha25Dark,
     utilitySuccessSubtle: GoldPrimitives.p150Dark,
     utilitySuccessStrong: GoldPrimitives.p500Dark,
-    utilitySuccessAlpha: GreenPrimitives.p300Alpha15Dark,
+    utilitySuccessAlpha: GoldPrimitives.p500Alpha15Dark,
     homeCard: Primitives.p50Dark,
   );
 
   static const light = AppBackgroundColors(
-    window: Color(0xFFF4F4F3),
+    window: Primitives.p50Light,
     ground: Primitives.p0Light,
     base: Primitives.p50Light,
     raised: Primitives.p100Light,
@@ -106,7 +106,7 @@ class AppBackgroundColors {
     utilityDestructiveAlpha: PlumPrimitives.p400Alpha15Light,
     utilitySuccessSubtle: GoldPrimitives.p50Light,
     utilitySuccessStrong: GoldPrimitives.p300Light,
-    utilitySuccessAlpha: GreenPrimitives.p300Alpha15Light,
+    utilitySuccessAlpha: GoldPrimitives.p400Alpha15Light,
     homeCard: Primitives.p800Light,
   );
 }

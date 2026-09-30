@@ -21,20 +21,20 @@ class AppSyncColors {
   final Color lightError;
 
   static const dark = AppSyncColors(
-    text: GreenPrimitives.p900Dark,
-    textSyncing: GreenPrimitives.p900Alpha65Dark,
+    text: GoldPrimitives.p800Dark,
+    textSyncing: GoldPrimitives.p900Alpha65Dark,
     textError: Primitives.p900Alpha50Dark,
     glow: Primitives.p500Dark,
-    lightSuccess: GreenPrimitives.p300Dark,
+    lightSuccess: GoldPrimitives.p500Dark,
     lightError: Primitives.p600Dark,
   );
 
   static const light = AppSyncColors(
-    text: GreenPrimitives.p700Light,
-    textSyncing: GreenPrimitives.p900Alpha65Light,
+    text: GoldPrimitives.p500Light,
+    textSyncing: GoldPrimitives.p900Alpha65Light,
     textError: Primitives.p900Alpha50Light,
-    glow: GreenPrimitives.p200Light,
-    lightSuccess: GreenPrimitives.p400Light,
+    glow: GoldPrimitives.p300Light,
+    lightSuccess: GoldPrimitives.p400Light,
     lightError: Primitives.p500Light,
   );
 }

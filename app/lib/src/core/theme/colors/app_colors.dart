@@ -10,6 +10,7 @@ import 'app_state_colors.dart';
 import 'app_surface_colors.dart';
 import 'app_sync_colors.dart';
 import 'app_text_colors.dart';
+import 'app_vault_card_colors.dart';
 
 export 'app_background_colors.dart';
 export 'app_border_colors.dart';
@@ -23,6 +24,7 @@ export 'app_state_colors.dart';
 export 'app_surface_colors.dart';
 export 'app_sync_colors.dart';
 export 'app_text_colors.dart';
+export 'app_vault_card_colors.dart';
 
 /// Aggregated semantic color palette for the app. Sourced from the Zcash
 /// design system Figma spec; organized into semantic categories that mirror
@@ -45,6 +47,7 @@ class AppColors {
     required this.shadows,
     required this.sync,
     required this.macosUtility,
+    required this.vaultCard,
   });
 
   final AppBackgroundColors background;
@@ -59,6 +62,7 @@ class AppColors {
   final AppShadowColors shadows;
   final AppSyncColors sync;
   final AppMacosUtilityColors macosUtility;
+  final AppVaultCardColors vaultCard;
 
   static const dark = AppColors(
     background: AppBackgroundColors.dark,
@@ -73,6 +77,7 @@ class AppColors {
     shadows: AppShadowColors.dark,
     sync: AppSyncColors.dark,
     macosUtility: AppMacosUtilityColors.dark,
+    vaultCard: AppVaultCardColors.dark,
   );
 
   static const light = AppColors(
@@ -88,5 +93,6 @@ class AppColors {
     shadows: AppShadowColors.light,
     sync: AppSyncColors.light,
     macosUtility: AppMacosUtilityColors.light,
+    vaultCard: AppVaultCardColors.light,
   );
 }

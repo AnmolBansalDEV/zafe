@@ -53,7 +53,7 @@ class AppBorderColors {
     utilityDestructive: PlumPrimitives.p400Dark,
     utilityDestructiveSubtle: PlumPrimitives.p100Dark,
     utilitySuccess: GoldPrimitives.p500Dark,
-    utilityPositiveStrong: GreenPrimitives.p300Dark,
+    utilityPositiveStrong: GoldPrimitives.p500Dark,
     brandStrong: BrandPrimitives.p400Dark,
   );
 
@@ -67,7 +67,7 @@ class AppBorderColors {
     utilityDestructive: PlumPrimitives.p300Light,
     utilityDestructiveSubtle: PlumPrimitives.p100Light,
     utilitySuccess: GoldPrimitives.p400Light,
-    utilityPositiveStrong: GreenPrimitives.p500Light,
+    utilityPositiveStrong: GoldPrimitives.p400Light,
     brandStrong: BrandPrimitives.p300Light,
   );
 }

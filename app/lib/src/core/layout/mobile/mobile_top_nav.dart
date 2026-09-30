@@ -110,11 +110,11 @@ class MobileTopNav extends StatelessWidget {
   final Color? syncIndicatorColor;
 
   /// When true (the live syncing state, reduced-motion off) the label
-  /// shimmers a bright-green band across itself and the edge bar breathes
+  /// shimmers a bright band across itself and the edge bar breathes
   /// a slow glow pulse. Otherwise the label and bar render static.
   final bool syncAnimated;
 
-  /// Bright-green peak used for the shimmer band and the breathing glow.
+  /// Bright peak used for the shimmer band and the breathing glow.
   /// Falls back to [syncLabelColor] when null.
   final Color? syncHighlightColor;
 

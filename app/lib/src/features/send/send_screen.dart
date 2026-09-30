@@ -764,7 +764,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
                       onChanged: _busy
                           ? null
                           : (v) => setState(() => _autoSend = v),
-                      // Lime when on, muted when off: the default Material colours
+                      // Brand fill when on, muted when off: the default Material colours
                       // made the two states hard to tell apart.
                       activeThumbColor: colors.button.primary.label,
                       activeTrackColor: colors.button.primary.bg,
