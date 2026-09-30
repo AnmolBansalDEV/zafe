@@ -18,6 +18,9 @@ String zafeErrorMessage(
       'This payment failed the check on your device. Don\'t approve it. (${error.message})',
     ZafeErrorKind.insufficientFunds =>
       'Not enough $kZcashDefaultCurrencyTicker in the vault to cover the amount and the fee.',
+    ZafeErrorKind.fundsReserved =>
+      'Part of the vault\'s balance is held by payments that are still open. '
+          'Wait until one is sent or cancelled, or propose a smaller amount.',
     ZafeErrorKind.invalidInput => _sentence(error.message),
     ZafeErrorKind.updateRequired =>
       'This needs a newer version of Zafe. Update the app, then try again.',

@@ -50,6 +50,8 @@ pub enum NodeError {
     Verification(String),
     #[error("protocol: {0}")]
     Protocol(String),
+    #[error(transparent)]
+    Wallet(#[from] crate::wallet::WalletError),
     /// Data or a message in a version this build doesn't read (see
     /// [`UnsupportedVersion::is_newer`]: newer means "update the app").
     #[error(transparent)]
@@ -939,9 +941,10 @@ pub async fn propose<P: Parameters + Clone + Send + Sync + 'static, R: RngCore +
     auto_send: bool,
     rng: &mut R,
 ) -> Result<ProposalId, NodeError> {
-    let pczt = wallet
-        .propose(payments, material.descriptor.proposal_expiry_blocks)
-        .map_err(proto)?;
+    // Hold back every note an open proposal already spends, so this one picks others.
+    let (mut chain, mut state) = load_state(relay, me, material).await?;
+    wallet.reserve(&note_holds(&state))?;
+    let pczt = wallet.propose(payments, material.descriptor.proposal_expiry_blocks)?;
     let tip = wallet
         .chain_height()
         .map_err(proto)?
@@ -975,9 +978,35 @@ pub async fn propose<P: Parameters + Clone + Send + Sync + 'static, R: RngCore +
         signing_spends,
         auto_send,
     };
-    let (mut chain, mut state) = load_state(relay, me, material).await?;
     append_event(relay, me, material, &mut chain, &mut state, &event, rng).await?;
     Ok(id)
+}
+
+/// The notes each proposal that may still reach the chain spends, in log order: open,
+/// approved and broadcast proposals, and cancelled ones whose signatures are complete
+/// (they stay sendable until expiry). Held until the transaction's expiry height.
+pub fn note_holds(state: &VaultState) -> Vec<crate::wallet::NoteHold> {
+    let mut proposals: Vec<_> = state
+        .proposals
+        .values()
+        .filter(|p| match p.status {
+            ProposalStatus::Open | ProposalStatus::Approved | ProposalStatus::Broadcast => true,
+            ProposalStatus::Cancelled => p.ready_group.is_some(),
+            ProposalStatus::Rejected => false,
+        })
+        .collect();
+    proposals.sort_by_key(|p| p.log_index);
+    proposals
+        .into_iter()
+        .filter_map(|p| {
+            let pczt = Pczt::parse(&p.pczt).ok()?;
+            Some(crate::wallet::NoteHold {
+                owner: p.pczt_hash,
+                nullifiers: tx::spent_nullifiers(&pczt).ok()?,
+                expiry_height: *pczt.global().expiry_height(),
+            })
+        })
+        .collect()
 }
 
 fn proposal_pczt(

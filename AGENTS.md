@@ -85,6 +85,15 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   (recipient, amount, memo); change must belong to the vault **and trial-decrypt** with its IVK;
   fee must **equal** ZIP 317 (5000 × max(2, actions)); sighash computed locally.
 - **Proposals are built with `OvkPolicy::Sender`** and Ironwood change, or verification fails.
+- **Note reservation**: `node::propose` replays the log and calls
+  `VaultWallet::reserve(&node::note_holds(&state))` before building: every note a live
+  proposal spends (open, approved, broadcast, or cancelled with a complete group) is locked
+  in this member's wallet via upstream `OutputLockStore` until that tx's expiry height
+  (owner = PCZT hash; nullifier → `(txid, action_index)` looked up on a read-only
+  connection). `reserve` clears and re-locks, so it always mirrors the log. Locked notes
+  drop out of `spendable_value` but stay in `total`. `node::propose` returns wallet errors
+  as `NodeError::Wallet` (not a string), so the bridge keeps `InsufficientFunds` /
+  `FundsReserved` typed.
 - **Nonce storage**: `nonce_store::FileNonceStore` (atomic write+rename; `put` returns an
   error so a failed write never publishes an approval). The directory must be excluded from
   backups/device transfer: the Android app disables both (`allowBackup=false`,

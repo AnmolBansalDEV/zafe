@@ -18,7 +18,7 @@ use zafe_core::{
     session::{Leader, Member, MemoryNonceStore},
     tx,
     verify::{verify_pczt, Expectations, Payment},
-    wallet::{connect, regtest_network, PaymentRequest, VaultWallet, WalletKey},
+    wallet::{connect, regtest_network, NoteHold, PaymentRequest, VaultWallet, WalletKey},
 };
 use zcash_client_backend::proto::service::RawTransaction;
 use zcash_keys::{address::UnifiedAddress, keys::UnifiedFullViewingKey};
@@ -168,13 +168,68 @@ async fn vault_pays_on_regtest() {
     let pczt = wallets[0]
         .propose(
             &[PaymentRequest {
-                address: recipient_ua,
+                address: recipient_ua.clone(),
                 amount_zat: amount,
                 memo: Some(memo.clone()),
             }],
             8064,
         )
         .expect("proposal");
+
+    // 4b. Note reservation: member 1's wallet holds back the notes member 0's open
+    // proposal spends, so its own proposal picks other notes, and asking for more than
+    // what's left fails as "reserved", not "insufficient".
+    let hold = NoteHold {
+        owner: [1; 32],
+        nullifiers: tx::spent_nullifiers(&pczt).unwrap(),
+        expiry_height: *pczt.global().expiry_height(),
+    };
+    let other = PaymentRequest {
+        address: recipient_ua.clone(),
+        amount_zat: amount,
+        memo: None,
+    };
+    let unreserved = wallets[1].propose(&[other.clone()], 8064).unwrap();
+    let overlap = |a: &pczt::Pczt, b: &pczt::Pczt| {
+        let a = tx::spent_nullifiers(a).unwrap();
+        tx::spent_nullifiers(b)
+            .unwrap()
+            .iter()
+            .any(|nf| a.contains(nf))
+    };
+    assert!(
+        overlap(&pczt, &unreserved),
+        "without reservation both members pick the same notes"
+    );
+    let held = wallets[1].reserve(&[hold.clone()]).unwrap();
+    assert!(held > 0, "the proposal's notes are held");
+    assert_eq!(
+        wallets[1].reserve(&[hold.clone()]).unwrap(),
+        held,
+        "idempotent"
+    );
+    let reserved = wallets[1].propose(&[other.clone()], 8064).unwrap();
+    assert!(!overlap(&pczt, &reserved), "reserved notes are skipped");
+    let spendable = wallets[1].balance().unwrap().ironwood_spendable;
+    assert!(
+        spendable < before.ironwood_spendable,
+        "held notes aren't spendable"
+    );
+    let too_much = PaymentRequest {
+        amount_zat: spendable,
+        ..other.clone()
+    };
+    assert!(matches!(
+        wallets[1].propose(&[too_much.clone()], 8064),
+        Err(zafe_core::wallet::WalletError::FundsReserved)
+    ));
+    // Releasing (the proposal closed) makes the notes spendable again.
+    assert_eq!(wallets[1].reserve(&[]).unwrap(), 0);
+    assert_eq!(
+        wallets[1].balance().unwrap().ironwood_spendable,
+        before.ironwood_spendable
+    );
+    wallets[1].propose(&[too_much], 8064).unwrap();
 
     // 5. Members verify independently, approve, and sign (2 of 3).
     let tip = wallets[0].chain_height().unwrap().unwrap();

@@ -87,6 +87,24 @@ pub fn spends_to_sign(
     Ok(found)
 }
 
+/// Nullifiers of every Ironwood spend in the PCZT (dummy spends included: their random
+/// nullifiers match no wallet note).
+pub fn spent_nullifiers(pczt: &Pczt) -> Result<Vec<[u8; 32]>, TxError> {
+    let mut found = Vec::new();
+    Verifier::new(pczt.clone())
+        .with_ironwood::<TxError, _>(|bundle| {
+            found.extend(
+                bundle
+                    .actions()
+                    .iter()
+                    .map(|a| a.spend().nullifier().to_bytes()),
+            );
+            Ok(())
+        })
+        .map_err(orchard_error)?;
+    Ok(found)
+}
+
 /// The shielded sighash, computed locally from the PCZT (v6 for Ironwood transactions).
 /// This is the only value a member may use as the FROST message.
 pub fn shielded_sighash(pczt: &Pczt) -> Result<[u8; 32], TxError> {

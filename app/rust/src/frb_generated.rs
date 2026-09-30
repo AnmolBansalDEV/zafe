@@ -1631,10 +1631,11 @@ impl SseDecode for crate::api::error::ZafeErrorKind {
             2 => crate::api::error::ZafeErrorKind::Timeout,
             3 => crate::api::error::ZafeErrorKind::Verification,
             4 => crate::api::error::ZafeErrorKind::InsufficientFunds,
-            5 => crate::api::error::ZafeErrorKind::InvalidInput,
-            6 => crate::api::error::ZafeErrorKind::UpdateRequired,
-            7 => crate::api::error::ZafeErrorKind::RelayOutdated,
-            8 => crate::api::error::ZafeErrorKind::Other,
+            5 => crate::api::error::ZafeErrorKind::FundsReserved,
+            6 => crate::api::error::ZafeErrorKind::InvalidInput,
+            7 => crate::api::error::ZafeErrorKind::UpdateRequired,
+            8 => crate::api::error::ZafeErrorKind::RelayOutdated,
+            9 => crate::api::error::ZafeErrorKind::Other,
             _ => unreachable!("Invalid variant for ZafeErrorKind: {}", inner),
         };
     }
@@ -2166,10 +2167,11 @@ impl flutter_rust_bridge::IntoDart for crate::api::error::ZafeErrorKind {
             Self::Timeout => 2.into_dart(),
             Self::Verification => 3.into_dart(),
             Self::InsufficientFunds => 4.into_dart(),
-            Self::InvalidInput => 5.into_dart(),
-            Self::UpdateRequired => 6.into_dart(),
-            Self::RelayOutdated => 7.into_dart(),
-            Self::Other => 8.into_dart(),
+            Self::FundsReserved => 5.into_dart(),
+            Self::InvalidInput => 6.into_dart(),
+            Self::UpdateRequired => 7.into_dart(),
+            Self::RelayOutdated => 8.into_dart(),
+            Self::Other => 9.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -2605,10 +2607,11 @@ impl SseEncode for crate::api::error::ZafeErrorKind {
                 crate::api::error::ZafeErrorKind::Timeout => 2,
                 crate::api::error::ZafeErrorKind::Verification => 3,
                 crate::api::error::ZafeErrorKind::InsufficientFunds => 4,
-                crate::api::error::ZafeErrorKind::InvalidInput => 5,
-                crate::api::error::ZafeErrorKind::UpdateRequired => 6,
-                crate::api::error::ZafeErrorKind::RelayOutdated => 7,
-                crate::api::error::ZafeErrorKind::Other => 8,
+                crate::api::error::ZafeErrorKind::FundsReserved => 5,
+                crate::api::error::ZafeErrorKind::InvalidInput => 6,
+                crate::api::error::ZafeErrorKind::UpdateRequired => 7,
+                crate::api::error::ZafeErrorKind::RelayOutdated => 8,
+                crate::api::error::ZafeErrorKind::Other => 9,
                 _ => {
                     unimplemented!("");
                 }

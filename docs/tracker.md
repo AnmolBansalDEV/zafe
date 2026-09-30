@@ -6,7 +6,7 @@ finished ones, tick them and add the commit. Spec references are to `spec.md`.
 
 Legend: `[ ]` open · `[x]` done · **(you)** needs the user · *(idea)* not yet decided
 
-Last updated: 2026-09-30 (versioned formats; relay TLS + packaging; wallet DB encryption; incoming payments)
+Last updated: 2026-09-30 (note reservation; versioned formats; relay TLS + packaging; wallet DB encryption; incoming payments)
 
 ---
 
@@ -90,11 +90,19 @@ Open
 - [ ] Privacy: a 7-day expiry delta differs from the 40-block wallet default, so vault spends are distinguishable on chain by expiry. Consider rounding or a shared convention
 - [ ] "Start over" for a signing round when a chosen signer never answers (today the
       leader can only retry the same round; members must re-approve for fresh nonces)
-- [ ] Note reservation across concurrent proposals (`reservedNotes`, spec §9.1): two open
-      proposals can pick the same notes; the second fails at broadcast. Upstream answer:
-      `zcash_client_backend` `OutputLockStore` (`data_api/locking.rs`, already in our 0.24.0
-      pin) as used by Vizor `rust/src/wallet/sync/proposal_locks.rs` (lock inputs per
-      proposal, release at startup, retain until expiry on an ambiguous broadcast)
+- [x] Note reservation across concurrent proposals (`reservedNotes`, spec §9.1; done
+      2026-09-30): before building, `node::propose` replays the log and locks, in this
+      member's wallet, every note an open/approved/broadcast proposal (or a cancelled one
+      with a complete group) spends, until that transaction's expiry
+      (`node::note_holds` → `VaultWallet::reserve`, upstream `OutputLockStore`, owner =
+      PCZT hash). Works across members, not just on one device. Short of unheld funds →
+      `WalletError::FundsReserved` / `ZafeErrorKind::FundsReserved`. Tested in `regtest_e2e`
+- [ ] Reservation follow-ups: (a) two members proposing within the same seconds can still
+      pick the same notes (load → append window); a deterministic replay rule ignoring a
+      proposal whose nullifiers overlap an earlier live one would close it; (b) other
+      members' "spendable" balance only reflects holds after they propose on this device
+      (also reserve on refresh, so Send's max is right); (c) a broadcast that never mines
+      keeps its notes held until expiry (7 days), with no "release" action
 - [ ] Member names instead of hex keys (local labels, or part of the address book)
 - [ ] Endpoint settings editable (today: compile-time dart-defines, read-only)
 - [ ] iOS: build and run at all (only Android has been exercised)

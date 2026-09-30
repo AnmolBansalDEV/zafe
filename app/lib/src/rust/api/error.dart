@@ -43,6 +43,9 @@ enum ZafeErrorKind {
   /// The vault cannot cover the amount plus the fee.
   insufficientFunds,
 
+  /// The vault holds enough, but part of it is held by open proposals.
+  fundsReserved,
+
   /// Bad address, amount, memo or invite.
   invalidInput,
 

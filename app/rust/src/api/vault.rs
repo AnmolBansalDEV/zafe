@@ -288,10 +288,10 @@ pub(crate) async fn open_wallet(
     .await?)
 }
 
-/// Syncs the vault wallet (creating its database under `db_dir` on first use).
 /// Upper bound for one sync pass (see `sync_vault`).
 const SYNC_PASS_TIMEOUT: Duration = Duration::from_secs(300);
 
+/// Syncs the vault wallet (creating its database under `db_dir` on first use).
 pub fn sync_vault(
     db_dir: String,
     db_key: Vec<u8>,

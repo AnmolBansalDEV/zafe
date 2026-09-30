@@ -16,6 +16,8 @@ pub enum ZafeErrorKind {
     Verification,
     /// The vault cannot cover the amount plus the fee.
     InsufficientFunds,
+    /// The vault holds enough, but part of it is held by open proposals.
+    FundsReserved,
     /// Bad address, amount, memo or invite.
     InvalidInput,
     /// Data, a message or the relay comes from a newer version of Zafe: update the app.
@@ -70,6 +72,9 @@ impl From<UnsupportedVersion> for ZafeError {
 
 impl From<NodeError> for ZafeError {
     fn from(e: NodeError) -> Self {
+        if let NodeError::Wallet(w) = e {
+            return w.into();
+        }
         let kind = match &e {
             NodeError::UnsupportedVersion(v)
             | NodeError::Relay(RelayClientError::UnsupportedVersion(v)) => version_kind(v),
@@ -104,6 +109,7 @@ impl From<WalletError> for ZafeError {
         let kind = match &e {
             WalletError::Remote(_) | WalletError::Sync(_) => ZafeErrorKind::Network,
             WalletError::Payment(_) => ZafeErrorKind::InvalidInput,
+            WalletError::FundsReserved => ZafeErrorKind::FundsReserved,
             // zcash_client_backend's error is only available as text here.
             WalletError::Proposal(m) if m.contains("InsufficientFunds") => {
                 ZafeErrorKind::InsufficientFunds

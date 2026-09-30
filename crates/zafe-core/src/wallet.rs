@@ -19,13 +19,14 @@ use zcash_address::ZcashAddress;
 use zcash_client_backend::{
     data_api::{
         chain::{error as chain_error, BlockCache, BlockSource},
+        locking::LockError,
         scanning::ScanRange,
         wallet::{
             create_pczt_from_proposal,
             input_selection::{GreedyInputSelector, GreedyInputSelectorError, SpendPolicy},
             propose_transfer, ConfirmationsPolicy,
         },
-        Account as _, AccountBirthday, AccountPurpose, WalletRead, WalletWrite,
+        Account as _, AccountBirthday, AccountPurpose, OutputLockStore, WalletRead, WalletWrite,
     },
     fees::{standard::MultiOutputChangeStrategy, DustOutputPolicy, SplitPolicy, StandardFeeRule},
     proto::{
@@ -33,17 +34,17 @@ use zcash_client_backend::{
         service::{self, compact_tx_streamer_client::CompactTxStreamerClient},
     },
     sync,
-    wallet::OvkPolicy,
+    wallet::{LockOwner, OutputRef, OvkPolicy},
 };
 use zcash_client_sqlite::{util::SystemClock, wallet::init::init_wallet_db, AccountUuid, WalletDb};
 use zcash_keys::keys::UnifiedFullViewingKey;
-use zcash_primitives::transaction::builder::BundlePadding;
+use zcash_primitives::transaction::{builder::BundlePadding, TxId};
 use zcash_protocol::{
     consensus::{BlockHeight, Parameters},
     local_consensus::LocalNetwork,
     memo::MemoBytes,
     value::Zatoshis,
-    ShieldedPool,
+    PoolType, ShieldedPool,
 };
 use zip321::{Payment, TransactionRequest};
 
@@ -61,6 +62,9 @@ pub enum WalletError {
     Proposal(String),
     #[error("invalid payment: {0}")]
     Payment(String),
+    /// The vault could cover the payment, but some of its notes are held by open proposals.
+    #[error("not enough unreserved funds: part of the balance is held by open proposals")]
+    FundsReserved,
     /// The database can't be read with this key: a wrong key, or a plain (unencrypted)
     /// database from before encryption. The wallet is a cache of chain data, so callers
     /// delete it and resync.
@@ -278,6 +282,17 @@ pub struct VaultWallet<P: Parameters + Clone + Send + 'static> {
     key: WalletKey,
 }
 
+/// Notes an open vault proposal spends, held back from new proposals until the proposal's
+/// transaction expires (spec §9.1, `reservedNotes`).
+#[derive(Clone, Debug)]
+pub struct NoteHold {
+    /// Stable per proposal (its PCZT hash), so re-reserving is idempotent.
+    pub owner: [u8; 32],
+    pub nullifiers: Vec<[u8; 32]>,
+    /// The transaction's expiry height: after it the notes can't be spent by it any more.
+    pub expiry_height: u32,
+}
+
 impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
     /// Creates a wallet database at `path`, encrypted with `key`, and imports the vault
     /// UFVK with the given birthday height (the vault's creation height).
@@ -421,6 +436,66 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
         received_payments_at(&self.path, &self.key, self.account.expose_uuid().as_bytes())
     }
 
+    /// Makes the wallet's note locks match `holds` exactly, so new proposals skip every note
+    /// an open proposal spends, whichever member built it. Holds are applied in order; a
+    /// note already held by an earlier one (two proposals raced for it) stays with the
+    /// earlier. Nullifiers this wallet doesn't know (not scanned yet, dummy spends) are
+    /// skipped. Returns the number of notes held.
+    pub fn reserve(&mut self, holds: &[NoteHold]) -> Result<usize, WalletError> {
+        let refs = {
+            // `WalletDb` doesn't expose its connection: map nullifiers to the outputs that
+            // created them on a read-only connection (callers serialize wallet access).
+            let conn = open_connection(&self.path, &self.key, true)?;
+            let mut stmt = conn
+                .prepare(
+                    "SELECT t.txid, rn.action_index
+                     FROM ironwood_received_notes rn
+                     JOIN transactions t ON t.id_tx = rn.transaction_id
+                     JOIN accounts a ON a.id = rn.account_id
+                     WHERE rn.nf = ?1 AND a.uuid = ?2",
+                )
+                .map_err(db_err)?;
+            let account = self.account.expose_uuid();
+            let mut refs = Vec::new();
+            for hold in holds {
+                let mut outputs = Vec::new();
+                for nf in &hold.nullifiers {
+                    let row = stmt.query_row(
+                        rusqlite::params![nf.as_slice(), account.as_bytes().as_slice()],
+                        |r| Ok((r.get::<_, [u8; 32]>(0)?, r.get::<_, u32>(1)?)),
+                    );
+                    match row {
+                        Ok((txid, index)) => outputs.push(OutputRef::new(
+                            TxId::from_bytes(txid),
+                            PoolType::IRONWOOD,
+                            index,
+                        )),
+                        Err(rusqlite::Error::QueryReturnedNoRows) => {}
+                        Err(e) => return Err(db_err(e)),
+                    }
+                }
+                refs.push((hold, outputs));
+            }
+            refs
+        };
+
+        self.db.clear_locked_outputs(self.account).map_err(db_err)?;
+        let mut held = 0;
+        for (hold, outputs) in refs {
+            let owner = LockOwner::new(hold.owner);
+            let expiry = BlockHeight::from(hold.expiry_height);
+            // One note at a time, so a note lost to an earlier hold doesn't release the rest.
+            for output in outputs {
+                match self.db.lock_outputs(&[output], owner, expiry) {
+                    Ok(_) => held += 1,
+                    Err(LockError::LockFailure(_)) => {}
+                    Err(e) => return Err(db_err(e)),
+                }
+            }
+        }
+        Ok(held)
+    }
+
     /// Selects notes, builds and IO-finalizes a PCZT paying `payments`, with change back to
     /// the vault in the Ironwood pool. Payment outputs are encrypted with the vault's
     /// outgoing viewing key (`OvkPolicy::Sender`), which member verification requires.
@@ -474,7 +549,18 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
                 None,
                 None,
             )
-            .map_err(|e| WalletError::Proposal(format!("{e:?}")))?;
+            .map_err(|e| {
+                let e = format!("{e:?}");
+                let reserved = self
+                    .db
+                    .get_locked_outputs(self.account)
+                    .is_ok_and(|l| !l.is_empty());
+                if reserved && e.contains("InsufficientFunds") {
+                    WalletError::FundsReserved
+                } else {
+                    WalletError::Proposal(e)
+                }
+            })?;
 
         create_pczt_from_proposal::<
             _,
