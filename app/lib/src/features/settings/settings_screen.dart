@@ -117,6 +117,12 @@ class SettingsScreen extends ConsumerWidget {
                           onTap: () => context.push('/export'),
                         ),
                         row(
+                          icon: AppIcons.eye,
+                          label: 'Viewing key',
+                          chevron: true,
+                          onTap: () => _openViewingKey(context, ref),
+                        ),
+                        row(
                           icon: AppIcons.key,
                           label: 'Your signer key',
                           value: me == null ? '' : memberLabel(me),
@@ -282,6 +288,18 @@ class SettingsScreen extends ConsumerWidget {
           ? '/setup'
           : '/welcome',
     );
+  }
+
+  /// The viewing key reveals the vault's whole history, so it asks for an unlock first.
+  Future<void> _openViewingKey(BuildContext context, WidgetRef ref) async {
+    if (!await confirmUnlock(
+      context,
+      ref,
+      reason: 'Unlock to show the viewing key',
+    )) {
+      return;
+    }
+    if (context.mounted) context.push('/viewing-key');
   }
 
   /// Turning the gate off needs an unlock (whatever the setting); turning it on

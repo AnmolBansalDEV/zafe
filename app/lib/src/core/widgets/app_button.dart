@@ -505,41 +505,44 @@ class _AppButtonState extends State<AppButton> {
     );
 
     // Zafe: expose a real button with a tap action to accessibility services (upstream's
-    // onTapUp-only detector gives screen readers an unlabeled image).
-    final pointer = MergeSemantics(
+    // onTapUp-only detector gives screen readers an unlabeled image). One node holds the
+    // role, enabled state, label and the focus action: `Focus` sits inside the merge,
+    // because outside it adds its own focusable node and screen readers announced the
+    // button twice (an unlabeled focusable node, then the label).
+    final pointer = MouseRegion(
+      cursor: _enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: _enabled ? (_) => _setHovered(true) : null,
+      onExit: _enabled ? (_) => _setHovered(false) : null,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        // The tap action comes from the Semantics below, not the detector.
+        excludeFromSemantics: true,
+        onTapDown: _enabled ? (_) => _setPressed(true) : null,
+        onTapUp: _enabled
+            ? (_) {
+                _setPressed(false);
+                widget.onPressed!.call();
+              }
+            : null,
+        onTapCancel: _enabled ? () => _setPressed(false) : null,
+        child: focusShell,
+      ),
+    );
+
+    return MergeSemantics(
       child: Semantics(
         button: true,
         enabled: _enabled,
         onTap: _enabled ? widget.onPressed : null,
-        child: MouseRegion(
-          cursor: _enabled
-              ? SystemMouseCursors.click
-              : SystemMouseCursors.basic,
-          onEnter: _enabled ? (_) => _setHovered(true) : null,
-          onExit: _enabled ? (_) => _setHovered(false) : null,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTapDown: _enabled ? (_) => _setPressed(true) : null,
-            onTapUp: _enabled
-                ? (_) {
-                    _setPressed(false);
-                    widget.onPressed!.call();
-                  }
-                : null,
-            onTapCancel: _enabled ? () => _setPressed(false) : null,
-            child: focusShell,
-          ),
+        child: Focus(
+          focusNode: widget.focusNode,
+          autofocus: widget.autofocus,
+          canRequestFocus: _enabled,
+          onFocusChange: _handleFocusChange,
+          onKeyEvent: _handleKeyEvent,
+          child: pointer,
         ),
       ),
-    );
-
-    return Focus(
-      focusNode: widget.focusNode,
-      autofocus: widget.autofocus,
-      canRequestFocus: _enabled,
-      onFocusChange: _handleFocusChange,
-      onKeyEvent: _handleKeyEvent,
-      child: pointer,
     );
   }
 

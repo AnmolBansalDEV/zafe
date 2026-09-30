@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,6 +31,7 @@ import '../../core/security/unlock_gate.dart';
 import '../../providers/vault_provider.dart';
 import '../../rust/api/proposals.dart' as rust;
 import '../proposals/proposal_parts.dart' show RecipientsCard;
+import 'recipients_csv.dart';
 
 enum _Step { recipient, amount, review }
 
@@ -222,6 +226,62 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     });
   }
 
+  /// Adds recipients from a CSV file (address,amount[,memo]) to the batch. On the review
+  /// step the payment being edited stays; on the recipient step the file replaces it.
+  /// Nothing is added unless every row is valid.
+  Future<void> _importCsv() async {
+    FilePickerResult? picked;
+    try {
+      picked = await FilePicker.pickFiles(withData: true);
+    } catch (_) {
+      picked = null;
+    }
+    final bytes = picked?.files.singleOrNull?.bytes;
+    if (bytes == null || !mounted) return;
+    void fail(String message) => showAppToast(
+      context,
+      message,
+      iconName: AppIcons.warningCircle,
+      tone: AppToastTone.destructive,
+    );
+    if (bytes.length > 1024 * 1024) {
+      return fail('That file is too big for a list of recipients');
+    }
+    final String text;
+    try {
+      text = utf8.decode(bytes);
+    } on FormatException {
+      return fail('That file isn\'t a CSV text file');
+    }
+    final onReview = _step == _Step.review;
+    final keep = onReview ? _payments : List.of(_added);
+    final result = parseRecipientsCsv(
+      text,
+      room: kMaxRecipients - keep.length,
+      checkAddress: (a) =>
+          rust.checkAddress(networkName: kZafeNetwork, address: a),
+      parseAmount: (t) => rust.parseZec(text: t),
+      memoLength: (m) => rust.memoLength(memo: m),
+    );
+    if (!result.ok) {
+      await showAppMobileSheet<void>(
+        context: context,
+        builder: (_) => _CsvErrorsSheet(errors: result.errors),
+      );
+      return;
+    }
+    final all = [...keep, ...result.payments];
+    setState(() {
+      _added
+        ..clear()
+        ..addAll(all.take(all.length - 1));
+      _edit(all.last);
+      _step = _Step.review;
+    });
+    final n = result.payments.length;
+    showAppToast(context, 'Added $n ${n == 1 ? 'recipient' : 'recipients'}');
+  }
+
   BigInt get _spendable =>
       ref.read(vaultProvider).balance?.spendableZat ?? BigInt.zero;
 
@@ -394,6 +454,17 @@ class _SendScreenState extends ConsumerState<SendScreen> {
             child: const Text('Scan QR code'),
           ),
         ),
+        if (_added.length < kMaxRecipients - 1)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, AppSpacing.s),
+            child: AppButton(
+              expand: true,
+              variant: AppButtonVariant.ghost,
+              leading: const AppIcon(AppIcons.importWallet, size: 20),
+              onPressed: _importCsv,
+              child: const Text('Import recipients from CSV'),
+            ),
+          ),
         _Cta(
           label: filled ? 'Continue' : 'Enter address to continue',
           onPressed: check?.valid == true
@@ -617,6 +688,16 @@ class _SendScreenState extends ConsumerState<SendScreen> {
                 : 'Add another recipient',
           ),
         ),
+        if (payments.length < kMaxRecipients) ...[
+          const SizedBox(height: AppSpacing.xs),
+          AppButton(
+            expand: true,
+            variant: AppButtonVariant.ghost,
+            leading: const AppIcon(AppIcons.importWallet, size: 20),
+            onPressed: _busy ? null : _importCsv,
+            child: const Text('Import CSV'),
+          ),
+        ],
         const SizedBox(height: AppSpacing.lg),
         MobileSurfaceCard(
           cornerRadius: AppRadii.large,
@@ -805,6 +886,59 @@ class _AddressRow extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Why a recipients file couldn't be imported, row by row.
+class _CsvErrorsSheet extends StatelessWidget {
+  const _CsvErrorsSheet({required this.errors});
+  final List<String> errors;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Couldn\'t import this file',
+            style: AppTypography.bodyLarge.copyWith(
+              color: colors.text.accent,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Nothing was added. Fix these rows and import again. Each row is '
+            'address,amount,memo with the amount in ZEC (like 1.5); the memo is optional.',
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.text.secondary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          for (final e in errors)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.xxs),
+              child: Text(
+                e,
+                style: AppTypography.labelLarge.copyWith(
+                  color: colors.text.destructive,
+                ),
+              ),
+            ),
+          const SizedBox(height: AppSpacing.md),
+          AppButton(
+            expand: true,
+            variant: AppButtonVariant.secondary,
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
           ),
         ],
       ),

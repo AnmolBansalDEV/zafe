@@ -5,6 +5,7 @@
 
 import '../frb_generated.dart';
 import 'error.dart';
+import 'names.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`
@@ -19,16 +20,19 @@ PassphraseCheck checkBackupPassphrase({required String passphrase}) => RustLib
 String suggestBackupPassphrase() =>
     RustLib.instance.api.crateApiBackupSuggestBackupPassphrase();
 
-/// Encrypts this device's copy of a vault (Argon2id 64 MiB; takes a second or two).
+/// Encrypts this device's copy of a vault (Argon2id 64 MiB; takes a second or two), with
+/// the local names this device gave the signers.
 Future<ExportedBackup> exportVaultBackup({
   required List<int> seeds,
   required List<int> material,
   required String invite,
+  required List<SignerName> names,
   required String passphrase,
 }) => RustLib.instance.api.crateApiBackupExportVaultBackup(
   seeds: seeds,
   material: material,
   invite: invite,
+  names: names,
   passphrase: passphrase,
 );
 
@@ -70,12 +74,17 @@ class ImportedVault {
   final Uint8List material;
   final String invite;
 
+  /// Local signer names saved with the backup (empty for backups made before names were
+  /// included).
+  final List<SignerName> names;
+
   const ImportedVault({
     required this.vaultId,
     required this.name,
     required this.identitySeeds,
     required this.material,
     required this.invite,
+    required this.names,
   });
 
   @override
@@ -84,7 +93,8 @@ class ImportedVault {
       name.hashCode ^
       identitySeeds.hashCode ^
       material.hashCode ^
-      invite.hashCode;
+      invite.hashCode ^
+      names.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -95,7 +105,8 @@ class ImportedVault {
           name == other.name &&
           identitySeeds == other.identitySeeds &&
           material == other.material &&
-          invite == other.invite;
+          invite == other.invite &&
+          names == other.names;
 }
 
 class PassphraseCheck {

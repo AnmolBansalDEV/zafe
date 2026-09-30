@@ -159,8 +159,12 @@ Open
       name (`<vaultDir>/names.json`, `memberNamesProvider`) shows in signer rows (short
       key below) and as "Proposed by". Local to this device: not synced, not in backups,
       not in notifications yet. Checked on the emulator
-- [ ] Member names follow-ups: include names in backups (format bump), use them in
-      notifications and the CSV `contact`/proposer columns, or share them via the log
+- [x] Member names follow-ups (2026-09-30): names are in encrypted backups (`BACKUP` v2,
+      v1 still restores with no names) and restored with the vault; notifications name
+      a named proposer / rejecters / canceller (unnamed signers aren't mentioned); the
+      CSV's proposer and approvers columns read "Name (hexkey)" (approvers now `; `-
+      separated). Not on a device yet
+- [ ] Share signer names via the log (today each device names signers on its own)
 - [ ] Endpoint settings editable (today: compile-time dart-defines, read-only)
 - [ ] iOS: build and run at all (only Android has been exercised)
 - [ ] iOS: exclude the nonce directory from backups (`isExcludedFromBackup`)
@@ -233,9 +237,12 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       Proposal: "move to a new phone" exports, then retires this device's copy
       (deletes material and pool nonces after the import is confirmed); plain backups
       stay passive files
-- [ ] **Viewing-key export** for auditors (CSV history export done, M2 §11.3)
-      (read-only UFVK; see Vizor viewing-key export in Ideas), plus **import a vault as
-      view-only** (auditor mode: balance and history, no signing)
+- [x] **Viewing-key export** for auditors (2026-09-30): Settings → "Viewing key" (unlock
+      first) → `/viewing-key` (SecureScreen): the UFVK (`vault_viewing_key`, derived from
+      the material and checked against the signed descriptor) as text, QR and copy. Not
+      on a device yet
+- [ ] **Import a vault as view-only** (auditor mode: balance and history from a UFVK, no
+      signing)
 - [~] Backup health: per-device prompt after creation + home reminder done; members attesting backups in the log (so others see vault-wide backup health) still open
 - [ ] Multi-part QR for device-to-device transfer (material is a few KB) as an
       alternative to files, *(idea)*
@@ -247,8 +254,11 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       proposal pages list every recipient (`RecipientsCard`); "Propose again" keeps the
       batch. Emulator: a 2-recipient proposal verified on B (fee 15000 zat, 3 actions),
       approved, signed interactively with B and sent
-- [ ] Batch follow-ups: import recipients from CSV (grant payouts), per-recipient edit
-      (today: remove and re-add)
+- [x] Import batch recipients from CSV (2026-09-30): "Import recipients from CSV" on the
+      recipient step, "Import CSV" on review; `address,amount[,memo]`, optional header,
+      ZEC decimals, RFC 4180 quoting (`features/send/recipients_csv.dart`, unit-tested);
+      all-or-nothing with row-numbered errors; respects the 50 cap. Not on a device yet
+- [ ] Batch follow-ups: per-recipient edit (today: remove and re-add)
 - [ ] Address book via `ADDRESS_BOOK` proposals (t approvals, no FROST); warn on unknown
       recipients (§11.2)
 - [ ] Rules via `RULES` proposals: per-tx / per-period limits, allowlist-only,
@@ -329,9 +339,12 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       (`WalletError::Payment` → `InvalidInput`, "that is this vault's own address"),
       tested in `bridge_e2e`. The Send screen still only finds out at "Propose payment"
 
-- [ ] `AppButton` label is a separate node in accessibility trees (button role is fixed;
-      merge still not happening). Upstream Vizor `4bff2e7` has no fix: its `AppButton` still
-      has no `Semantics` at all, so keep ours when resyncing
+- [x] `AppButton` label was a separate node in accessibility trees (2026-09-30): `Focus`
+      sat outside the `MergeSemantics` and added its own unlabeled focusable node. Now
+      `MergeSemantics(Semantics(button, enabled, onTap, Focus(...)))`, the detector
+      excluded from semantics; `test/app_button_semantics_test.dart` checks one node.
+      Upstream Vizor `4bff2e7` has no `Semantics` at all: keep ours when resyncing.
+      Still worth a TalkBack pass on a device
 - [ ] Proposal `created_at` is the proposer's clock (display only, untrusted)
 - [ ] Wallet DB access is serialized with one global lock in the bridge; fine for one
       vault, revisit for multiple vaults

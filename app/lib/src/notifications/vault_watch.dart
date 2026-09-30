@@ -11,6 +11,7 @@ import 'package:workmanager/workmanager.dart';
 
 import '../core/config/network_config.dart';
 import '../core/errors/zafe_error_copy.dart';
+import '../core/storage/member_names.dart';
 import '../core/storage/vault_summaries.dart';
 import '../core/storage/zafe_paths.dart';
 import '../core/storage/zafe_secure_store.dart';
@@ -339,6 +340,8 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
       vaultName: summary.name,
       hideAmounts: hideAmounts,
       received: received ?? const [],
+      // Read here: this may run in a background isolate without the app's providers.
+      names: await MemberNames.read(v.id),
     );
     for (final u in updates) {
       await _notifications.show(

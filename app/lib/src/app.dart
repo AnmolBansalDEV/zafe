@@ -25,6 +25,7 @@ import 'features/receive/receive_screen.dart';
 import 'features/received/received_screen.dart';
 import 'features/send/send_screen.dart';
 import 'features/settings/settings_screen.dart';
+import 'features/settings/viewing_key_screen.dart';
 import 'providers/theme_mode_provider.dart';
 import 'notifications/vault_updates.dart' show kReceivedPrefix;
 import 'notifications/vault_watch.dart';
@@ -109,6 +110,7 @@ final _routerProvider = Provider<GoRouter>((ref) {
         '/send',
         '/proposal',
         '/settings',
+        '/viewing-key',
         '/export',
         '/activity',
         '/backup-prompt',
@@ -182,6 +184,11 @@ final _routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/settings',
         pageBuilder: (_, _) => page(const SettingsScreen()),
+      ),
+      GoRoute(
+        path: '/viewing-key',
+        pageBuilder: (_, _) =>
+            page(const SecureScreen(child: ViewingKeyScreen())),
       ),
       GoRoute(
         path: '/send',

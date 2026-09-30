@@ -11,6 +11,7 @@ import '../../core/layout/mobile/mobile_top_scroll_fade.dart';
 import '../../core/config/network_config.dart';
 import '../../core/errors/zafe_error_copy.dart';
 import '../../core/security/unlock_gate.dart';
+import '../../core/storage/member_names.dart';
 import '../../core/storage/zafe_paths.dart';
 import '../../core/storage/zafe_secure_store.dart';
 import '../../core/theme/app_theme.dart';
@@ -44,6 +45,7 @@ Future<void> exportHistory(BuildContext context, WidgetRef ref) async {
       dbKey: await ZafeSecureStore.instance.walletKey(vault.activeId!),
       seeds: vault.identity!,
       material: vault.material!,
+      names: MemberNames.toSigners(await MemberNames.read(vault.activeId!)),
     );
     final name = vault.summary!.name.replaceAll(
       RegExp(r'[^A-Za-z0-9_-]+'),

@@ -93,6 +93,12 @@ Future<Uint8List> runKeygen({
 VaultSummary vaultSummary({required List<int> material}) =>
     RustLib.instance.api.crateApiVaultVaultSummary(material: material);
 
+/// The vault's unified full viewing key (for auditors): it reveals every past and future
+/// payment of the vault but can't spend. Derived from this member's material and checked
+/// against the descriptor every member signed.
+String vaultViewingKey({required List<int> material}) =>
+    RustLib.instance.api.crateApiVaultVaultViewingKey(material: material);
+
 /// Syncs the vault wallet (creating its database under `db_dir` on first use), then holds
 /// back the notes that live proposals spend, so `spendable_zat` is what a new proposal can
 /// use. Holds are best effort: if the relay can't be reached, the previous ones stay.
