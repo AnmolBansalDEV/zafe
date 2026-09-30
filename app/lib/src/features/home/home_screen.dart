@@ -173,8 +173,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                           ],
                         ),
                       const SizedBox(height: AppSpacing.md),
+                      if (ref.watch(
+                            proposalsProvider.select(
+                              (p) => p.newerVersionEntries,
+                            ),
+                          ) >
+                          0) ...[
+                        const _NoticeCard(
+                          title: 'Update Zafe',
+                          body:
+                              'Other members use a newer version. Some vault activity '
+                              'only shows after you update.',
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                      ],
                       if (ref.watch(backupStatusProvider).value == false) ...[
-                        const _BackupReminder(),
+                        _NoticeCard(
+                          title: 'Back up this vault',
+                          body: 'Your key share lives only on this phone',
+                          onTap: () => context.push('/export'),
+                        ),
                         const SizedBox(height: AppSpacing.md),
                       ],
                       _Payments(
@@ -608,8 +626,12 @@ class _Payments extends StatelessWidget {
 }
 
 /// Until this device's copy of the vault is backed up (spec §12.2 "backup health").
-class _BackupReminder extends StatelessWidget {
-  const _BackupReminder();
+/// Home entry card (backup reminder, update notice); a chevron when it opens a page.
+class _NoticeCard extends StatelessWidget {
+  const _NoticeCard({required this.title, required this.body, this.onTap});
+  final String title;
+  final String body;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -617,8 +639,8 @@ class _BackupReminder extends StatelessWidget {
     // Home entry card: ground, radius 24, 1.5px
     // white @ 7% border, icon + title/chevron + body.
     return AppTappable(
-      onTap: () => context.push('/export'),
-      semanticsLabel: 'Back up this vault',
+      onTap: onTap,
+      semanticsLabel: title,
       child: Container(
         constraints: const BoxConstraints(minHeight: 77),
         padding: const EdgeInsets.symmetric(
@@ -649,7 +671,7 @@ class _BackupReminder extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            'Back up this vault',
+                            title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppTypography.labelLarge.copyWith(
@@ -657,17 +679,18 @@ class _BackupReminder extends StatelessWidget {
                             ),
                           ),
                         ),
-                        AppIcon(
-                          AppIcons.chevronForward,
-                          size: 20,
-                          color: colors.icon.accent,
-                        ),
+                        if (onTap != null)
+                          AppIcon(
+                            AppIcons.chevronForward,
+                            size: 20,
+                            color: colors.icon.accent,
+                          ),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      'Your key share lives only on this phone',
-                      maxLines: 2,
+                      body,
+                      maxLines: 3,
                       style: AppTypography.bodyMedium.copyWith(
                         color: colors.text.secondary,
                         height: 17 / 16,

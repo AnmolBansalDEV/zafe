@@ -263,6 +263,14 @@ fn info(state: &VaultState, me: [u8; 32], state_dir: &str) -> Vec<ProposalInfo> 
     out
 }
 
+pub struct ProposalList {
+    /// Newest first.
+    pub items: Vec<ProposalInfo>,
+    /// Log entries written by a newer version of Zafe that this build skipped: other
+    /// members may see something this device can't, so the app asks to update.
+    pub newer_version_entries: u32,
+}
+
 /// Every proposal in the vault log, newest first. Also keeps this device ready for
 /// one-tap signing: tops up its pre-published commitments when they run low, and deletes
 /// nonces of proposals that closed.
@@ -271,7 +279,7 @@ pub fn list_proposals(
     state_dir: String,
     seeds: Vec<u8>,
     material: Vec<u8>,
-) -> Result<Vec<ProposalInfo>, ZafeError> {
+) -> Result<ProposalList, ZafeError> {
     let me = identity(&seeds)?;
     let m = self::material(&material)?;
     let relay = RelayClient::new(relay_url);
@@ -282,7 +290,10 @@ pub fn list_proposals(
         Ok::<_, ZafeError>(state)
     })?;
     node::forget_closed(&state, &me.public().sig_pk, &mut pool);
-    Ok(info(&state, me.public().sig_pk, &state_dir))
+    Ok(ProposalList {
+        items: info(&state, me.public().sig_pk, &state_dir),
+        newer_version_entries: state.newer_version_entries() as u32,
+    })
 }
 
 // --- Proposing and reviewing ------------------------------------------------------------

@@ -420,6 +420,11 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
             .map_err(|e| WalletError::Sync(format!("{e:?}")))
     }
 
+    /// The network this wallet is on.
+    pub fn params(&self) -> &P {
+        &self.params
+    }
+
     pub fn chain_height(&self) -> Result<Option<u32>, WalletError> {
         Ok(self.db.chain_height().map_err(db_err)?.map(u32::from))
     }

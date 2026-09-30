@@ -31,7 +31,7 @@ int memoLength({required String memo}) =>
 /// Every proposal in the vault log, newest first. Also keeps this device ready for
 /// one-tap signing: tops up its pre-published commitments when they run low, and deletes
 /// nonces of proposals that closed.
-Future<List<ProposalInfo>> listProposals({
+Future<ProposalList> listProposals({
   required String relayUrl,
   required String stateDir,
   required List<int> seeds,
@@ -392,6 +392,28 @@ class ProposalInfo {
           autoSend == other.autoSend &&
           expiryHeight == other.expiryHeight &&
           needsReapproval == other.needsReapproval;
+}
+
+class ProposalList {
+  /// Newest first.
+  final List<ProposalInfo> items;
+
+  /// Log entries written by a newer version of Zafe that this build skipped: other
+  /// members may see something this device can't, so the app asks to update.
+  final int newerVersionEntries;
+
+  const ProposalList({required this.items, required this.newerVersionEntries});
+
+  @override
+  int get hashCode => items.hashCode ^ newerVersionEntries.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ProposalList &&
+          runtimeType == other.runtimeType &&
+          items == other.items &&
+          newerVersionEntries == other.newerVersionEntries;
 }
 
 enum ProposalStage {

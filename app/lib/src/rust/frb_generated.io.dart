@@ -121,6 +121,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ProposalInfo dco_decode_proposal_info(dynamic raw);
 
   @protected
+  ProposalList dco_decode_proposal_list(dynamic raw);
+
+  @protected
   ProposalStage dco_decode_proposal_stage(dynamic raw);
 
   @protected
@@ -264,6 +267,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ProposalInfo sse_decode_proposal_info(SseDeserializer deserializer);
+
+  @protected
+  ProposalList sse_decode_proposal_list(SseDeserializer deserializer);
 
   @protected
   ProposalStage sse_decode_proposal_stage(SseDeserializer deserializer);
@@ -435,6 +441,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_proposal_info(ProposalInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_proposal_list(ProposalList self, SseSerializer serializer);
 
   @protected
   void sse_encode_proposal_stage(ProposalStage self, SseSerializer serializer);

@@ -261,9 +261,10 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       reproducible with lightwalletd down (that fails cleanly). Guarded: `sync()` now times
       out after 6 minutes so `syncing` can't stick. Root cause unknown; add breadcrumbs if
       it recurs
-- [ ] A payment to the vault's **own address** fails every member's check ("1 proposed
-      payment(s) have no matching output"): verification counts the output as change.
-      Either block own addresses in Send (with copy) or match self-payments explicitly
+- [x] A payment to the vault's **own address** failed every member's check (verification
+      counts the output as change): `node::propose` now refuses it up front
+      (`WalletError::Payment` → `InvalidInput`, "that is this vault's own address"),
+      tested in `bridge_e2e`. The Send screen still only finds out at "Propose payment"
 
 - [ ] `AppButton` label is a separate node in accessibility trees (button role is fixed;
       merge still not happening). Upstream Vizor `4bff2e7` has no fix: its `AppButton` still
@@ -310,8 +311,11 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       the app shows "update the app" (`ZafeErrorKind::UpdateRequired` / `RelayOutdated`);
       replay ignores newer events after `Created`. Unversioned pre-release data is not
       readable: reset devices, harness and relay DBs
-- [ ] Versioning follow-ups: show "update Zafe to see everything" when
-      `VaultState::newer_version_entries() > 0` (bridge + Home banner); decide a migration
+- [x] "Update Zafe" notice on Home when the log has entries from a newer version
+      (`list_proposals` now returns `ProposalList { items, newer_version_entries }`;
+      `ProposalsState.newerVersionEntries`; Home `_NoticeCard`, shared with the backup
+      reminder). No store link yet
+- [ ] Versioning follow-ups: decide a migration
       policy (which old versions each decoder keeps) before external testers; a
       `/v1/version` endpoint or response header so the app can warn before the first
       failing call *(idea)*

@@ -150,7 +150,7 @@ abstract class RustLibApi extends BaseApi {
     required String invite,
   });
 
-  Future<List<ProposalInfo>> crateApiProposalsListProposals({
+  Future<ProposalList> crateApiProposalsListProposals({
     required String relayUrl,
     required String stateDir,
     required List<int> seeds,
@@ -715,7 +715,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   );
 
   @override
-  Future<List<ProposalInfo>> crateApiProposalsListProposals({
+  Future<ProposalList> crateApiProposalsListProposals({
     required String relayUrl,
     required String stateDir,
     required List<int> seeds,
@@ -737,7 +737,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_list_proposal_info,
+          decodeSuccessData: sse_decode_proposal_list,
           decodeErrorData: sse_decode_zafe_error,
         ),
         constMeta: kCrateApiProposalsListProposalsConstMeta,
@@ -1694,6 +1694,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ProposalList dco_decode_proposal_list(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return ProposalList(
+      items: dco_decode_list_proposal_info(arr[0]),
+      newerVersionEntries: dco_decode_u_32(arr[1]),
+    );
+  }
+
+  @protected
   ProposalStage dco_decode_proposal_stage(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return ProposalStage.values[raw as int];
@@ -2186,6 +2198,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ProposalList sse_decode_proposal_list(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_items = sse_decode_list_proposal_info(deserializer);
+    var var_newerVersionEntries = sse_decode_u_32(deserializer);
+    return ProposalList(
+      items: var_items,
+      newerVersionEntries: var_newerVersionEntries,
+    );
+  }
+
+  @protected
   ProposalStage sse_decode_proposal_stage(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_i_32(deserializer);
@@ -2639,6 +2662,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.autoSend, serializer);
     sse_encode_u_32(self.expiryHeight, serializer);
     sse_encode_bool(self.needsReapproval, serializer);
+  }
+
+  @protected
+  void sse_encode_proposal_list(ProposalList self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_proposal_info(self.items, serializer);
+    sse_encode_u_32(self.newerVersionEntries, serializer);
   }
 
   @protected

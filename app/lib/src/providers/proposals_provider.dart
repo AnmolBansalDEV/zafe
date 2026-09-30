@@ -38,6 +38,7 @@ class ProposalsState {
     this.loaded = false,
     this.error,
     this.sends = const {},
+    this.newerVersionEntries = 0,
   });
 
   final List<rust.ProposalInfo> items;
@@ -46,6 +47,9 @@ class ProposalsState {
 
   /// Sends started on this device, by proposal id.
   final Map<String, SendState> sends;
+
+  /// Vault log entries from a newer Zafe that this build skipped (ask to update).
+  final int newerVersionEntries;
 
   rust.ProposalInfo? byId(String id) {
     for (final p in items) {
@@ -60,11 +64,13 @@ class ProposalsState {
     Object? error,
     bool clearError = false,
     Map<String, SendState>? sends,
+    int? newerVersionEntries,
   }) => ProposalsState(
     items: items ?? this.items,
     loaded: loaded ?? this.loaded,
     error: clearError ? null : (error ?? this.error),
     sends: sends ?? this.sends,
+    newerVersionEntries: newerVersionEntries ?? this.newerVersionEntries,
   );
 }
 
@@ -101,13 +107,19 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
     _refreshing = true;
     try {
       final paths = await ZafePaths.get();
-      final items = await rust.listProposals(
+      final list = await rust.listProposals(
         relayUrl: kZafeRelayUrl,
         stateDir: await paths.stateDir(vault.activeId!),
         seeds: vault.identity!,
         material: vault.material!,
       );
-      state = state.copyWith(items: items, loaded: true, clearError: true);
+      final items = list.items;
+      state = state.copyWith(
+        items: items,
+        loaded: true,
+        clearError: true,
+        newerVersionEntries: list.newerVersionEntries,
+      );
       // Seen on screen: never announced from the background. Only while the app is in
       // the foreground; a refresh running in the background must not swallow news.
       if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {

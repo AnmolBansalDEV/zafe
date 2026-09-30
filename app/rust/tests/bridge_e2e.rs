@@ -234,6 +234,24 @@ fn payment_flow_through_bridge() {
     assert_eq!(proposals::parse_zec("0,00000001".into()), Some(1));
     assert_eq!(proposals::parse_zec("1.000000001".into()), None);
 
+    // Paying the vault itself is refused up front (every member's check would fail).
+    let a0 = &members[0];
+    let own = proposals::propose_payment(
+        relay.clone(),
+        lwd.clone(),
+        a0.db_dir.clone(),
+        a0.db_key.clone(),
+        a0.seeds.clone(),
+        a0.material.clone(),
+        vec![PaymentInput {
+            address: summary.address.clone(),
+            amount_zat: 100_000_000,
+            memo: String::new(),
+        }],
+        false,
+    );
+    assert_eq!(own.err().map(|e| e.kind), Some(ZafeErrorKind::InvalidInput));
+
     // A proposes 1 ZEC.
     let b_before = sync(&members[1]);
     let a = &members[0];
@@ -260,6 +278,7 @@ fn payment_flow_through_bridge() {
             m.material.clone(),
         )
         .unwrap()
+        .items
     };
     // B's next sync holds back the notes A's open proposal spends: B's spendable balance
     // (what B could propose) drops, the total doesn't.

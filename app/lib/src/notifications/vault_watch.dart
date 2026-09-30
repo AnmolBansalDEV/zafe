@@ -278,12 +278,12 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
         material: material,
       );
     } catch (_) {}
-    var proposals = await rust.listProposals(
+    var proposals = (await rust.listProposals(
       relayUrl: kZafeRelayUrl,
       stateDir: stateDir,
       seeds: seeds,
       material: material,
-    );
+    )).items;
     try {
       await rust.answerSigningRequests(
         relayUrl: kZafeRelayUrl,
@@ -320,12 +320,12 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
         } catch (_) {}
       }
     }
-    proposals = await rust.listProposals(
+    proposals = (await rust.listProposals(
       relayUrl: kZafeRelayUrl,
       stateDir: stateDir,
       seeds: seeds,
       material: material,
-    );
+    )).items;
     await VaultSummaries.write(
       v.id,
       actionable: actionableCount(proposals, height: height),

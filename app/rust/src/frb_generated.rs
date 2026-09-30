@@ -1543,6 +1543,18 @@ impl SseDecode for crate::api::proposals::ProposalInfo {
     }
 }
 
+impl SseDecode for crate::api::proposals::ProposalList {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_items = <Vec<crate::api::proposals::ProposalInfo>>::sse_decode(deserializer);
+        let mut var_newerVersionEntries = <u32>::sse_decode(deserializer);
+        return crate::api::proposals::ProposalList {
+            items: var_items,
+            newer_version_entries: var_newerVersionEntries,
+        };
+    }
+}
+
 impl SseDecode for crate::api::proposals::ProposalStage {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -2077,6 +2089,27 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::proposals::ProposalInfo>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::proposals::ProposalList {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.items.into_into_dart().into_dart(),
+            self.newer_version_entries.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::proposals::ProposalList
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::proposals::ProposalList>
+    for crate::api::proposals::ProposalList
+{
+    fn into_into_dart(self) -> crate::api::proposals::ProposalList {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::proposals::ProposalStage {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -2553,6 +2586,14 @@ impl SseEncode for crate::api::proposals::ProposalInfo {
         <bool>::sse_encode(self.auto_send, serializer);
         <u32>::sse_encode(self.expiry_height, serializer);
         <bool>::sse_encode(self.needs_reapproval, serializer);
+    }
+}
+
+impl SseEncode for crate::api::proposals::ProposalList {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<crate::api::proposals::ProposalInfo>>::sse_encode(self.items, serializer);
+        <u32>::sse_encode(self.newer_version_entries, serializer);
     }
 }
 

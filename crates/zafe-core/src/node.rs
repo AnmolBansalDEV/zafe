@@ -949,8 +949,19 @@ pub async fn propose<P: Parameters + Clone + Send + Sync + 'static, R: RngCore +
     auto_send: bool,
     rng: &mut R,
 ) -> Result<ProposalId, NodeError> {
-    let (mut chain, mut state) = load_state(relay, me, material).await?;
     let fvk = material.vault_keys()?.fvk().clone();
+    // Every member's check would reject it: an output to the vault counts as change.
+    for p in payments {
+        if orchard_receiver(wallet.params(), &p.address)
+            .is_ok_and(|a| fvk.scope_for_address(&a).is_some())
+        {
+            return Err(crate::wallet::WalletError::Payment(
+                "that is this vault's own address".into(),
+            )
+            .into());
+        }
+    }
+    let (mut chain, mut state) = load_state(relay, me, material).await?;
     for _ in 0..3 {
         reserve_notes(&state, wallet, lightwalletd).await?;
         let pczt = wallet.propose(payments, material.descriptor.proposal_expiry_blocks)?;
