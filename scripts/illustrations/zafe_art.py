@@ -1,7 +1,7 @@
 """Shared toolkit for Zafe's illustrations (original work; see docs/illustrations.md).
 
 Style: ink-engraving line art with hatch and stipple texture, a muted neutral stone
-palette, lime brand accents and Zcash-gold highlights. Every scene is a function
+palette, verdigris brand accents and Zcash-gold highlights. Every scene is a function
 `scene(p) -> str` that takes one of PALETTES and returns a complete SVG document.
 
 Texture fills (`fill="url(#hatch)"`, `hatch2`, `dots`, `fine`, `grit`) are written like
@@ -14,21 +14,22 @@ import random
 import re
 
 PALETTES = {
-    # "Signal": values follow app/lib/src/core/theme (neutral charcoal ladder, lime brand,
-    # Zcash gold kept for keys and coins). sky1 = background.window, exactly.
-    # Light mode uses the darker lime family (#4F7A08) for contrast on pale grounds.
+    # "Verdigris" (docs/brand.md §3): values follow app/lib/src/core/theme (neutral
+    # ladder tinted ~1% toward hue 188, verdigris brand, Zcash gold kept for keys and
+    # coins). sky1 = background.window, exactly. Light mode uses the deep verdigris
+    # family (#00736C) for contrast on pale grounds.
     "dark": dict(
-        sky0="#141414", sky1="#0A0A0A", stone="#222222", stone2="#2C2C2C",
-        stone3="#1A1A1A", light="#565653", hi="#7C7C78", ink="#050505",
-        lime="#C9EE6E", lime2="#5A7F1C", lime3="#2D410F", gold="#F4B728", gold2="#B8841A",
-        gold3="#FFE39A", metal="#3C3C3B", metal2="#565653", dot="#000000",
-        glow="#F4B728", paper="#A6A6A2", texop="0.35", dark=True,
+        sky0="#111515", sky1="#080B0B", stone="#1E2323", stone2="#272E2D",
+        stone3="#161B1B", light="#4E5857", hi="#737F7D", ink="#020404",
+        brand="#51DDD2", brand2="#006660", brand3="#003633", gold="#F4B728", gold2="#B8841A",
+        gold3="#FFE39A", metal="#353E3D", metal2="#4E5857", dot="#000000",
+        glow="#F4B728", paper="#9DA9A7", texop="0.35", dark=True,
     ),
     "light": dict(
-        sky0="#FFFFFF", sky1="#F4F4F3", stone="#DEDEDB", stone2="#E9E9E7",
-        stone3="#CFCFCB", light="#F4F4F3", hi="#FFFFFF", ink="#2C2C2A",
-        lime="#4F7A08", lime2="#3E6106", lime3="#D2EA96", gold="#F4B728", gold2="#C98A10",
-        gold3="#FFF1C4", metal="#CFCFCB", metal2="#E9E9E7", dot="#5E5E5A",
+        sky0="#FFFFFF", sky1="#F1F5F5", stone="#D9DFDF", stone2="#E5EAE9",
+        stone3="#C9D0CF", light="#F1F5F5", hi="#FFFFFF", ink="#27302F",
+        brand="#00736C", brand2="#00605A", brand3="#9EF4EC", gold="#F4B728", gold2="#C98A10",
+        gold3="#FFF1C4", metal="#C9D0CF", metal2="#E5EAE9", dot="#55615F",
         glow="#F4B728", paper="#FFFFFF", texop="0.22", dark=False,
     ),
 }
@@ -51,7 +52,7 @@ def defs(p, extra=""):
     return f"""<defs>
 <radialGradient id="vig" cx="50%" cy="42%" r="70%"><stop offset="55%" stop-color="{p['sky1']}" stop-opacity="0"/><stop offset="100%" stop-color="{p['dot']}" stop-opacity="{'0.55' if p['dark'] else '0.10'}"/></radialGradient>
 <radialGradient id="glow"><stop offset="0%" stop-color="{p['glow']}" stop-opacity="0.75"/><stop offset="45%" stop-color="{p['glow']}" stop-opacity="0.22"/><stop offset="100%" stop-color="{p['glow']}" stop-opacity="0"/></radialGradient>
-<radialGradient id="glowl"><stop offset="0%" stop-color="{p['lime']}" stop-opacity="0.55"/><stop offset="100%" stop-color="{p['lime']}" stop-opacity="0"/></radialGradient>
+<radialGradient id="glowl"><stop offset="0%" stop-color="{p['brand']}" stop-opacity="0.55"/><stop offset="100%" stop-color="{p['brand']}" stop-opacity="0"/></radialGradient>
 <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{p['sky0']}"/><stop offset="1" stop-color="{p['sky1']}"/></linearGradient>
 <linearGradient id="goldg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="{p['gold3']}"/><stop offset=".45" stop-color="{p['gold']}"/><stop offset="1" stop-color="{p['gold2']}"/></linearGradient>
 {extra}</defs>"""
@@ -225,7 +226,7 @@ def key(p, x, y, s=1.0, rot=0, gem=True, ghost=False):
         g.append(f'<path d="M-24 -14a28 28 0 0 1 18 -18M40 -3H170" fill="none" stroke="{p["gold3"]}" stroke-width="4" stroke-linecap="round"/>')
         g.append(f'<path d="M26 4H174" stroke="{p["gold2"]}" stroke-width="3" opacity=".8"/>')
         if gem:
-            g.append(f'<circle r="15" fill="{p["lime"]}" stroke="{ink}" stroke-width="4"/>')
+            g.append(f'<circle r="15" fill="{p["brand"]}" stroke="{ink}" stroke-width="4"/>')
             g.append(f'<path d="M-7 -4a8 8 0 0 1 7 -6" fill="none" stroke="{p["hi"] if p["dark"] else "#FFFFFF"}" stroke-width="3" stroke-linecap="round"/>')
         else:
             g.append(f'<circle r="14" fill="{p["sky1"]}" stroke="{ink}" stroke-width="4"/>')

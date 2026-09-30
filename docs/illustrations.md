@@ -18,25 +18,26 @@ screen edge and dissolves into the background.
 
 | token | dark | light | use |
 |---|---|---|---|
-| `sky0` / `sky1` | `#141414` / `#0A0A0A` | `#FFFFFF` / `#F4F4F3` | background gradient; `sky1` = `background.window` (must match exactly) |
-| `stone` / `stone2` / `stone3` | `#222222` / `#2C2C2C` / `#1A1A1A` | `#DEDEDB` / `#E9E9E7` / `#CFCFCB` | masonry, ground, faces (charcoal raised and line tones) |
-| `metal` / `metal2` | `#3C3C3B` / `#565653` | `#CFCFCB` / `#E9E9E7` | vault doors, fittings |
-| `hi` | `#7C7C78` | `#FFFFFF` | highlight strokes on top-left edges |
-| `ink` | `#050505` | `#2C2C2A` | outlines |
-| `dot` | `#000000` | `#5E5E5A` | texture (hatch, stipple), vignette |
-| `paper` / `light` | `#A6A6A2` / `#565653` | `#FFFFFF` / `#F4F4F3` | envelopes, pages, word cards |
-| `lime` / `lime2` / `lime3` | `#C9EE6E` / `#5A7F1C` / `#2D410F` | `#4F7A08` / `#3E6106` / `#D2EA96` | members and brand marks; `lime3` for large lime areas (the join door leaf). Light mode uses the dark lime family for contrast |
+| `sky0` / `sky1` | `#111515` / `#080B0B` | `#FFFFFF` / `#F1F5F5` | background gradient; `sky1` = `background.window` (must match exactly) |
+| `stone` / `stone2` / `stone3` | `#1E2323` / `#272E2D` / `#161B1B` | `#D9DFDF` / `#E5EAE9` / `#C9D0CF` | masonry, ground, faces (raised and line tones) |
+| `metal` / `metal2` | `#353E3D` / `#4E5857` | `#C9D0CF` / `#E5EAE9` | vault doors, fittings |
+| `hi` | `#737F7D` | `#FFFFFF` | highlight strokes on top-left edges |
+| `ink` | `#020404` | `#27302F` | outlines |
+| `dot` | `#000000` | `#55615F` | texture (hatch, stipple), vignette |
+| `paper` / `light` | `#9DA9A7` / `#4E5857` | `#FFFFFF` / `#F1F5F5` | envelopes, pages, word cards |
+| `brand` / `brand2` / `brand3` | `#51DDD2` / `#006660` / `#003633` | `#00736C` / `#00605A` / `#9EF4EC` | members and brand marks (verdigris); `brand3` for large brand areas (the join door leaf). Light mode uses the deep verdigris family for contrast |
 | `gold` / `gold2` / `gold3` | `#F4B728` / `#B8841A` / `#FFE39A` | `#F4B728` / `#C98A10` / `#FFF1C4` | Zcash gold: keys, coins, light (`goldg` gradient) |
 
-Colour meaning: **gold is what matters** (keys, funds, light), **lime marks members** and
-the brand (one gem/grip per member), neutrals (charcoal, no blue tint) carry everything
-else. Keep gold to a few focal areas. No crimson or jade anywhere (earlier accents).
+Colour meaning: **gold is what matters** (keys, funds, light), **verdigris marks members** and
+the brand (one gem/grip per member), neutrals (the app's grays, tinted ~1% toward
+verdigris) carry everything else. Keep gold to a few focal areas. No crimson, jade or
+lime anywhere (earlier accents).
 
 **Motif**: the vault dial from the home screen, concentric rings with tick marks
 (`dial()` in `zafe_art.py`). Use it as a quiet backdrop or on doors and locks.
 
 **Toolkit helpers** (`zafe_art.py`): `stone_wall`, `coin`, `dial`, `key` (a small gold key
-share with a lime gem, or a dashed `ghost`), `sparks` (gold glints in one path). Scene-level
+share with a brand gem, or a dashed `ghost`), `sparks` (gold glints in one path). Scene-level
 props in `scenes.py`: `envelope`, `dial_lock` (combination padlock = passphrase),
 `word_tiles`, `ledge`.
 
@@ -51,7 +52,7 @@ shape with an `opacity`. These look like SVG patterns but `svg()` bakes them int
 geometry: **flutter_svg renders `<pattern>` fills as vertical stripes over the whole shape**.
 Paths that use a texture need a `bb="x0 y0 x1 y1"` attribute.
 
-**Light**: radial gradients only (`#glow` gold, `#glowl` lime), no filters or blur.
+**Light**: radial gradients only (`#glow` gold, `#glowl` brand), no filters or blur.
 Finish every scene with the `#vig` vignette.
 
 **flutter_svg limits**: no `<pattern>`, `<polyline>`, `<line>`, `<text>`, filters, blur or
@@ -81,14 +82,14 @@ density low.
 
 | file | used in | concept |
 |---|---|---|
-| `welcome_vault_*` | Welcome (hero) | A round vault door in a stone wall, its face ringed with dial ticks. Five keyholes (five members) around a five-spoke hand wheel with lime grips; three gold keys are turned and a gold arc joins them: 3 of 5 opens it. Coins on the floor. |
+| `welcome_vault_*` | Welcome (hero) | A round vault door in a stone wall, its face ringed with dial ticks. Five keyholes (five members) around a five-spoke hand wheel with verdigris grips; three gold keys are turned and a gold arc joins them: 3 of 5 opens it. Coins on the floor. |
 | `create_stones_*` | New vault (banner) | A ring of standing stones at moonrise; the lit stones (two uprights and a lintel) form the arch, the others stay dark: enough members complete it. |
-| `join_doorway_*` | Join a vault (banner) | An arched doorway with warm light spilling out, a lime keystone and door leaf, and a sealed invitation waiting on the step. |
-| `key_shards_*` | "Creating your vault keys" (hero) | One ornate gold key broken into five pieces, each with a member's lime gem, held apart around a dashed outline of the whole key: the full key never exists in one place. |
-| `backup_seal_*` | Back up vault prompt and the export form (banner) | An envelope in front of a large dial, the key share inside (dashed gold ghost), sealed by a combination lock with a lime dial; blank word cards (the passphrase) are threaded to it. |
-| `restore_key_*` | Restore vault (banner) | The envelope open and its lock unlocked; the gold key flies along a dotted arc back to a safe's round door, whose keyhole glows lime. |
-| `sent_slot_*` | Sending screen (full-page background) | A vault door bleeding off the top edge; light pours from its slot, flanked by lime member marks, and coins drift out to the edges along dotted trails. Faint dial ripples rise from the bottom. The middle is empty for the status circle and text. |
-| `empty_ledger_*` | Activity, empty state (small banner, 1080 x 440) | A quiet shelf: a shut little safe, an open blank ledger with a lime ribbon, one coin. |
+| `join_doorway_*` | Join a vault (banner) | An arched doorway with warm light spilling out, a verdigris keystone and door leaf, and a sealed invitation waiting on the step. |
+| `key_shards_*` | "Creating your vault keys" (hero) | One ornate gold key broken into five pieces, each with a member's verdigris gem, held apart around a dashed outline of the whole key: the full key never exists in one place. |
+| `backup_seal_*` | Back up vault prompt and the export form (banner) | An envelope in front of a large dial, the key share inside (dashed gold ghost), sealed by a combination lock with a verdigris dial; blank word cards (the passphrase) are threaded to it. |
+| `restore_key_*` | Restore vault (banner) | The envelope open and its lock unlocked; the gold key flies along a dotted arc back to a safe's round door, whose keyhole glows verdigris. |
+| `sent_slot_*` | Sending screen (full-page background) | A vault door bleeding off the top edge; light pours from its slot, flanked by verdigris member marks, and coins drift out to the edges along dotted trails. Faint dial ripples rise from the bottom. The middle is empty for the status circle and text. |
+| `empty_ledger_*` | Activity, empty state (small banner, 1080 x 440) | A quiet shelf: a shut little safe, an open blank ledger with a verdigris ribbon, one coin. |
 
 ## In the app
 
