@@ -249,8 +249,8 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       proposals hold no notes); what's missing is the UI and a self-send proposal
 - [x] Delete pool nonces of **expired** proposals (2026-09-30): `forget_closed` takes the
       synced tip (bridge `list_proposals(tip_height)`, passed by the app and background
-      check); tested in `tests/vault.rs`. Interactive nonces (`FileNonceStore`) of closed
-      or expired proposals are still never deleted
+      check); tested in `tests/vault.rs`. Interactive nonces of closed or expired
+      proposals are deleted too (`node::forget_closed_nonces`, same refresh)
 - [x] Surface "one-tap unavailable" (2026-09-30): the Approve step explains that approvers
       sign again when it's sent. Pools: the app tops up on every proposals refresh (first
       Home refresh after keygen); the CLI only with `zafe pool`, so harness vaults are

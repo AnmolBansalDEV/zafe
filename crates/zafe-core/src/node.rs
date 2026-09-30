@@ -1354,6 +1354,33 @@ pub fn forget_closed(
     n
 }
 
+/// Deletes this device's interactive-signing nonces for proposals that are closed or
+/// expired (as `forget_closed`): no signing round can use them any more. Returns how many
+/// proposals had nonces here.
+pub fn forget_closed_nonces(
+    state: &VaultState,
+    tip_height: Option<u32>,
+    store: &mut impl NonceStore,
+) -> usize {
+    state
+        .proposals
+        .values()
+        .filter(|p| {
+            let expired =
+                p.expiry_height > 0 && tip_height.is_some_and(|tip| tip >= p.expiry_height);
+            expired
+                || matches!(
+                    p.status,
+                    ProposalStatus::Broadcast
+                        | ProposalStatus::Rejected
+                        | ProposalStatus::Cancelled
+                )
+        })
+        // `take` deletes before returning; the nonces are dropped unused.
+        .filter(|p| store.take(&p.id, &p.pczt_hash).is_some())
+        .count()
+}
+
 /// Whether a proposal has a complete signer group (one-tap) and can be sent by anyone.
 pub fn is_ready(state: &VaultState, proposal: &ProposalId) -> bool {
     state

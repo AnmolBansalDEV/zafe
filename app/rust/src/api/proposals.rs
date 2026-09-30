@@ -292,6 +292,7 @@ pub fn list_proposals(
         Ok::<_, ZafeError>(state)
     })?;
     node::forget_closed(&state, &me.public().sig_pk, tip_height, &mut pool);
+    node::forget_closed_nonces(&state, tip_height, &mut nonce_store(&state_dir));
     Ok(ProposalList {
         items: info(&state, me.public().sig_pk, &state_dir),
         newer_version_entries: state.newer_version_entries() as u32,

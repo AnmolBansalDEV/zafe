@@ -656,4 +656,20 @@ fn nonces_of_expired_one_tap_proposals_are_forgotten() {
     assert_eq!(forgotten(Some(expiry - 1)), 0, "still open");
     // Member 0 is in two of the three 2-of-3 groups, one spend each.
     assert_eq!(forgotten(Some(expiry)), 2);
+
+    // Interactive nonces for the same proposal go too, once it expired.
+    use zafe_core::session::{MemoryNonceStore, NonceStore};
+    let mut store = MemoryNonceStore::default();
+    let p = &state.proposals[&[1; 16]];
+    store.put(p.id, p.pczt_hash, vec![]).unwrap();
+    assert_eq!(
+        node::forget_closed_nonces(&state, Some(expiry - 1), &mut store),
+        0
+    );
+    assert!(store.contains(&p.id, &p.pczt_hash));
+    assert_eq!(
+        node::forget_closed_nonces(&state, Some(expiry), &mut store),
+        1
+    );
+    assert!(!store.contains(&p.id, &p.pczt_hash));
 }
