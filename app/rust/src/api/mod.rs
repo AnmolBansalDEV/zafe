@@ -3,6 +3,7 @@ pub mod backup;
 pub mod endpoints;
 pub mod error;
 pub mod history;
+pub mod mempool;
 pub mod names;
 pub mod proposals;
 pub mod received;

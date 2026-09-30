@@ -724,5 +724,212 @@ fn payment_flow_through_bridge() {
         .any(|l| l.contains(&txid2) && l.contains(",-0.50000000,")));
     assert!(lines.iter().filter(|l| l.contains(",received,")).count() >= 100);
 
+    // --- Pending incoming payments. A second vault (2-of-2: D creates, E joins) is paid by
+    // the first one. E's app watches lightwalletd's mempool, so the payment is listed as
+    // received (unmined) before any block includes it.
+    let seeds2: Vec<Vec<u8>> = (0..2).map(|_| vault::generate_identity().seeds).collect();
+    let invite2 =
+        vault::create_vault(relay.clone(), seeds2[0].clone(), "Payroll".into(), 2, 2).unwrap();
+    vault::join_vault(relay.clone(), seeds2[1].clone(), invite2.clone()).unwrap();
+    vault::seal_vault(relay.clone(), seeds2[0].clone(), invite2.clone()).unwrap();
+    let safety2 = vault::vault_membership(relay.clone(), seeds2[0].clone(), invite2.clone())
+        .unwrap()
+        .safety_number;
+    // The creator picks lightwalletd's tip + 1 as the birthday (as the app does).
+    let handles: Vec<_> = seeds2
+        .iter()
+        .map(|s| {
+            let (relay, lwd, s, invite, sn) = (
+                relay.clone(),
+                lwd.clone(),
+                s.clone(),
+                invite2.clone(),
+                safety2.clone(),
+            );
+            thread::spawn(move || {
+                vault::run_keygen(relay, lwd, "regtest".into(), s, invite, sn, 120, None, None)
+                    .unwrap()
+            })
+        })
+        .collect();
+    let materials2: Vec<Vec<u8>> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+    let summary2 = vault::vault_summary(materials2[1].clone()).unwrap();
+    let e = {
+        let dir = tmp.join("v2-e");
+        let state = dir.join("signing");
+        std::fs::create_dir_all(&state).unwrap();
+        Member {
+            seeds: seeds2[1].clone(),
+            material: materials2[1].clone(),
+            db_dir: dir.to_string_lossy().into(),
+            db_key: rand::random::<[u8; 32]>().to_vec(),
+            state_dir: state.to_string_lossy().into(),
+        }
+    };
+
+    // Past vault 2's birthday; everyone synced (vault 1's earlier sends mine here too).
+    chain.mine(3);
+    let tip = after.height + 6;
+    for m in members.iter().chain([&e]) {
+        let mut b = sync(m);
+        for _ in 0..60 {
+            if b.height >= tip {
+                break;
+            }
+            thread::sleep(Duration::from_secs(1));
+            b = sync(m);
+        }
+        assert!(b.height >= tip, "member did not reach {tip}");
+    }
+    assert!(received_list(&e).is_empty());
+
+    // E's watch, as the app runs it while in the foreground.
+    let watch_id = rust_lib_zafe::api::mempool::begin_mempool_watch();
+    let (events_tx, events) = std::sync::mpsc::channel();
+    let watcher = {
+        let (lwd, e) = (lwd.clone(), e.clone());
+        thread::spawn(move || {
+            rust_lib_zafe::api::mempool::watch_mempool_with(
+                watch_id,
+                lwd,
+                e.db_dir,
+                e.db_key,
+                e.material,
+                move |ev| {
+                    println!("mempool {:?} {:?}", ev.status, ev.txid);
+                    let _ = events_tx.send((ev.status, ev.txid));
+                },
+            )
+        })
+    };
+    use rust_lib_zafe::api::mempool::MempoolStatus;
+    let (status, _) = events
+        .recv_timeout(Duration::from_secs(30))
+        .expect("mempool watch never connected");
+    assert_eq!(status, MempoolStatus::Connected);
+
+    // Vault 1 pays vault 2: A proposes, A and B approve, B sends (one tap, or interactive
+    // with A answering).
+    for m in &members {
+        list(m); // tops up commitment pools
+    }
+    let id4 = proposals::propose_payment(
+        relay.clone(),
+        lwd.clone(),
+        a.db_dir.clone(),
+        a.db_key.clone(),
+        a.seeds.clone(),
+        a.material.clone(),
+        vec![PaymentInput {
+            address: summary2.address.clone(),
+            amount_zat: 20_000_000,
+            memo: "payroll top-up".into(),
+        }],
+        true,
+    )
+    .unwrap();
+    for m in [a, b] {
+        proposals::approve_proposal(
+            relay.clone(),
+            lwd.clone(),
+            m.db_dir.clone(),
+            m.db_key.clone(),
+            m.state_dir.clone(),
+            m.seeds.clone(),
+            m.material.clone(),
+            id4.clone(),
+        )
+        .unwrap();
+    }
+    let sender = {
+        let (relay, lwd, b) = (relay.clone(), lwd.clone(), b.clone());
+        let id4 = id4.clone();
+        thread::spawn(move || {
+            let mut sent = None;
+            proposals::send_with_progress(
+                relay,
+                lwd,
+                b.db_dir,
+                b.db_key,
+                b.state_dir,
+                b.seeds,
+                b.material,
+                id4,
+                Duration::from_secs(90),
+                |p| {
+                    if p.stage == SendStage::Sent {
+                        sent = p.txid;
+                    }
+                },
+            )
+            .map(|_| sent)
+        })
+    };
+    for _ in 0..240 {
+        if sender.is_finished() {
+            break;
+        }
+        let _ = proposals::answer_signing_requests(
+            relay.clone(),
+            lwd.clone(),
+            a.db_dir.clone(),
+            a.db_key.clone(),
+            a.state_dir.clone(),
+            a.seeds.clone(),
+            a.material.clone(),
+        );
+        thread::sleep(Duration::from_millis(500));
+    }
+    let paid = sender.join().unwrap().expect("payment send").expect("txid");
+    println!("payment to vault 2 broadcast {paid}");
+
+    // No block is mined: the watch alone must bring it in.
+    let stored = (|| {
+        let deadline = std::time::Instant::now() + Duration::from_secs(60);
+        while let Some(left) = deadline.checked_duration_since(std::time::Instant::now()) {
+            match events.recv_timeout(left) {
+                Ok((MempoolStatus::Stored, Some(t))) if t == paid => return true,
+                Ok(_) => {}
+                Err(_) => return false,
+            }
+        }
+        false
+    })();
+    assert!(stored, "the mempool watch never stored {paid}");
+    let pending = received_list(&e);
+    let r = pending
+        .iter()
+        .find(|r| r.txid == paid)
+        .expect("pending payment listed");
+    assert_eq!(r.mined_height, 0, "listed before it is mined");
+    assert_eq!(r.confirmations, 0);
+    assert_eq!(r.amount_zat, 20_000_000);
+    assert_eq!(r.memo, "payroll top-up");
+    assert!(!r.is_coinbase);
+
+    // Stopping ends the watch promptly.
+    rust_lib_zafe::api::mempool::stop_mempool_watch();
+    let stop_started = std::time::Instant::now();
+    while !watcher.is_finished() && stop_started.elapsed() < Duration::from_secs(5) {
+        thread::sleep(Duration::from_millis(50));
+    }
+    assert!(watcher.is_finished(), "the watch did not stop");
+    watcher.join().unwrap().unwrap();
+
+    // Once mined, block sync gives it a height.
+    chain.mine(1);
+    let mut mined = None;
+    for _ in 0..30 {
+        sync(&e);
+        mined = received_list(&e)
+            .into_iter()
+            .find(|r| r.txid == paid && r.mined_height > 0);
+        if mined.is_some() {
+            break;
+        }
+        thread::sleep(Duration::from_secs(1));
+    }
+    assert_eq!(mined.expect("payment mined").confirmations, 1);
+
     let _ = std::fs::remove_dir_all(&tmp);
 }

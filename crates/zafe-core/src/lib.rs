@@ -6,6 +6,7 @@ pub mod backup;
 pub mod history;
 pub mod keygen;
 pub mod keys;
+pub mod mempool;
 pub mod net;
 pub mod node;
 pub mod nonce_store;
