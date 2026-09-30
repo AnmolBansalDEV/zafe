@@ -18,15 +18,12 @@ import '../../notifications/vault_watch.dart';
 import '../backup/backup_prompt_screen.dart' show backupStatusProvider;
 import '../vaults/vault_switcher_sheet.dart';
 import '../../providers/privacy_mode_provider.dart';
-import '../../providers/member_names_provider.dart';
-import 'rename_signer_sheet.dart';
+import '../../providers/vault_names_provider.dart';
 import 'sync_status_sheet.dart';
 import '../../providers/proposals_provider.dart';
 import '../../providers/received_provider.dart';
 import '../../core/privacy/privacy_mask.dart';
 import '../proposals/activity_feed.dart';
-import '../../core/widgets/mobile/mobile_surface_card.dart';
-import '../../core/widgets/mobile/zafe_detail.dart';
 import '../../providers/vault_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
@@ -110,7 +107,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           child: Column(
             children: [
               MobileTopNav.account(
-                accountName: summary.name,
+                accountName: ref.watch(activeVaultNameProvider) ?? summary.name,
                 syncLabel: syncLabel,
                 syncLabelColor: failure != null
                     ? colors.sync.textError
@@ -207,12 +204,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         received: ref.watch(receivedProvider),
                         hideAmounts: ref.watch(privacyModeProvider),
                         height: vault.balance?.height,
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      _SignersCard(
-                        threshold: summary.threshold,
-                        members: summary.members,
-                        me: vault.myKeyHex,
                       ),
                     ],
                   ),
@@ -475,65 +466,6 @@ class _VaultDialPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class _SignersCard extends ConsumerWidget {
-  const _SignersCard({
-    required this.threshold,
-    required this.members,
-    required this.me,
-  });
-  final int threshold;
-  final List<String> members;
-  final String? me;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.colors;
-    final names = ref.watch(memberNamesProvider);
-    return MobileSurfaceCard(
-      cornerRadius: AppRadii.large,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Signers',
-                  style: AppTypography.labelLarge.copyWith(
-                    color: colors.text.accent,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              Text(
-                '$threshold of ${members.length} to approve',
-                style: AppTypography.labelMedium.copyWith(
-                  color: colors.text.secondary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          for (final m in members)
-            SignerRow(
-              keyHex: m,
-              me: me,
-              name: names[m],
-              onTap: m == me
-                  ? null
-                  : () => showRenameSignerSheet(context, ref, m),
-            ),
-          const SizedBox(height: AppSpacing.xxs),
-          Text(
-            'Tap a signer to name them on this phone.',
-            style: AppTypography.bodySmall.copyWith(color: colors.text.muted),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 /// Rows shown on Home; everything else is one tap away under "See all".
 const kRecentActivityLimit = 4;
 
@@ -581,7 +513,7 @@ class _Payments extends StatelessWidget {
                 ),
                 if (items.isNotEmpty)
                   AppTappable(
-                    onTap: () => context.push('/activity'),
+                    onTap: () => context.go('/activity'),
                     semanticsLabel: 'See all activity',
                     child: Row(
                       mainAxisSize: MainAxisSize.min,

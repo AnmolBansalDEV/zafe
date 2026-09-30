@@ -11,6 +11,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/app_tappable.dart';
 import '../../providers/privacy_mode_provider.dart';
+import '../../providers/vault_names_provider.dart';
 import '../../providers/vault_provider.dart';
 import '../../rust/api/vault.dart' as rust;
 
@@ -41,6 +42,7 @@ class _VaultSwitcher extends ConsumerWidget {
             _VaultRow(
               vault: v,
               active: v.id == state.activeId,
+              localName: ref.watch(vaultNamesProvider)[v.id],
               hideAmounts: hide,
               liveBalance: state.balances[v.id]?.totalZat,
               onTap: () async {
@@ -66,7 +68,7 @@ class _VaultSwitcher extends ConsumerWidget {
             label: 'Vault settings',
             onTap: () {
               Navigator.of(context).pop();
-              context.push('/settings');
+              context.go('/settings');
             },
           ),
         ],
@@ -82,9 +84,13 @@ class _VaultRow extends StatelessWidget {
     required this.hideAmounts,
     required this.liveBalance,
     required this.onTap,
+    this.localName,
   });
 
   final StoredVault vault;
+
+  /// The name this device gave the vault, if any.
+  final String? localName;
   final bool active;
   final bool hideAmounts;
   final BigInt? liveBalance;
@@ -99,7 +105,7 @@ class _VaultRow extends StatelessWidget {
     final invite = summary == null && vault.invite != null
         ? rust.parseInvite(invite: vault.invite!)
         : null;
-    final name = summary?.name ?? invite?.name ?? 'Vault';
+    final name = localName ?? summary?.name ?? invite?.name ?? 'Vault';
     final threshold = summary?.threshold ?? invite?.threshold ?? 0;
     final members = summary?.members.length ?? invite?.members ?? 0;
     return AppTappable(

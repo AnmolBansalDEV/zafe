@@ -9,6 +9,7 @@ import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_copy_feedback.dart';
 import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/dot_qr_shape.dart';
+import '../../providers/vault_names_provider.dart';
 import '../../providers/vault_provider.dart';
 import '../../rust/api/vault.dart' as rust;
 
@@ -71,7 +72,7 @@ class ViewingKeyScreen extends ConsumerWidget {
               Expanded(
                 child: note(
                   'Anyone with this key sees every past and future payment of '
-                  '"${vault.summary?.name ?? 'this vault'}": amounts, memos and '
+                  '"${ref.watch(activeVaultNameProvider) ?? 'this vault'}": amounts, memos and '
                   'balance. It can\'t spend. Share it only with someone you trust '
                   'with the vault\'s history, like an auditor or accountant. It '
                   'can\'t be revoked.',

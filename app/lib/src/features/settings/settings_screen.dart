@@ -18,7 +18,9 @@ import '../../providers/device_lock_provider.dart';
 import '../../providers/endpoints_provider.dart';
 import '../../providers/privacy_mode_provider.dart';
 import '../../providers/theme_mode_provider.dart';
+import '../../providers/vault_names_provider.dart';
 import '../../providers/vault_provider.dart';
+import '../home/rename_sheet.dart';
 import 'endpoint_sheet.dart';
 
 const _rowHeight = 44.0;
@@ -71,14 +73,15 @@ class SettingsScreen extends ConsumerWidget {
           bottom: false,
           child: Column(
             children: [
-              MobileTopNav.back(title: 'Settings', onBack: () => context.pop()),
+              const MobileTopNav.back(title: 'Settings'),
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.sm,
                     AppSpacing.s,
                     AppSpacing.sm,
-                    AppSpacing.lg,
+                    // Clears the floating tab bar.
+                    112,
                   ),
                   children: [
                     _Group(
@@ -87,7 +90,9 @@ class SettingsScreen extends ConsumerWidget {
                         row(
                           icon: AppIcons.wallet,
                           label: 'Name',
-                          value: summary.name,
+                          value: ref.watch(activeVaultNameProvider),
+                          chevron: true,
+                          onTap: () => showRenameVaultSheet(context, ref),
                         ),
                         row(
                           icon: AppIcons.users,
@@ -209,7 +214,7 @@ class SettingsScreen extends ConsumerWidget {
                       onPressed: () => _confirmRemove(
                         context,
                         ref,
-                        summary.name,
+                        ref.read(activeVaultNameProvider) ?? summary.name,
                         summary.threshold,
                       ),
                       child: const Text('Remove vault from this device'),

@@ -12,6 +12,8 @@ import 'features/backup/backup_prompt_screen.dart';
 import 'features/backup/export_screen.dart';
 import 'features/backup/restore_screen.dart';
 import 'features/home/home_screen.dart';
+import 'features/home/vault_shell.dart';
+import 'features/signers/signers_screen.dart';
 import 'features/onboarding/create_vault_screen.dart';
 import 'features/onboarding/join_vault_screen.dart';
 import 'core/config/network_config.dart';
@@ -110,6 +112,7 @@ final _routerProvider = Provider<GoRouter>((ref) {
         '/send',
         '/proposal',
         '/settings',
+        '/signers',
         '/viewing-key',
         '/export',
         '/activity',
@@ -155,7 +158,26 @@ final _routerProvider = Provider<GoRouter>((ref) {
         path: '/setup',
         pageBuilder: (_, _) => page(const SecureScreen(child: SetupScreen())),
       ),
-      GoRoute(path: '/home', pageBuilder: (_, _) => page(const HomeScreen())),
+      // The vault's tabs; everything else is pushed over the tab bar.
+      StatefulShellRoute.indexedStack(
+        builder: (_, _, shell) => VaultShell(shell: shell),
+        branches: [
+          for (final (path, screen) in const [
+            ('/home', HomeScreen()),
+            ('/activity', ActivityScreen()),
+            ('/signers', SignersScreen()),
+            ('/settings', SettingsScreen()),
+          ])
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: path,
+                  pageBuilder: (_, _) => NoTransitionPage(child: screen),
+                ),
+              ],
+            ),
+        ],
+      ),
       GoRoute(
         path: '/receive',
         pageBuilder: (_, _) => page(const ReceiveScreen()),
@@ -164,10 +186,6 @@ final _routerProvider = Provider<GoRouter>((ref) {
         path: '/received/:txid',
         pageBuilder: (_, state) =>
             page(ReceivedScreen(txid: state.pathParameters['txid']!)),
-      ),
-      GoRoute(
-        path: '/activity',
-        pageBuilder: (_, _) => page(const ActivityScreen()),
       ),
       GoRoute(
         path: '/export',
@@ -180,10 +198,6 @@ final _routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/restore',
         pageBuilder: (_, _) => page(const SecureScreen(child: RestoreScreen())),
-      ),
-      GoRoute(
-        path: '/settings',
-        pageBuilder: (_, _) => page(const SettingsScreen()),
       ),
       GoRoute(
         path: '/viewing-key',

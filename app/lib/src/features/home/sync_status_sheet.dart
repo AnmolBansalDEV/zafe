@@ -146,7 +146,7 @@ class _SyncStatusSheetState extends ConsumerState<_SyncStatusSheet> {
           onPressed: () {
             final router = GoRouter.of(context);
             Navigator.of(context).pop();
-            router.push('/settings');
+            router.go('/settings');
           },
           child: const Text('Server settings'),
         ),

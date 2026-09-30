@@ -9,6 +9,7 @@ import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_copy_feedback.dart';
 import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/dot_qr_shape.dart';
+import '../../providers/vault_names_provider.dart';
 import '../../providers/vault_provider.dart';
 
 class ReceiveScreen extends ConsumerWidget {
@@ -48,7 +49,7 @@ class ReceiveScreen extends ConsumerWidget {
         const SizedBox(height: AppSpacing.md),
         Center(
           child: Text(
-            summary.name,
+            ref.watch(activeVaultNameProvider) ?? summary.name,
             style: AppTypography.bodyLarge.copyWith(
               color: colors.text.accent,
               fontWeight: FontWeight.w600,

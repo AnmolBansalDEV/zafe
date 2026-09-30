@@ -18,6 +18,7 @@ import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/app_toast.dart';
 import '../../core/widgets/mobile/mobile_surface_card.dart';
 import '../../core/widgets/mobile_text_field.dart';
+import '../../providers/vault_names_provider.dart';
 import '../../providers/vault_provider.dart';
 import '../onboarding/onboarding_art.dart';
 import 'backup_prompt_screen.dart' show backupStatusProvider;
@@ -98,7 +99,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   }
 
   String get _fileName {
-    final name = ref.read(vaultProvider).summary?.name ?? 'vault';
+    final name = ref.read(activeVaultNameProvider) ?? 'vault';
     final safe = name.replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '-');
     final d = DateTime.now();
     String two(int n) => n.toString().padLeft(2, '0');
@@ -132,7 +133,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final name = ref.watch(vaultProvider).summary?.name ?? 'this vault';
+    final name = ref.watch(activeVaultNameProvider) ?? 'this vault';
     if (_done != null) {
       return ZafeScreen(
         title: 'Backup ready',

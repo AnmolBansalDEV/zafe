@@ -12,6 +12,7 @@ import 'package:workmanager/workmanager.dart';
 import '../core/config/endpoints.dart';
 import '../core/errors/zafe_error_copy.dart';
 import '../core/storage/member_names.dart';
+import '../core/storage/vault_name.dart';
 import '../core/storage/vault_summaries.dart';
 import '../core/storage/zafe_paths.dart';
 import '../core/storage/zafe_secure_store.dart';
@@ -360,7 +361,7 @@ Future<void> _checkVault(
     final updates = vaultUpdates(
       previous: await _readSeen(v.id),
       proposals: proposals,
-      vaultName: summary.name,
+      vaultName: VaultName.display(summary.name, await VaultName.read(v.id)),
       hideAmounts: hideAmounts,
       received: received ?? const [],
       // Read here: this may run in a background isolate without the app's providers.

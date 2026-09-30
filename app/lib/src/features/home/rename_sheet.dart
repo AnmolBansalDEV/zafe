@@ -8,7 +8,10 @@ import '../../core/storage/member_names.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/mobile_text_field.dart';
+import '../../core/storage/vault_name.dart';
 import '../../providers/member_names_provider.dart';
+import '../../providers/vault_names_provider.dart';
+import '../../providers/vault_provider.dart';
 
 /// Names a signer on this device (other members never see it).
 Future<void> showRenameSignerSheet(
@@ -19,17 +22,65 @@ Future<void> showRenameSignerSheet(
   final current = ref.read(memberNamesProvider)[keyHex] ?? '';
   final name = await showAppMobileSheet<String>(
     context: context,
-    builder: (sheet) => _RenameSheet(keyHex: keyHex, current: current),
+    builder: (sheet) => _RenameSheet(
+      title: 'Name this signer',
+      body:
+          'Key ${shortKey(keyHex)}. The name stays on this phone; other '
+          'members don\'t see it.',
+      hint: 'e.g. Alice (treasurer)',
+      maxLength: MemberNames.maxLength,
+      current: current,
+      removeLabel: 'Remove name',
+    ),
   );
   if (name != null) {
     await ref.read(memberNamesProvider.notifier).rename(keyHex, name);
   }
 }
 
+/// Renames the active vault on this device (other members keep their names for it).
+Future<void> showRenameVaultSheet(BuildContext context, WidgetRef ref) async {
+  final id = ref.read(vaultProvider).activeId;
+  final creator = ref.read(vaultProvider).summary?.name;
+  if (id == null || creator == null) return;
+  final current = ref.read(vaultNamesProvider)[id] ?? '';
+  final name = await showAppMobileSheet<String>(
+    context: context,
+    builder: (sheet) => _RenameSheet(
+      title: 'Rename vault',
+      body:
+          'The name stays on this phone; other members keep seeing '
+          'their own. It was created as "$creator".',
+      hint: creator,
+      maxLength: VaultName.maxLength,
+      current: current.isEmpty ? creator : current,
+      removeLabel: current.isEmpty ? null : 'Use "$creator"',
+    ),
+  );
+  if (name != null) {
+    await ref
+        .read(vaultNamesProvider.notifier)
+        .rename(id, name.trim() == creator ? '' : name);
+  }
+}
+
 class _RenameSheet extends StatefulWidget {
-  const _RenameSheet({required this.keyHex, required this.current});
-  final String keyHex;
+  const _RenameSheet({
+    required this.title,
+    required this.body,
+    required this.hint,
+    required this.maxLength,
+    required this.current,
+    this.removeLabel,
+  });
+  final String title;
+  final String body;
+  final String hint;
+  final int maxLength;
   final String current;
+
+  /// Label of the button that clears the name; hidden when null.
+  final String? removeLabel;
 
   @override
   State<_RenameSheet> createState() => _RenameSheetState();
@@ -56,15 +107,14 @@ class _RenameSheetState extends State<_RenameSheet> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     return MobileModalScaffold(
-      title: 'Name this signer',
+      title: widget.title,
       onClose: () => Navigator.of(context).pop(),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Key ${shortKey(widget.keyHex)}. The name stays on this phone; other '
-            'members don\'t see it.',
+            widget.body,
             style: AppTypography.bodyMedium.copyWith(
               color: colors.text.secondary,
             ),
@@ -73,10 +123,10 @@ class _RenameSheetState extends State<_RenameSheet> {
           MobileTextField(
             controller: _name,
             focusNode: _focus,
-            hintText: 'e.g. Alice (treasurer)',
+            hintText: widget.hint,
             textInputAction: TextInputAction.done,
             inputFormatters: [
-              LengthLimitingTextInputFormatter(MemberNames.maxLength),
+              LengthLimitingTextInputFormatter(widget.maxLength),
             ],
             onSubmitted: (v) => Navigator.of(context).pop(v),
           ),
@@ -86,13 +136,13 @@ class _RenameSheetState extends State<_RenameSheet> {
             onPressed: () => Navigator.of(context).pop(_name.text),
             child: const Text('Save'),
           ),
-          if (widget.current.isNotEmpty) ...[
+          if (widget.removeLabel != null && widget.current.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.xs),
             AppButton(
               expand: true,
               variant: AppButtonVariant.ghost,
               onPressed: () => Navigator.of(context).pop(''),
-              child: const Text('Remove name'),
+              child: Text(widget.removeLabel!),
             ),
           ],
         ],

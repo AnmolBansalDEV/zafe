@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/mobile/mobile_surface_card.dart';
+import '../../providers/vault_names_provider.dart';
 import '../../providers/vault_provider.dart';
 import '../onboarding/onboarding_art.dart';
 
@@ -27,7 +28,7 @@ class BackupPromptScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final summary = ref.watch(vaultProvider).summary;
-    final name = summary?.name ?? 'your vault';
+    final name = ref.watch(activeVaultNameProvider) ?? 'your vault';
     final t = summary?.threshold ?? 0;
     final n = summary?.members.length ?? 0;
     return ZafeScreen(

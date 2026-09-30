@@ -470,6 +470,21 @@ Learned while studying it:
   twin marked `#[frb(ignore)]` (`send_with_progress`) so Rust tests can drive it.
 - **New in-vault routes must be added to the `inVault` list in `app.dart`'s redirect**,
   or opening them bounces to `/home` with no error (hit with `/scan-recipient`).
+- **Vault tabs** (2026-09-30): `/home`, `/activity`, `/signers`, `/settings` are the
+  branches of a `StatefulShellRoute.indexedStack` (`features/home/vault_shell.dart`,
+  Vizor's floating `AppMobileTabBar`, `NoTransitionPage`); switch with `context.go`,
+  never `push` (pushing a tab root stacks a second copy). Every other in-vault route is
+  top-level, so `push` covers the tab bar. Tab screens keep ~112 px bottom padding for
+  the floating bar and use `MobileTopNav.back` without `onBack`. Home stays mounted
+  while another tab shows (indexed stack), so its 15 s poll keeps running.
+- **Vault name** is the creator's (signed in the descriptor); a member can rename it
+  on this device only (`core/storage/vault_name.dart`, `<vaultDir>/vault_name.txt`,
+  `vaultNamesProvider`, `activeVaultNameProvider`). Show `activeVaultNameProvider`,
+  not `summary.name`; background checks use `VaultName.display`. Not in backups yet.
+- **Android app category**: the manifest's `android:appCategory` has no finance value
+  (game/audio/video/image/social/news/maps/productivity/accessibility only), so launchers
+  that group apps (Nothing) file a sideloaded APK under "Other"; a Play Store listing's
+  category is most likely what puts it under Finance (unverified).
 - Flows: `/send` (recipient → amount → review → "Propose payment"), `/received/:txid`
   (money received), `/proposal/:id`
   (independent check on this device, votes, approve/reject, "Collect signatures & send"),
@@ -519,7 +534,8 @@ Learned while studying it:
   in `MainActivity.kt` (`FLAG_SECURE`). The first Zafe channel with an Android handler:
   `xyz.zafe/haptics` and `window_appearance` have none yet (Dart swallows
   `MissingPluginException`). Check with `adb shell dumpsys window windows | grep SECURE`.
-- Settings (`/settings`, opened from the vault name on home): vault info, signer key,
+- Settings (`/settings` tab; the vault switcher's "Vault settings" goes there too): vault info
+  (name renames locally), signer key,
   hide amounts, theme (`themeModeProvider`, persisted), endpoints (editable, see above),
   open-source licenses (fonts + NOTICE registered in `main.dart`).
 - **Sync failures** (`core/errors/sync_failure.dart`, pure, `test/sync_failure_test.dart`):

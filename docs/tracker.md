@@ -224,6 +224,15 @@ Open
       emulator, created a vault and shared the invite QR (R8 kept every plugin working).
       **(you)** keystore, secrets, `ZAFE_RELAY_URL`; the workflow has not run on GitHub yet
 - [ ] Reproducible / F-Droid builds (Vizor `scripts/build-android-reproducible.sh`) *(idea)*
+- [x] Tabs (2026-09-30, requested: Home was too cluttered): Home, Activity, Signers,
+      Settings under Vizor's floating tab bar (`StatefulShellRoute`). Home keeps the
+      balance, actions, notices and 4 recent rows; the signers card moved to its own tab
+      (room for key rotation and other signer management later).
+- [x] Rename a vault (2026-09-30): local to this device (like signer names), from
+      Settings → Name. Open: carry it in backups; a vault-wide rename would need a new
+      signed log event (`VAULT_EVENT` bump, gated on every member updating) *(idea)*
+- [ ] App shows under "Other" in the Nothing launcher: Android's `appCategory` has no
+      finance value; expect it to follow the Play Store category once listed *(check)*
 
 ## Multiple vaults, import and export (requested 2026-09-30)
 

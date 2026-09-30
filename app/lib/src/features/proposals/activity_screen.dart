@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -103,7 +102,6 @@ class ActivityScreen extends ConsumerWidget {
             children: [
               MobileTopNav.back(
                 title: 'Activity',
-                onBack: () => context.pop(),
                 trailing: AppButton(
                   variant: AppButtonVariant.secondary,
                   size: AppButtonSize.small,
