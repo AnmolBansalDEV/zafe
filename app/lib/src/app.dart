@@ -14,7 +14,8 @@ import 'features/backup/restore_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/onboarding/create_vault_screen.dart';
 import 'features/onboarding/join_vault_screen.dart';
-import 'features/onboarding/scan_invite_screen.dart';
+import 'core/config/network_config.dart';
+import 'features/scan/qr_scan_screen.dart';
 import 'features/onboarding/setup_screen.dart';
 import 'features/onboarding/welcome_screen.dart';
 import 'features/proposals/activity_screen.dart';
@@ -111,6 +112,7 @@ final _routerProvider = Provider<GoRouter>((ref) {
         '/export',
         '/activity',
         '/backup-prompt',
+        '/scan-recipient',
       ].any(loc.startsWith);
       if (vault.hasVault && !inVault) return '/home';
       if (!vault.hasVault && inVault) {
@@ -140,6 +142,11 @@ final _routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/scan-invite',
         pageBuilder: (_, _) => page(const ScanInviteScreen()),
+      ),
+      GoRoute(
+        path: '/scan-recipient',
+        pageBuilder: (_, _) =>
+            page(const ScanRecipientScreen(network: kZafeNetwork)),
       ),
       // Screens showing invites or backups block screenshots (SecureScreen).
       GoRoute(

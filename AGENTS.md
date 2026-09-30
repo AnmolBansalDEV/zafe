@@ -427,6 +427,8 @@ Learned while studying it:
   as a normal event (`SendStage::Failed` + `error: Option<ZafeError>`). The generated Dart
   `ZafeError` has no useful `toString`; log with `describeError`. Keep a plain-callback
   twin marked `#[frb(ignore)]` (`send_with_progress`) so Rust tests can drive it.
+- **New in-vault routes must be added to the `inVault` list in `app.dart`'s redirect**,
+  or opening them bounces to `/home` with no error (hit with `/scan-recipient`).
 - Flows: `/send` (recipient → amount → review → "Propose payment"), `/received/:txid`
   (money received), `/proposal/:id`
   (independent check on this device, votes, approve/reject, "Collect signatures & send"),

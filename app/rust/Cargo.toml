@@ -18,6 +18,7 @@ hex.workspace = true
 postcard.workspace = true
 zcash_protocol.workspace = true
 zcash_keys.workspace = true
+zip321.workspace = true
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

@@ -3100,6 +3100,7 @@ dependencies = [
  "zafe-relay",
  "zcash_keys",
  "zcash_protocol",
+ "zip321",
 ]
 
 [[package]]

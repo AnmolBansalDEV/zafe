@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart'
     show openAppSettings;
@@ -11,25 +12,99 @@ import '../../core/layout/mobile/mobile_top_nav.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_icon.dart';
+import '../../rust/api/proposals.dart' as rust_proposals;
 import '../../rust/api/vault.dart' as rust;
-import 'invite_link.dart';
+import '../onboarding/invite_link.dart';
 
 /// Camera scanner for a vault invite QR (raw invite or invite link). Pops with the raw
 /// invite once a valid one is seen; the Join screen still asks before joining.
-class ScanInviteScreen extends StatefulWidget {
+class ScanInviteScreen extends StatelessWidget {
   const ScanInviteScreen({super.key});
 
   @override
-  State<ScanInviteScreen> createState() => _ScanInviteScreenState();
+  Widget build(BuildContext context) => QrScanScreen(
+    title: 'Scan invite',
+    prompt:
+        'Point the camera at the invite QR code on the vault creator\'s phone.',
+    rejected:
+        'That QR code isn\'t a Zafe invite. Scan the one on the vault creator\'s '
+        'setup screen.',
+    accept: (raw) {
+      final invite = extractInvite(raw);
+      if (invite == null) return null;
+      try {
+        rust.parseInvite(invite: invite);
+        return invite;
+      } catch (_) {
+        return null;
+      }
+    },
+  );
 }
 
-class _ScanInviteScreenState extends State<ScanInviteScreen>
+/// Scans a recipient: an address or a `zcash:` payment link (amount, message, several
+/// recipients). Pops the `ScannedRequest`.
+class ScanRecipientScreen extends StatefulWidget {
+  const ScanRecipientScreen({super.key, required this.network});
+  final String network;
+
+  @override
+  State<ScanRecipientScreen> createState() => _ScanRecipientScreenState();
+}
+
+class _ScanRecipientScreenState extends State<ScanRecipientScreen> {
+  String? _problem;
+
+  @override
+  Widget build(BuildContext context) => QrScanScreen(
+    title: 'Scan recipient',
+    prompt: 'Point the camera at a Zcash address or payment request QR code.',
+    rejected: _problem ?? 'That QR code isn\'t a Zcash address.',
+    accept: (raw) {
+      final request = rust_proposals.parsePaymentRequest(
+        networkName: widget.network,
+        text: raw,
+      );
+      if (request.problem.isEmpty) return request;
+      if (_problem != request.problem) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _problem = request.problem);
+        });
+      }
+      return null;
+    },
+  );
+}
+
+/// A camera QR scanner that pops the first code [accept] turns into a value; other codes
+/// show [rejected].
+class QrScanScreen extends StatefulWidget {
+  const QrScanScreen({
+    super.key,
+    required this.title,
+    required this.prompt,
+    required this.rejected,
+    required this.accept,
+  });
+  final String title;
+  final String prompt;
+  final String rejected;
+
+  /// The value to return for a scanned text, or `null` to keep scanning.
+  final Object? Function(String raw) accept;
+
+  @override
+  State<QrScanScreen> createState() => _QrScanScreenState();
+}
+
+class _QrScanScreenState extends State<QrScanScreen>
     with WidgetsBindingObserver {
   final _controller = MobileScannerController(
     formats: const [BarcodeFormat.qrCode],
   );
   bool _done = false;
   bool _rejected = false;
+  bool _noCodeInImage = false;
 
   @override
   void initState() {
@@ -69,30 +144,44 @@ class _ScanInviteScreenState extends State<ScanInviteScreen>
     }
   }
 
+  /// Reads a QR code from a picture (a shared QR image or a screenshot of one).
+  Future<void> _chooseImage() async {
+    final result = await FilePicker.pickFiles(type: FileType.image);
+    final path = result?.files.single.path;
+    if (path == null || !mounted) return;
+    BarcodeCapture? capture;
+    try {
+      capture = await _controller.analyzeImage(
+        path,
+        formats: const [BarcodeFormat.qrCode],
+      );
+    } catch (_) {
+      capture = null;
+    }
+    if (!mounted) return;
+    if (capture == null || capture.barcodes.isEmpty) {
+      setState(() => _noCodeInImage = true);
+      return;
+    }
+    _noCodeInImage = false;
+    _onDetect(capture);
+  }
+
   void _onDetect(BarcodeCapture capture) {
     if (_done) return;
     for (final code in capture.barcodes) {
       final raw = code.rawValue;
       if (raw == null) continue;
-      final invite = extractInvite(raw);
-      if (invite != null && _valid(invite)) {
+      final value = widget.accept(raw);
+      if (value != null) {
         _done = true;
         unawaited(HapticFeedback.selectionClick());
-        context.pop(invite);
+        context.pop(value);
         return;
       }
     }
     final sawCode = capture.barcodes.any((c) => c.rawValue != null);
     if (sawCode && !_rejected) setState(() => _rejected = true);
-  }
-
-  static bool _valid(String invite) {
-    try {
-      rust.parseInvite(invite: invite);
-      return true;
-    } catch (_) {
-      return false;
-    }
   }
 
   @override
@@ -104,7 +193,7 @@ class _ScanInviteScreenState extends State<ScanInviteScreen>
         child: Column(
           children: [
             MobileTopNav.back(
-              title: 'Scan invite',
+              title: widget.title,
               onBack: () => context.pop(),
               trailing: _TorchButton(controller: _controller),
             ),
@@ -130,17 +219,25 @@ class _ScanInviteScreenState extends State<ScanInviteScreen>
                     ),
                     const SizedBox(height: AppSpacing.md),
                     Text(
-                      _rejected
-                          ? 'That QR code isn\'t a Zafe invite. Scan the one on the '
-                                'vault creator\'s setup screen.'
-                          : 'Point the camera at the invite QR code on the vault '
-                                'creator\'s phone.',
+                      _noCodeInImage
+                          ? 'No QR code found in that image. Choose a clearer one.'
+                          : _rejected
+                          ? widget.rejected
+                          : widget.prompt,
                       textAlign: TextAlign.center,
                       style: AppTypography.bodyMedium.copyWith(
-                        color: _rejected
+                        color: _rejected || _noCodeInImage
                             ? colors.text.destructive
                             : colors.text.secondary,
                       ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    AppButton(
+                      expand: true,
+                      variant: AppButtonVariant.secondary,
+                      leading: const AppIcon(AppIcons.importWallet, size: 20),
+                      onPressed: _chooseImage,
+                      child: const Text('Choose image'),
                     ),
                   ],
                 ),

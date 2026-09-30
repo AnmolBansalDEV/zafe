@@ -73,6 +73,70 @@ pub fn check_address(network_name: String, address: String) -> AddressCheck {
     }
 }
 
+/// One payment read from a scanned QR code or pasted text.
+pub struct ScannedPayment {
+    pub address: String,
+    /// 0 when the request leaves the amount to the payer.
+    pub amount_zat: u64,
+    /// Text memo (empty if none or not text).
+    pub memo: String,
+}
+
+pub struct ScannedRequest {
+    /// Empty when `problem` is set.
+    pub payments: Vec<ScannedPayment>,
+    /// Why it can't be paid from this vault (empty when fine).
+    pub problem: String,
+}
+
+/// Reads a scanned or pasted payment target: a plain address, or a ZIP 321 `zcash:` URI
+/// (amount, memo, several recipients). Every address must be payable from a vault on
+/// `network_name` (see `check_address`).
+#[flutter_rust_bridge::frb(sync)]
+pub fn parse_payment_request(network_name: String, text: String) -> ScannedRequest {
+    let text = text.trim();
+    let fail = |problem: String| ScannedRequest {
+        payments: vec![],
+        problem,
+    };
+    let payments = if text.len() > 6 && text[..6].eq_ignore_ascii_case("zcash:") {
+        match zip321::TransactionRequest::from_uri(text) {
+            Ok(request) => request
+                .payments()
+                .values()
+                .map(|p| ScannedPayment {
+                    address: p.recipient_address().encode(),
+                    amount_zat: p.amount().map_or(0, u64::from),
+                    memo: p
+                        .memo()
+                        .map(|m| memo_text(m.as_slice()))
+                        .unwrap_or_default(),
+                })
+                .collect::<Vec<_>>(),
+            Err(_) => return fail("This payment link can't be read".into()),
+        }
+    } else {
+        vec![ScannedPayment {
+            address: text.to_owned(),
+            amount_zat: 0,
+            memo: String::new(),
+        }]
+    };
+    if payments.is_empty() {
+        return fail("This payment link has no recipient".into());
+    }
+    for p in &payments {
+        let check = check_address(network_name.clone(), p.address.clone());
+        if !check.valid {
+            return fail(check.reason);
+        }
+    }
+    ScannedRequest {
+        payments,
+        problem: String::new(),
+    }
+}
+
 /// Parses a ZEC amount ("1.5", "0,25") to zatoshis. `None` if malformed or above 8 decimals.
 #[flutter_rust_bridge::frb(sync)]
 pub fn parse_zec(text: String) -> Option<u64> {

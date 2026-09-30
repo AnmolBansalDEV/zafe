@@ -20,6 +20,17 @@ AddressCheck checkAddress({
   address: address,
 );
 
+/// Reads a scanned or pasted payment target: a plain address, or a ZIP 321 `zcash:` URI
+/// (amount, memo, several recipients). Every address must be payable from a vault on
+/// `network_name` (see `check_address`).
+ScannedRequest parsePaymentRequest({
+  required String networkName,
+  required String text,
+}) => RustLib.instance.api.crateApiProposalsParsePaymentRequest(
+  networkName: networkName,
+  text: text,
+);
+
 /// Parses a ZEC amount ("1.5", "0,25") to zatoshis. `None` if malformed or above 8 decimals.
 BigInt? parseZec({required String text}) =>
     RustLib.instance.api.crateApiProposalsParseZec(text: text);
@@ -483,6 +494,56 @@ class ReviewInfo {
           spends == other.spends &&
           expiryHeight == other.expiryHeight &&
           tipHeight == other.tipHeight;
+}
+
+/// One payment read from a scanned QR code or pasted text.
+class ScannedPayment {
+  final String address;
+
+  /// 0 when the request leaves the amount to the payer.
+  final BigInt amountZat;
+
+  /// Text memo (empty if none or not text).
+  final String memo;
+
+  const ScannedPayment({
+    required this.address,
+    required this.amountZat,
+    required this.memo,
+  });
+
+  @override
+  int get hashCode => address.hashCode ^ amountZat.hashCode ^ memo.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ScannedPayment &&
+          runtimeType == other.runtimeType &&
+          address == other.address &&
+          amountZat == other.amountZat &&
+          memo == other.memo;
+}
+
+class ScannedRequest {
+  /// Empty when `problem` is set.
+  final List<ScannedPayment> payments;
+
+  /// Why it can't be paid from this vault (empty when fine).
+  final String problem;
+
+  const ScannedRequest({required this.payments, required this.problem});
+
+  @override
+  int get hashCode => payments.hashCode ^ problem.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ScannedRequest &&
+          runtimeType == other.runtimeType &&
+          payments == other.payments &&
+          problem == other.problem;
 }
 
 class SendProgress {

@@ -92,6 +92,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ReceivedInfo> dco_decode_list_received_info(dynamic raw);
 
   @protected
+  List<ScannedPayment> dco_decode_list_scanned_payment(dynamic raw);
+
+  @protected
   MembershipInfo dco_decode_membership_info(dynamic raw);
 
   @protected
@@ -132,6 +135,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ReviewInfo dco_decode_review_info(dynamic raw);
+
+  @protected
+  ScannedPayment dco_decode_scanned_payment(dynamic raw);
+
+  @protected
+  ScannedRequest dco_decode_scanned_request(dynamic raw);
 
   @protected
   SendProgress dco_decode_send_progress(dynamic raw);
@@ -238,6 +247,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<ScannedPayment> sse_decode_list_scanned_payment(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   MembershipInfo sse_decode_membership_info(SseDeserializer deserializer);
 
   @protected
@@ -280,6 +294,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ReviewInfo sse_decode_review_info(SseDeserializer deserializer);
+
+  @protected
+  ScannedPayment sse_decode_scanned_payment(SseDeserializer deserializer);
+
+  @protected
+  ScannedRequest sse_decode_scanned_request(SseDeserializer deserializer);
 
   @protected
   SendProgress sse_decode_send_progress(SseDeserializer deserializer);
@@ -405,6 +425,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_scanned_payment(
+    List<ScannedPayment> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_membership_info(
     MembershipInfo self,
     SseSerializer serializer,
@@ -454,6 +480,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_review_info(ReviewInfo self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_scanned_payment(
+    ScannedPayment self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_scanned_request(
+    ScannedRequest self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_send_progress(SendProgress self, SseSerializer serializer);

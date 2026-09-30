@@ -103,8 +103,23 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     super.dispose();
   }
 
+  /// Field length at the last change, to tell a paste (many characters at once) from
+  /// typing.
+  int _lastLength = 0;
+
   void _validateAddress() {
     final text = _address.text.trim();
+    final pasted = _address.text.length - _lastLength > 1;
+    _lastLength = _address.text.length;
+    // A payment link pasted into the field (keyboard paste skips `_paste`). Typed links
+    // aren't applied as they grow: `zcash:<address>` parses before `?amount=` is typed.
+    if (pasted && text.toLowerCase().startsWith('zcash:')) {
+      final request = rust.parsePaymentRequest(
+        networkName: kZafeNetwork,
+        text: text,
+      );
+      if (request.problem.isEmpty) return _apply(request);
+    }
     setState(
       () => _check = text.isEmpty
           ? null
@@ -116,8 +131,49 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     final text = data?.text?.trim();
     if (text == null || text.isEmpty) return;
+    if (text.toLowerCase().startsWith('zcash:')) {
+      final request = rust.parsePaymentRequest(
+        networkName: kZafeNetwork,
+        text: text,
+      );
+      if (request.problem.isEmpty) return _apply(request);
+    }
     _address.text = text;
     _validateAddress();
+  }
+
+  Future<void> _scan() async {
+    final request = await context.push<rust.ScannedRequest>('/scan-recipient');
+    if (request != null && mounted) _apply(request);
+  }
+
+  /// Fills the draft from a scanned or pasted request: one recipient goes on to the
+  /// amount (prefilled when the request names one); several become a batch to review.
+  void _apply(rust.ScannedRequest request) {
+    final payments = request.payments;
+    final room = kMaxRecipients - _added.length;
+    if (payments.isEmpty || room <= 0) return;
+    setState(() {
+      final take = payments.take(room).toList();
+      for (final p in take.take(take.length - 1)) {
+        _added.add(
+          rust.PaymentInput(
+            address: p.address,
+            amountZat: p.amountZat,
+            memo: p.memo,
+          ),
+        );
+      }
+      final last = take.last;
+      _address.text = last.address;
+      _amount.text = last.amountZat == BigInt.zero
+          ? ''
+          : zecDecimal(last.amountZat);
+      _memo = last.memo;
+      _validateAddress();
+      final complete = take.every((p) => p.amountZat > BigInt.zero);
+      _step = take.length > 1 && complete ? _Step.review : _Step.amount;
+    });
   }
 
   BigInt? get _amountZat => rust.parseZec(text: _amount.text);
@@ -326,6 +382,16 @@ class _SendScreenState extends ConsumerState<SendScreen> {
                 ],
               ),
             ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, AppSpacing.s),
+          child: AppButton(
+            expand: true,
+            variant: AppButtonVariant.secondary,
+            leading: const AppIcon(AppIcons.qr, size: 20),
+            onPressed: _scan,
+            child: const Text('Scan QR code'),
           ),
         ),
         _Cta(

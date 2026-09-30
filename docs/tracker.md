@@ -397,6 +397,16 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 - *(idea)* Grantee payment requests: "Request ZEC" on the vault receive screen with a ZIP-321
   builder that never emits `label`/`message` (`lib/src/core/zcash/zip321_payment_request_builder.dart`,
   `lib/src/features/receive/widgets/mobile/receive_request_sheet.dart`)
+- [x] Recipient QR and payment links (2026-09-30): "Scan QR code" on Send's recipient step
+  and a "Choose image" option on every scanner (a shared QR picture or screenshot,
+  `MobileScannerController.analyzeImage`); pasting a `zcash:` link works too. Bridge
+  `parse_payment_request` (ZIP 321 via `zip321`: amount, memo, several recipients → a
+  batch; every address checked for the vault network), tested in
+  `app/rust/tests/payment_request.rs`. The invite card has "Share QR image" (PNG, white
+  background, quiet zone) now that the screen blocks screenshots; Join's scanner can read
+  it with "Choose image". Emulator: picked a QR image → amount, recipient and memo filled.
+  Not done: opening `zcash:` links from other apps (intent filter), live-camera test on a
+  phone
 - *(idea)* Propose from a request: a scanned/pasted/opened `zcash:` URI shows a card that
   prechecks and builds the proposal up front (`lib/src/features/send/widgets/payment_request_host.dart`,
   `lib/src/features/send/services/payment_request_precheck.dart`)

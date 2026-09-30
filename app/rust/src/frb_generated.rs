@@ -37,7 +37,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1397715091;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1275436381;
 
 // Section: executor
 
@@ -673,6 +673,40 @@ fn wire__crate__api__vault__parse_invite_impl(
             deserializer.end();
             transform_result_sse::<_, crate::api::error::ZafeError>((move || {
                 let output_ok = crate::api::vault::parse_invite(api_invite)?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__proposals__parse_payment_request_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "parse_payment_request",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_network_name = <String>::sse_decode(&mut deserializer);
+            let api_text = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, ()>((move || {
+                let output_ok = Result::<_, ()>::Ok(crate::api::proposals::parse_payment_request(
+                    api_network_name,
+                    api_text,
+                ))?;
                 Ok(output_ok)
             })())
         },
@@ -1461,6 +1495,20 @@ impl SseDecode for Vec<crate::api::received::ReceivedInfo> {
     }
 }
 
+impl SseDecode for Vec<crate::api::proposals::ScannedPayment> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::proposals::ScannedPayment>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for crate::api::vault::MembershipInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1695,6 +1743,33 @@ impl SseDecode for crate::api::proposals::ReviewInfo {
     }
 }
 
+impl SseDecode for crate::api::proposals::ScannedPayment {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_address = <String>::sse_decode(deserializer);
+        let mut var_amountZat = <u64>::sse_decode(deserializer);
+        let mut var_memo = <String>::sse_decode(deserializer);
+        return crate::api::proposals::ScannedPayment {
+            address: var_address,
+            amount_zat: var_amountZat,
+            memo: var_memo,
+        };
+    }
+}
+
+impl SseDecode for crate::api::proposals::ScannedRequest {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_payments =
+            <Vec<crate::api::proposals::ScannedPayment>>::sse_decode(deserializer);
+        let mut var_problem = <String>::sse_decode(deserializer);
+        return crate::api::proposals::ScannedRequest {
+            payments: var_payments,
+            problem: var_problem,
+        };
+    }
+}
+
 impl SseDecode for crate::api::proposals::SendProgress {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1838,16 +1913,16 @@ fn pde_ffi_dispatcher_primary_impl(
         13 => wire__crate__api__vault__join_vault_impl(port, ptr, rust_vec_len, data_len),
         14 => wire__crate__api__proposals__list_proposals_impl(port, ptr, rust_vec_len, data_len),
         15 => wire__crate__api__received__list_received_impl(port, ptr, rust_vec_len, data_len),
-        19 => wire__crate__api__proposals__prewarm_prover_impl(port, ptr, rust_vec_len, data_len),
-        20 => wire__crate__api__proposals__propose_payment_impl(port, ptr, rust_vec_len, data_len),
-        21 => wire__crate__api__vault__register_push_impl(port, ptr, rust_vec_len, data_len),
-        22 => wire__crate__api__proposals__reject_proposal_impl(port, ptr, rust_vec_len, data_len),
-        24 => wire__crate__api__proposals__review_proposal_impl(port, ptr, rust_vec_len, data_len),
-        25 => wire__crate__api__vault__run_keygen_impl(port, ptr, rust_vec_len, data_len),
-        26 => wire__crate__api__vault__seal_vault_impl(port, ptr, rust_vec_len, data_len),
-        27 => wire__crate__api__proposals__send_proposal_impl(port, ptr, rust_vec_len, data_len),
-        29 => wire__crate__api__vault__sync_vault_impl(port, ptr, rust_vec_len, data_len),
-        30 => wire__crate__api__vault__vault_membership_impl(port, ptr, rust_vec_len, data_len),
+        20 => wire__crate__api__proposals__prewarm_prover_impl(port, ptr, rust_vec_len, data_len),
+        21 => wire__crate__api__proposals__propose_payment_impl(port, ptr, rust_vec_len, data_len),
+        22 => wire__crate__api__vault__register_push_impl(port, ptr, rust_vec_len, data_len),
+        23 => wire__crate__api__proposals__reject_proposal_impl(port, ptr, rust_vec_len, data_len),
+        25 => wire__crate__api__proposals__review_proposal_impl(port, ptr, rust_vec_len, data_len),
+        26 => wire__crate__api__vault__run_keygen_impl(port, ptr, rust_vec_len, data_len),
+        27 => wire__crate__api__vault__seal_vault_impl(port, ptr, rust_vec_len, data_len),
+        28 => wire__crate__api__proposals__send_proposal_impl(port, ptr, rust_vec_len, data_len),
+        30 => wire__crate__api__vault__sync_vault_impl(port, ptr, rust_vec_len, data_len),
+        31 => wire__crate__api__vault__vault_membership_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -1866,10 +1941,11 @@ fn pde_ffi_dispatcher_sync_impl(
         10 => wire__crate__api__vault__identity_public_key_impl(ptr, rust_vec_len, data_len),
         16 => wire__crate__api__proposals__memo_length_impl(ptr, rust_vec_len, data_len),
         17 => wire__crate__api__vault__parse_invite_impl(ptr, rust_vec_len, data_len),
-        18 => wire__crate__api__proposals__parse_zec_impl(ptr, rust_vec_len, data_len),
-        23 => wire__crate__api__proposals__restart_signing_impl(ptr, rust_vec_len, data_len),
-        28 => wire__crate__api__backup__suggest_backup_passphrase_impl(ptr, rust_vec_len, data_len),
-        31 => wire__crate__api__vault__vault_summary_impl(ptr, rust_vec_len, data_len),
+        18 => wire__crate__api__proposals__parse_payment_request_impl(ptr, rust_vec_len, data_len),
+        19 => wire__crate__api__proposals__parse_zec_impl(ptr, rust_vec_len, data_len),
+        24 => wire__crate__api__proposals__restart_signing_impl(ptr, rust_vec_len, data_len),
+        29 => wire__crate__api__backup__suggest_backup_passphrase_impl(ptr, rust_vec_len, data_len),
+        32 => wire__crate__api__vault__vault_summary_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2268,6 +2344,49 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::proposals::ReviewInfo>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::proposals::ScannedPayment {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.address.into_into_dart().into_dart(),
+            self.amount_zat.into_into_dart().into_dart(),
+            self.memo.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::proposals::ScannedPayment
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::proposals::ScannedPayment>
+    for crate::api::proposals::ScannedPayment
+{
+    fn into_into_dart(self) -> crate::api::proposals::ScannedPayment {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::proposals::ScannedRequest {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.payments.into_into_dart().into_dart(),
+            self.problem.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::proposals::ScannedRequest
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::proposals::ScannedRequest>
+    for crate::api::proposals::ScannedRequest
+{
+    fn into_into_dart(self) -> crate::api::proposals::ScannedRequest {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::proposals::SendProgress {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -2551,6 +2670,16 @@ impl SseEncode for Vec<crate::api::received::ReceivedInfo> {
     }
 }
 
+impl SseEncode for Vec<crate::api::proposals::ScannedPayment> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::proposals::ScannedPayment>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for crate::api::vault::MembershipInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -2721,6 +2850,23 @@ impl SseEncode for crate::api::proposals::ReviewInfo {
         <u32>::sse_encode(self.spends, serializer);
         <u32>::sse_encode(self.expiry_height, serializer);
         <u32>::sse_encode(self.tip_height, serializer);
+    }
+}
+
+impl SseEncode for crate::api::proposals::ScannedPayment {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.address, serializer);
+        <u64>::sse_encode(self.amount_zat, serializer);
+        <String>::sse_encode(self.memo, serializer);
+    }
+}
+
+impl SseEncode for crate::api::proposals::ScannedRequest {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Vec<crate::api::proposals::ScannedPayment>>::sse_encode(self.payments, serializer);
+        <String>::sse_encode(self.problem, serializer);
     }
 }
 
