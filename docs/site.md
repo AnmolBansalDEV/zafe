@@ -3,7 +3,23 @@
 The landing page (`infra/site/src/pages/index.astro`) follows this brief. Keep it current
 when the page changes.
 
-## Decisions (2026-10-01)
+## Decisions (2026-10-01, second round)
+
+The user rejected direction A below ("nah, sucks") and asked for inspiration from
+vizor.cash. The page now follows Vizor's structure, studied section by section: centred
+nav with the mark in the middle; centred hero (tag pill, two-line display headline, one
+line, one pill button); a stage band with a notch and three members' phones showing the
+same payment (home, review, sent); three illustrated pillars (Shared, Private,
+Verifiable) using Zafe's own storybook illustrations; a one-sentence "idea"; an inset
+dark rounded feature panel whose blocks pair copy and a two-column icon list with a live
+UI card built in HTML (approval, on-device check, the real chain record, privacy
+settings); a FAQ as `<details>` beside "Still got questions?"; a dark closing card over
+the vault-door art; a dark footer with a ghost wordmark. Kept from round one: only
+shipped claims, the real dry-run transaction, no JS, strict CSP. Not taken from Vizor:
+the testimonial wall (we have none) and the scroll-driven letter reveal (needs JS).
+Zafe keeps its own type (Space Grotesk, not a serif) and Verdigris colours.
+
+## Decisions (2026-10-01, first round, superseded)
 
 - **Direction A, "The approval"**, with C's mechanism diagram as the "How a payment moves"
   section and B only as the automatic dark theme (§5.3). H1 option 1 (§5.1).

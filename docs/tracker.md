@@ -164,6 +164,10 @@ Open
         approval": the approval screen as the hero, the real dry-run payment as members vs
         chain see it, the payment path, the on-device check, key shares, a dense feature
         list, limits, sources. Checked at 1440/390 px, light and dark
+  - [x] Second round (2026-10-01, user: "nah, sucks. take inspiration from vizor.cash"):
+        rebuilt on Vizor's structure (centred hero, three members' phones on a stage,
+        illustrated pillars, dark feature panel with HTML UI cards, FAQ, closing card,
+        ghost-wordmark footer) in Zafe's type, colours and art (`docs/site.md`)
   - *(idea)* Show a second real payment (with a memo) once one is made; add a changelog
         or "last updated" to the site
   - [ ] **(you)** Pick and own the domain, deploy `infra/site` there with the release

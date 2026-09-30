@@ -24,13 +24,17 @@ OUT = os.path.join(ROOT, "infra", "site", "public", "assets")
 # (output name, source under app/build without the _light/_dark suffix, crop box). Screen
 # renders are 780 px wide (390 logical at 2x); boxes are in those pixels.
 CROPS = [
-    # The payment waiting for approvals: header, payment card, approvals and signers.
-    ("approval", "screen_preview/proposal_review", (0, 0, 780, 1136)),
-    # The last detail rows down to "Checked on this device: Matches", then Approve and
-    # sign (the page fades the top edge).
-    ("check", "screen_preview/proposal_review", (0, 1560, 780, 2400)),
-    # The key split into shares (illustration, 1080 wide), trimmed to the art.
-    ("key_shards", "illustration_preview/key_shards", (0, 260, 1080, 1000)),
+    # Three members' phones for the hero showcase: a phone viewport (390 x 844 at 2x).
+    ("phone_home", "screen_preview/home", (0, 0, 780, 1688)),
+    ("phone_review", "screen_preview/proposal_review", (0, 0, 780, 1688)),
+    ("phone_sent", "screen_preview/proposal_sent", (0, 0, 780, 1688)),
+    # Pillar art (illustrations are 1080 wide), trimmed to the scene; shown as 5:4 tiles.
+    ("art_gate", "illustration_preview/create_stones", (190, 0, 890, 560)),
+    ("art_seal", "illustration_preview/backup_seal", (190, 0, 890, 560)),
+    # Wider than 5:4, so it's padded at the top with its own sky colour (see screens()).
+    ("art_ledger", "illustration_preview/empty_ledger", (170, 0, 910, 440)),
+    # The vault door with its keys, behind the closing call to action.
+    ("art_vault", "illustration_preview/welcome_vault", (0, 120, 1080, 1240)),
 ]
 
 FONTS = [
@@ -56,6 +60,11 @@ def screens():
             if not os.path.exists(src):
                 raise SystemExit(f"missing {src}: run the render tests first (see the docstring)")
             image = Image.open(src).convert("RGB").crop(box)
+            if name.startswith("art_") and image.width * 4 > image.height * 5:
+                # Pillar art shares a 5:4 tile: extend the sky rather than crop the scene.
+                padded = Image.new("RGB", (image.width, image.width * 4 // 5), image.getpixel((4, 4)))
+                padded.paste(image, (0, padded.height - image.height))
+                image = padded
             dest = os.path.join(out, f"{name}_{theme}.webp")
             image.save(dest, "WEBP", quality=86, method=6)
             print(f"{dest}  {image.size[0]}x{image.size[1]}  {os.path.getsize(dest) // 1024} KB")
