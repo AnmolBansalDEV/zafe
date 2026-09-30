@@ -315,17 +315,17 @@ class _VoteTag extends StatelessWidget {
     if (approved) {
       return SignerTag(
         icon: AppIcons.checkCircle,
+        iconColor: colors.icon.brand,
         label: 'Approved',
-        color: colors.text.brand,
-        background: colors.background.brandAlpha,
+        color: colors.text.secondary,
       );
     }
     if (rejected) {
       return SignerTag(
         icon: AppIcons.cross,
+        iconColor: colors.icon.destructive,
         label: 'Rejected',
-        color: colors.text.destructive,
-        background: colors.background.utilityDestructiveAlphaSubtle,
+        color: colors.text.secondary,
       );
     }
     // A member who hasn't voted is only "waiting" while their vote can still matter.

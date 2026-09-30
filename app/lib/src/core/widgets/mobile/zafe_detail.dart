@@ -358,7 +358,7 @@ class SignerTile extends StatelessWidget {
     super.key,
     required this.keyHex,
     this.me = false,
-    this.size = 36,
+    this.size = 32,
   });
   final String keyHex;
   final bool me;
@@ -371,14 +371,14 @@ class SignerTile extends StatelessWidget {
     final background = HSLColor.fromAHSL(
       1,
       seed.hue,
-      dark ? 0.32 : 0.45,
-      dark ? 0.17 : 0.90,
+      dark ? 0.16 : 0.22,
+      dark ? 0.17 : 0.91,
     ).toColor();
     final foreground = HSLColor.fromAHSL(
       1,
       seed.hue,
-      dark ? 0.55 : 0.50,
-      dark ? 0.62 : 0.40,
+      dark ? 0.28 : 0.26,
+      dark ? 0.52 : 0.48,
     ).toColor();
     return Container(
       width: size,
@@ -387,7 +387,7 @@ class SignerTile extends StatelessWidget {
         color: background,
         borderRadius: BorderRadius.circular(size * 0.28),
         border: me
-            ? Border.all(color: context.colors.border.brandStrong, width: 2)
+            ? Border.all(color: context.colors.border.brandStrong, width: 1.5)
             : null,
       ),
       child: CustomPaint(
@@ -511,7 +511,7 @@ class SignerRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: isMe
                       ? AppTypography.labelLarge.copyWith(
-                          color: colors.text.brand,
+                          color: colors.text.primary,
                           fontWeight: FontWeight.w600,
                         )
                       : AppTypography.labelLarge.copyWith(
@@ -582,8 +582,8 @@ class ApprovalDots extends StatelessWidget {
             _Dot(mark: all[i]),
             if (i == threshold - 1 && i != all.length - 1)
               Container(
-                width: 2,
-                height: 18,
+                width: 1.5,
+                height: 12,
                 margin: const EdgeInsets.symmetric(horizontal: 2),
                 decoration: BoxDecoration(
                   color: colors.border.medium,
@@ -604,7 +604,7 @@ class _Dot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    const size = 14.0;
+    const size = 10.0;
     return switch (mark) {
       SignerMark.approved => Container(
         width: size,
@@ -631,13 +631,13 @@ class _Dot extends StatelessWidget {
           border: Border.all(color: colors.border.utilityDestructive),
         ),
         alignment: Alignment.center,
-        child: AppIcon(AppIcons.cross, size: 9, color: colors.icon.destructive),
+        child: AppIcon(AppIcons.cross, size: 7, color: colors.icon.destructive),
       ),
     };
   }
 }
 
-/// Small status pill used at the end of signer rows.
+/// Quiet vote status at the end of signer rows (icon + text).
 class SignerTag extends StatelessWidget {
   const SignerTag({
     super.key,
@@ -645,40 +645,37 @@ class SignerTag extends StatelessWidget {
     required this.color,
     this.background,
     this.icon,
+    this.iconColor,
   });
   final String label;
   final Color color;
+
+  /// Only for states that need attention; otherwise the tag is plain text.
   final Color? background;
   final String? icon;
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
+    final row = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (icon != null) ...[
+          AppIcon(icon!, size: 13, color: iconColor ?? color),
+          const SizedBox(width: 4),
+        ],
+        Text(label, style: AppTypography.labelMedium.copyWith(color: color)),
+      ],
+    );
+    if (background == null) return row;
     return Container(
-      height: 26,
+      height: 24,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: background,
         borderRadius: BorderRadius.circular(AppRadii.xSmall),
-        border: background == null
-            ? Border.all(color: context.colors.border.regular)
-            : null,
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (icon != null) ...[
-            AppIcon(icon!, size: 14, color: color),
-            const SizedBox(width: 4),
-          ],
-          Text(
-            label,
-            style: AppTypography.labelMedium.copyWith(
-              color: color,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
+      child: row,
     );
   }
 }
