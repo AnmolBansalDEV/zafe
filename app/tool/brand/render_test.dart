@@ -28,8 +28,8 @@ const _densities = {
 
 final _pictures = <String, PictureInfo>{};
 
-/// @color/zafe_icon_tile (scripts/brand/brand.py LIME).
-const _tile = Color(0xFFC9EE6E);
+/// @color/zafe_icon_tile (scripts/brand/brand.py TILE).
+const _tile = Color(0xFF004A46);
 
 Future<PictureInfo> _load(String name) async =>
     _pictures[name] ??= await vg.loadPicture(
@@ -159,7 +159,7 @@ Future<ui.Image> _sheet() async {
 
   // Themed icon (Android 13+): the launcher tints the monochrome layer.
   final themed = const Offset(1120, 40) & const Size(320, 320);
-  c.drawOval(themed, Paint()..color = const Color(0xFFDDE5CF));
+  c.drawOval(themed, Paint()..color = const Color(0xFFCFE3E1));
   final mono = await _render('adaptive_monochrome', 480);
   c.drawImageRect(
     mono,
@@ -167,7 +167,7 @@ Future<ui.Image> _sheet() async {
     themed.inflate(80),
     Paint()
       ..colorFilter = const ColorFilter.mode(
-        Color(0xFF2D410F),
+        Color(0xFF003C38),
         BlendMode.srcIn,
       ),
   );
@@ -197,8 +197,8 @@ Future<ui.Image> _sheet() async {
 
   // Splash screens (phone frames scaled to 0.4 of 1080 x 2400 px at 3x).
   for (final (i, theme, bg) in [
-    (0, 'dark', const Color(0xFF0A0A0A)),
-    (1, 'light', const Color(0xFFF4F4F3)),
+    (0, 'dark', const Color(0xFF080B0B)),
+    (1, 'light', const Color(0xFFF1F5F5)),
   ]) {
     final frame = Offset(40 + i * 480.0, 640) & const Size(432, 840);
     c.drawRect(frame, Paint()..color = bg);

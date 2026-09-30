@@ -24,7 +24,7 @@ void main() {
         home: RepaintBoundary(
           key: key,
           child: Container(
-            color: const Color(0xFF0A0A0A),
+            color: const Color(0xFF080B0B),
             padding: const EdgeInsets.all(16),
             child: Column(
               mainAxisSize: MainAxisSize.min,
