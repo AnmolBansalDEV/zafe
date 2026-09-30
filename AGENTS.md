@@ -147,7 +147,13 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   group is `ready_group` and anyone aggregates it from the log (`send_ready`), the member
   who completed it (`completed_by`) auto-sends when `auto_send`. `sign_groups` checks every
   commitment is ours and present **before** taking any nonce. Falls back to interactive
-  signing when pools are short or C(n, t) > 64. Security reading of ePrint 2024/436 is in
+  signing when pools are short or C(n, t) > 64. Pool size (`node::pool_target`):
+  `POOL_PROPOSALS` = 16 single-spend proposals' worth, C(n-1, t-1) each, at least
+  `MIN_POOL_TARGET` = 32 and at most one batch (256; replay caps a member at 4096
+  outstanding); refilled when below half by `top_up_pool`, which the bridge's
+  `list_proposals` runs on every refresh (app poll, after approving/proposing, and each
+  background check). Pools drain when a proposal **enters the log**, for every member,
+  approving or not. Security reading of ePrint 2024/436 is in
   spec §9.5.1; ZF confirmation pending (U5 / upstream-asks Q7).
 - **Sweeps**: a `Proposal` with **no payments** spends a cancelled proposal's notes back
   to the vault (`node::invalidate`, `VaultWallet::propose_sweep`) so a fully signed
