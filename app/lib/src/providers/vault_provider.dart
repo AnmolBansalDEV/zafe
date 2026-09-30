@@ -319,6 +319,7 @@ class VaultNotifier extends Notifier<VaultState> {
       final paths = await ZafePaths.get();
       final balance = await rust.syncVault(
         dbDir: paths.dbDir,
+        dbKey: await ZafeSecureStore.instance.walletKey(vaultId),
         lightwalletdUrl: kZafeLightwalletdUrl,
         material: material,
       );

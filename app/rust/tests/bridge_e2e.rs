@@ -87,6 +87,7 @@ struct Member {
     seeds: Vec<u8>,
     material: Vec<u8>,
     db_dir: String,
+    db_key: Vec<u8>,
     state_dir: String,
 }
 
@@ -167,6 +168,7 @@ fn payment_flow_through_bridge() {
                 seeds,
                 material,
                 db_dir: dir.to_string_lossy().into(),
+                db_key: rand::random::<[u8; 32]>().to_vec(),
                 state_dir: state.to_string_lossy().into(),
             }
         })
@@ -175,8 +177,15 @@ fn payment_flow_through_bridge() {
     // Fund the vault by mining to it; coinbase matures after 100 blocks.
     let chain = Regtest::start(&summary.address);
     chain.mine(120);
-    let sync =
-        |m: &Member| vault::sync_vault(m.db_dir.clone(), lwd.clone(), m.material.clone()).unwrap();
+    let sync = |m: &Member| {
+        vault::sync_vault(
+            m.db_dir.clone(),
+            m.db_key.clone(),
+            lwd.clone(),
+            m.material.clone(),
+        )
+        .unwrap()
+    };
     let mut balance = sync(&members[0]);
     for _ in 0..60 {
         if balance.height >= 121 && balance.spendable_zat > 0 {
@@ -193,10 +202,17 @@ fn payment_flow_through_bridge() {
     for m in &members[1..] {
         sync(m);
     }
+    // Wallet databases are encrypted at rest.
+    let db_file =
+        std::path::Path::new(&members[0].db_dir).join(format!("vault-{}.sqlite", summary.vault_id));
+    assert!(!std::fs::read(&db_file)
+        .unwrap()
+        .starts_with(b"SQLite format 3"));
 
     // The mining rewards show up as received payments (coinbase, mined, with block times).
-    let received_list =
-        |m: &Member| received::list_received(m.db_dir.clone(), m.material.clone()).unwrap();
+    let received_list = |m: &Member| {
+        received::list_received(m.db_dir.clone(), m.db_key.clone(), m.material.clone()).unwrap()
+    };
     let incoming = received_list(&members[0]);
     assert!(!incoming.is_empty(), "no received payments listed");
     assert!(incoming.iter().all(|r| r.is_coinbase
@@ -221,6 +237,7 @@ fn payment_flow_through_bridge() {
         relay.clone(),
         lwd.clone(),
         a.db_dir.clone(),
+        a.db_key.clone(),
         a.seeds.clone(),
         a.material.clone(),
         vec![PaymentInput {
@@ -269,6 +286,7 @@ fn payment_flow_through_bridge() {
             relay.clone(),
             lwd.clone(),
             m.db_dir.clone(),
+            m.db_key.clone(),
             m.seeds.clone(),
             m.material.clone(),
             id.clone(),
@@ -286,6 +304,7 @@ fn payment_flow_through_bridge() {
             relay.clone(),
             lwd.clone(),
             m.db_dir.clone(),
+            m.db_key.clone(),
             m.state_dir.clone(),
             m.seeds.clone(),
             m.material.clone(),
@@ -302,6 +321,7 @@ fn payment_flow_through_bridge() {
         relay.clone(),
         lwd.clone(),
         members[1].db_dir.clone(),
+        members[1].db_key.clone(),
         members[1].state_dir.clone(),
         members[1].seeds.clone(),
         members[1].material.clone(),
@@ -314,10 +334,11 @@ fn payment_flow_through_bridge() {
     // A leads and signs its own part; B answers on its next poll; A aggregates and
     // broadcasts.
     let leader = {
-        let (relay, lwd, db, st, s, m, id) = (
+        let (relay, lwd, db, key, st, s, m, id) = (
             relay.clone(),
             lwd.clone(),
             a.db_dir.clone(),
+            a.db_key.clone(),
             a.state_dir.clone(),
             a.seeds.clone(),
             a.material.clone(),
@@ -325,7 +346,7 @@ fn payment_flow_through_bridge() {
         );
         thread::spawn(move || {
             let mut events = Vec::new();
-            proposals::send_with_progress(relay, lwd, db, st, s, m, id, |p| {
+            proposals::send_with_progress(relay, lwd, db, key, st, s, m, id, |p| {
                 println!("progress {:?} {}/{}", p.stage, p.received, p.needed);
                 events.push((p.stage, p.txid));
             })
@@ -339,6 +360,7 @@ fn payment_flow_through_bridge() {
                 relay.clone(),
                 lwd.clone(),
                 m.db_dir.clone(),
+                m.db_key.clone(),
                 m.state_dir.clone(),
                 m.seeds.clone(),
                 m.material.clone(),
@@ -394,6 +416,7 @@ fn payment_flow_through_bridge() {
         relay.clone(),
         lwd.clone(),
         a.db_dir.clone(),
+        a.db_key.clone(),
         a.seeds.clone(),
         a.material.clone(),
         vec![PaymentInput {
@@ -412,6 +435,7 @@ fn payment_flow_through_bridge() {
             relay.clone(),
             lwd.clone(),
             m.db_dir.clone(),
+            m.db_key.clone(),
             m.state_dir.clone(),
             m.seeds.clone(),
             m.material.clone(),
@@ -432,6 +456,7 @@ fn payment_flow_through_bridge() {
         relay.clone(),
         lwd.clone(),
         b.db_dir.clone(),
+        b.db_key.clone(),
         b.state_dir.clone(),
         b.seeds.clone(),
         b.material.clone(),

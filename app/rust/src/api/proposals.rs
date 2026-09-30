@@ -284,10 +284,12 @@ pub struct PaymentInput {
 
 /// Syncs, builds the transaction from the vault's notes, and logs it as a proposal. Returns
 /// the proposal id.
+#[allow(clippy::too_many_arguments)]
 pub fn propose_payment(
     relay_url: String,
     lightwalletd_url: String,
     db_dir: String,
+    db_key: Vec<u8>,
     seeds: Vec<u8>,
     material: Vec<u8>,
     payments: Vec<PaymentInput>,
@@ -315,7 +317,7 @@ pub fn propose_payment(
         .collect::<Result<Vec<_>>>()?;
     let _guard = wallet_lock();
     let id = runtime().block_on(async {
-        let mut wallet = open_wallet(&db_dir, &lightwalletd_url, &m).await?;
+        let mut wallet = open_wallet(&db_dir, &db_key, &lightwalletd_url, &m).await?;
         wallet.sync(&mut connect(&lightwalletd_url).await?).await?;
         let relay = RelayClient::new(relay_url);
         Ok::<_, ZafeError>(
@@ -348,9 +350,14 @@ pub struct ReviewInfo {
     pub tip_height: u32,
 }
 
-fn local_tip(db_dir: &str, lightwalletd_url: &str, m: &VaultMaterial) -> Result<u32, ZafeError> {
+fn local_tip(
+    db_dir: &str,
+    db_key: &[u8],
+    lightwalletd_url: &str,
+    m: &VaultMaterial,
+) -> Result<u32, ZafeError> {
     let _guard = wallet_lock();
-    let wallet = runtime().block_on(open_wallet(db_dir, lightwalletd_url, m))?;
+    let wallet = runtime().block_on(open_wallet(db_dir, db_key, lightwalletd_url, m))?;
     wallet
         .chain_height()?
         .ok_or_else(|| ZafeError::new(ZafeErrorKind::NotReady, "The vault has not synced yet"))
@@ -360,6 +367,7 @@ pub fn review_proposal(
     relay_url: String,
     lightwalletd_url: String,
     db_dir: String,
+    db_key: Vec<u8>,
     seeds: Vec<u8>,
     material: Vec<u8>,
     proposal_id: String,
@@ -368,7 +376,7 @@ pub fn review_proposal(
     let m = self::material(&material)?;
     let net = network(&m.descriptor.network)?;
     let id = parse_id(&proposal_id)?;
-    let tip = local_tip(&db_dir, &lightwalletd_url, &m)?;
+    let tip = local_tip(&db_dir, &db_key, &lightwalletd_url, &m)?;
     let (_, state) = runtime().block_on(node::load_state(&RelayClient::new(relay_url), &me, &m))?;
     match node::review(&state, &m, &net, tip, id) {
         Ok(v) => Ok(ReviewInfo {
@@ -408,10 +416,12 @@ pub struct ApproveResult {
 
 /// Verifies the proposal on this device and, only if it passes, approves it. For one-tap
 /// proposals the approval also signs; see `ApproveResult`.
+#[allow(clippy::too_many_arguments)]
 pub fn approve_proposal(
     relay_url: String,
     lightwalletd_url: String,
     db_dir: String,
+    db_key: Vec<u8>,
     state_dir: String,
     seeds: Vec<u8>,
     material: Vec<u8>,
@@ -421,7 +431,7 @@ pub fn approve_proposal(
     let m = self::material(&material)?;
     let net = network(&m.descriptor.network)?;
     let id = parse_id(&proposal_id)?;
-    let tip = local_tip(&db_dir, &lightwalletd_url, &m)?;
+    let tip = local_tip(&db_dir, &db_key, &lightwalletd_url, &m)?;
     let mut store = nonce_store(&state_dir);
     let mut pool = pool_store(&state_dir);
     let approved = runtime().block_on(node::approve(
@@ -469,6 +479,7 @@ pub fn answer_signing_requests(
     relay_url: String,
     lightwalletd_url: String,
     db_dir: String,
+    db_key: Vec<u8>,
     state_dir: String,
     seeds: Vec<u8>,
     material: Vec<u8>,
@@ -485,7 +496,7 @@ pub fn answer_signing_requests(
     {
         return Ok(0);
     }
-    let tip = local_tip(&db_dir, &lightwalletd_url, &m)?;
+    let tip = local_tip(&db_dir, &db_key, &lightwalletd_url, &m)?;
     let report = runtime().block_on(node::respond(
         &RelayClient::new(relay_url),
         &me,
@@ -523,6 +534,7 @@ pub fn send_proposal(
     relay_url: String,
     lightwalletd_url: String,
     db_dir: String,
+    db_key: Vec<u8>,
     state_dir: String,
     seeds: Vec<u8>,
     material: Vec<u8>,
@@ -533,6 +545,7 @@ pub fn send_proposal(
         relay_url,
         lightwalletd_url,
         db_dir,
+        db_key,
         state_dir,
         seeds,
         material,
@@ -562,6 +575,7 @@ pub fn send_with_progress(
     relay_url: String,
     lightwalletd_url: String,
     db_dir: String,
+    db_key: Vec<u8>,
     state_dir: String,
     seeds: Vec<u8>,
     material: Vec<u8>,
@@ -573,7 +587,7 @@ pub fn send_with_progress(
     let net = network(&m.descriptor.network)?;
     let id = parse_id(&proposal_id)?;
     let relay = RelayClient::new(relay_url);
-    let tip = local_tip(&db_dir, &lightwalletd_url, &m)?;
+    let tip = local_tip(&db_dir, &db_key, &lightwalletd_url, &m)?;
     let req_path = request_file(&state_dir, &id);
     let io = |e: std::io::Error| ZafeError::new(ZafeErrorKind::Other, e.to_string());
 

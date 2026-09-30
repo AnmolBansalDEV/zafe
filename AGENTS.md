@@ -124,6 +124,21 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
 - **Wallet**: import the vault UFVK as `AccountPurpose::Spending { derivation: None }`
   (Keystone pattern). `ViewOnly` accounts don't track witnesses and can never spend.
   Birthday height must be ≥ 2 (sync fetches tree state at start−1; lightwalletd treats 0 as unset).
+- **Wallet DB is encrypted (SQLCipher, spec §14)**: every connection goes through
+  `wallet::open_connection`, which runs `PRAGMA key = "x'<64 hex>'"` (raw 256-bit key, no
+  KDF) first, refuses to continue if `PRAGMA cipher_version` is empty (SQLCipher missing
+  would silently ignore the key) and maps `SQLITE_NOTADB` to `WalletError::WrongKey`.
+  `WalletDb::for_path` can't take a key, so `open_wallet_db` opens the connection itself,
+  loads `rusqlite::vtab::array` (what `for_path` does) and uses `WalletDb::from_connection`.
+  The received-payments read-only connection takes the same key. The key (`WalletKey`) is
+  32 random bytes per vault in `ZafeSecureStore` (`zafe_vault_<id>_walletKey`, made on
+  first use by `walletKey(id)`), passed to every wallet bridge call as `dbKey`. **Not in
+  backups**: the wallet is a chain-data cache; a DB the key can't open (plain DB from before
+  encryption, lost key, another isolate's racing key) is deleted by the bridge's
+  `open_wallet` and resynced from the birthday; `list_received` reads it as empty until
+  then. No `sqlcipher_export` migration on purpose. The CLI keeps a dev key in
+  `<home>/wallet.key` (plain file, like the rest of its state). SQLCipher logs key
+  failures to stderr/logcat ("hmac check failed for pgno=1"): expected on a wrong key.
 - **Relay is blind**: it only sees public keys, ciphertext, metadata. Clients drop envelopes
   for another mailbox, from non-members, badly signed, or with non-increasing seq.
 
@@ -139,6 +154,18 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   `chacha20poly1305` 0.10): the latest (dalek 3 / hpke 0.14) needs stable `sha2` 0.11, which
   conflicts with `bip32`'s `sha2 =0.11.0-pre.4` pin via zcash_client_backend.
 - `rusqlite` must use `bundled` at the workspace level (the relay links it on its own).
+  Only `zafe-core` adds `bundled-sqlcipher-vendored-openssl` (zcash_client_sqlite 0.22 pins
+  rusqlite 0.37 / libsqlite3-sys 0.35, same as ours). libsqlite3-sys picks SQLCipher's
+  crypto provider at build time: OpenSSL (vendored = `openssl-src` builds a static
+  libcrypto, needs `perl` + `make` on the build host, cross-compiles with the NDK clang
+  cargokit sets up), system OpenSSL via `OPENSSL_DIR`, or CommonCrypto on Apple when
+  neither is set. There is no pure-Rust provider in rusqlite. Vendored was chosen so
+  Android (no public system libcrypto) and every other target build the same way; iOS
+  could drop to CommonCrypto later to save size. Feature unification means a workspace
+  build links SQLCipher into the relay too; without a key SQLCipher behaves as plain
+  SQLite, and `cargo build -p zafe-relay` alone stays plain `bundled`. The relay DB stays
+  unencrypted on purpose: it holds only public keys, ciphertext and metadata (use disk
+  encryption on the host).
 - `[profile.dev.package."*"] opt-level = 3`: Halo 2 is unusable unoptimized.
 - `zcash_primitives` `non-standard-fees` is a **dev-dependency only** (tests model an
   overpaying proposer).
@@ -330,7 +357,8 @@ Learned while studying it:
   blocked), `USE_BIOMETRIC`, and iOS `NSFaceIDUsageDescription`.
 - **Backups** (spec §12.2; `zafe_core::backup`, bridge `api/backup.rs`, app `features/backup/`):
   `ZAFEBAK` v1 = header (Argon2id params, salt, nonce; authenticated as AEAD data) +
-  XChaCha20-Poly1305 of {identity seeds, material, invite}; **never nonces**. Import checks
+  XChaCha20-Poly1305 of {identity seeds, material, invite}; **never nonces** (nor the wallet
+  DB key: a restore gets a new key and resyncs). Import checks
   the identity is a vault member and refuses KDF params below 64 MiB / 3 passes (or absurdly
   high). Text form `zafe-backup-v1:` + base64url. Passphrase: 12+ words or zxcvbn 4
   ("Suggest" = 12 BIP-39 words). The app prompts right after key generation

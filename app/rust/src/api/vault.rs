@@ -11,7 +11,7 @@ use rand::rngs::OsRng;
 use zafe_core::{
     node::{self, Invite, VaultMaterial},
     relay_client::RelayClient,
-    wallet::{connect, latest_height, VaultWallet, ZafeNetwork},
+    wallet::{connect, latest_height, VaultWallet, WalletKey, ZafeNetwork},
 };
 use zafe_proto::{Identity, IdentitySeeds};
 
@@ -233,6 +233,21 @@ pub(crate) fn wallet_lock() -> std::sync::MutexGuard<'static, ()> {
     LOCK.lock().unwrap_or_else(|p| p.into_inner())
 }
 
+/// The vault's wallet database key (32 random bytes the app keeps in secure storage).
+pub(crate) fn wallet_key(db_key: &[u8]) -> Result<WalletKey, ZafeError> {
+    WalletKey::from_slice(db_key).map_err(|_| ZafeError::invalid("wallet key must be 32 bytes"))
+}
+
+/// Deletes a wallet database and SQLite's side files.
+fn remove_wallet_files(path: &std::path::Path) {
+    let _ = std::fs::remove_file(path);
+    for suffix in ["-journal", "-wal", "-shm"] {
+        let mut side = path.as_os_str().to_owned();
+        side.push(suffix);
+        let _ = std::fs::remove_file(side);
+    }
+}
+
 pub(crate) fn wallet_path(db_dir: &str, m: &VaultMaterial) -> PathBuf {
     PathBuf::from(db_dir).join(format!(
         "vault-{}.sqlite",
@@ -243,19 +258,24 @@ pub(crate) fn wallet_path(db_dir: &str, m: &VaultMaterial) -> PathBuf {
 /// Opens the vault wallet, creating it on first use. Hold `wallet_lock()` while using it.
 pub(crate) async fn open_wallet(
     db_dir: &str,
+    db_key: &[u8],
     lightwalletd_url: &str,
     m: &VaultMaterial,
 ) -> Result<VaultWallet<ZafeNetwork>, ZafeError> {
     let net = network(&m.descriptor.network)?;
+    let key = wallet_key(db_key)?;
     let path = wallet_path(db_dir, m);
-    if VaultWallet::exists(&path, net) {
-        return Ok(VaultWallet::open(&path, net)?);
+    if VaultWallet::exists(&path, &key, net) {
+        return Ok(VaultWallet::open(&path, &key, net)?);
     }
-    let _ = std::fs::remove_file(&path); // a leftover without its account
+    // A leftover without its account, a plain database from before encryption, or one
+    // under a lost key: the wallet only caches chain data, so resync from the birthday.
+    remove_wallet_files(&path);
     let mut client = connect(lightwalletd_url).await?;
     let ufvk = m.vault_keys()?.ufvk().map_err(anyhow::Error::from)?;
     Ok(VaultWallet::create(
         &path,
+        &key,
         net,
         &m.descriptor.name,
         &ufvk,
@@ -268,13 +288,14 @@ pub(crate) async fn open_wallet(
 /// Syncs the vault wallet (creating its database under `db_dir` on first use).
 pub fn sync_vault(
     db_dir: String,
+    db_key: Vec<u8>,
     lightwalletd_url: String,
     material: Vec<u8>,
 ) -> Result<Balance, ZafeError> {
     let m = self::material(&material)?;
     let _guard = wallet_lock();
     runtime().block_on(async {
-        let mut wallet = open_wallet(&db_dir, &lightwalletd_url, &m).await?;
+        let mut wallet = open_wallet(&db_dir, &db_key, &lightwalletd_url, &m).await?;
         let mut client = connect(&lightwalletd_url).await?;
         wallet.sync(&mut client).await?;
         let b = wallet.balance()?;

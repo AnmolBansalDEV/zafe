@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'error.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `identity`, `material`, `network`, `open_wallet`, `runtime`, `wallet_lock`, `wallet_path`
+// These functions are ignored because they are not marked as `pub`: `identity`, `material`, `network`, `open_wallet`, `remove_wallet_files`, `runtime`, `wallet_key`, `wallet_lock`, `wallet_path`
 
 IdentityInfo generateIdentity() =>
     RustLib.instance.api.crateApiVaultGenerateIdentity();
@@ -94,10 +94,12 @@ VaultSummary vaultSummary({required List<int> material}) =>
 /// Syncs the vault wallet (creating its database under `db_dir` on first use).
 Future<Balance> syncVault({
   required String dbDir,
+  required List<int> dbKey,
   required String lightwalletdUrl,
   required List<int> material,
 }) => RustLib.instance.api.crateApiVaultSyncVault(
   dbDir: dbDir,
+  dbKey: dbKey,
   lightwalletdUrl: lightwalletdUrl,
   material: material,
 );

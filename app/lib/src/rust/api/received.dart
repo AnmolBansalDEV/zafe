@@ -9,11 +9,15 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 /// The vault's received payments, newest first. Reads the wallet database created by
 /// `sync_vault`; before the first sync there is none and the list is empty.
+/// A database this key can't open (from before encryption) also reads as empty until the
+/// next sync replaces it.
 Future<List<ReceivedInfo>> listReceived({
   required String dbDir,
+  required List<int> dbKey,
   required List<int> material,
 }) => RustLib.instance.api.crateApiReceivedListReceived(
   dbDir: dbDir,
+  dbKey: dbKey,
   material: material,
 );
 
