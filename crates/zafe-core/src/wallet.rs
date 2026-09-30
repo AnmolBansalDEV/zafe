@@ -61,10 +61,103 @@ pub enum WalletError {
     Proposal(String),
     #[error("invalid payment: {0}")]
     Payment(String),
+    /// The database can't be read with this key: a wrong key, or a plain (unencrypted)
+    /// database from before encryption. The wallet is a cache of chain data, so callers
+    /// delete it and resync.
+    #[error("wallet database: wrong key or not encrypted")]
+    WrongKey,
 }
 
 fn db_err(e: impl core::fmt::Debug) -> WalletError {
     WalletError::Db(format!("{e:?}"))
+}
+
+/// The key of a vault's wallet database (SQLCipher, raw 256-bit key). The app generates
+/// one per vault and keeps it in platform secure storage; it is never backed up (a restored
+/// vault creates a fresh database and resyncs).
+#[derive(Clone)]
+pub struct WalletKey(zeroize::Zeroizing<[u8; 32]>);
+
+impl WalletKey {
+    pub fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(zeroize::Zeroizing::new(bytes))
+    }
+
+    pub fn from_slice(bytes: &[u8]) -> Result<Self, WalletError> {
+        let bytes: [u8; 32] = bytes
+            .try_into()
+            .map_err(|_| WalletError::Db("wallet key must be 32 bytes".into()))?;
+        Ok(Self::from_bytes(bytes))
+    }
+
+    pub fn random() -> Self {
+        let mut bytes = [0u8; 32];
+        rand::RngCore::fill_bytes(&mut OsRng, &mut bytes);
+        Self::from_bytes(bytes)
+    }
+
+    pub fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+impl core::fmt::Debug for WalletKey {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("WalletKey(..)")
+    }
+}
+
+/// Opens a connection to the wallet database at `path` (created if missing, unless
+/// `read_only`) and unlocks it with `key` before anything else touches it. Fails with
+/// [`WalletError::WrongKey`] if the file is not a database encrypted with this key.
+fn open_connection(
+    path: &Path,
+    key: &WalletKey,
+    read_only: bool,
+) -> Result<rusqlite::Connection, WalletError> {
+    use rusqlite::OpenFlags;
+    let flags = if read_only {
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX
+    } else {
+        OpenFlags::default()
+    };
+    let conn = rusqlite::Connection::open_with_flags(path, flags).map_err(db_err)?;
+    // SQLCipher's raw key form: the 32 bytes are the AES key (no passphrase KDF).
+    let pragma = zeroize::Zeroizing::new(format!(
+        "PRAGMA key = \"x'{}'\";",
+        hex::encode(key.as_bytes())
+    ));
+    conn.execute_batch(&pragma).map_err(db_err)?;
+    // Without SQLCipher compiled in, `PRAGMA key` is silently ignored: refuse to go on.
+    let cipher: Option<String> = conn
+        .query_row("PRAGMA cipher_version", [], |r| r.get(0))
+        .ok();
+    if cipher.is_none() {
+        return Err(WalletError::Db("SQLCipher is not available".into()));
+    }
+    // The key is only checked when the first page is read.
+    match conn.query_row("SELECT count(*) FROM sqlite_master", [], |r| {
+        r.get::<_, i64>(0)
+    }) {
+        Ok(_) => Ok(conn),
+        Err(rusqlite::Error::SqliteFailure(e, _))
+            if e.code == rusqlite::ErrorCode::NotADatabase =>
+        {
+            Err(WalletError::WrongKey)
+        }
+        Err(e) => Err(db_err(e)),
+    }
+}
+
+/// A `WalletDb` over an encrypted connection (what `WalletDb::for_path` does, plus the key).
+fn open_wallet_db<P: Parameters>(
+    path: &Path,
+    key: &WalletKey,
+    params: P,
+) -> Result<WalletDb<rusqlite::Connection, P, SystemClock, OsRng>, WalletError> {
+    let conn = open_connection(path, key, false)?;
+    rusqlite::vtab::array::load_module(&conn).map_err(db_err)?;
+    Ok(WalletDb::from_connection(conn, params, SystemClock, OsRng))
 }
 
 /// A regtest network with every upgrade through NU6.3 active at height 1, matching
@@ -165,13 +258,15 @@ pub struct VaultWallet<P: Parameters + Clone + Send + 'static> {
     account: AccountUuid,
     cache: MemBlockCache,
     path: PathBuf,
+    key: WalletKey,
 }
 
 impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
-    /// Creates a wallet database at `path` and imports the vault UFVK with the given
-    /// birthday height (the vault's creation height).
+    /// Creates a wallet database at `path`, encrypted with `key`, and imports the vault
+    /// UFVK with the given birthday height (the vault's creation height).
     pub async fn create(
         path: &Path,
+        key: &WalletKey,
         params: P,
         name: &str,
         ufvk: &UnifiedFullViewingKey,
@@ -207,8 +302,7 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
             .map_err(|e| WalletError::Remote(format!("birthday: {e:?}")))?;
 
         let created = (|| {
-            let mut db =
-                WalletDb::for_path(path, params.clone(), SystemClock, OsRng).map_err(db_err)?;
+            let mut db = open_wallet_db(path, key, params.clone())?;
             init_wallet_db(&mut db, None).map_err(db_err)?;
             let account = db
                 .import_account_ufvk(
@@ -231,19 +325,25 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
             account,
             cache: MemBlockCache::default(),
             path: path.to_path_buf(),
+            key: key.clone(),
         })
     }
 
-    /// Whether `path` holds a usable vault wallet (a database with its account). Callers
-    /// use this to decide between `open` and `create`; a leftover file without an account
-    /// (e.g. from an older build) should be deleted and recreated.
-    pub fn exists(path: &Path, params: P) -> bool {
-        path.exists() && Self::open(path, params).is_ok()
+    /// Whether `path` holds a usable vault wallet (a database this key opens, with its
+    /// account). Callers use this to decide between `open` and `create`; anything else (a
+    /// leftover without an account, a plain database from before encryption, a database
+    /// under a lost key) should be deleted and recreated: the wallet is a cache of chain data.
+    pub fn exists(path: &Path, key: &WalletKey, params: P) -> bool {
+        path.exists() && Self::open(path, key, params).is_ok()
     }
 
     /// Opens an existing wallet database holding exactly one vault account.
-    pub fn open(path: &Path, params: P) -> Result<Self, WalletError> {
-        let db = WalletDb::for_path(path, params.clone(), SystemClock, OsRng).map_err(db_err)?;
+    pub fn open(path: &Path, key: &WalletKey, params: P) -> Result<Self, WalletError> {
+        if !path.exists() {
+            // Opening would create an empty database.
+            return Err(WalletError::Db("no wallet database".into()));
+        }
+        let db = open_wallet_db(path, key, params.clone())?;
         let ids = db.get_account_ids().map_err(db_err)?;
         let [account] = ids.as_slice() else {
             return Err(WalletError::Db(format!(
@@ -257,6 +357,7 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
             account: *account,
             cache: MemBlockCache::default(),
             path: path.to_path_buf(),
+            key: key.clone(),
         })
     }
 
@@ -300,7 +401,7 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
     /// that spend any vault note: their outputs back to the vault are change (or a self
     /// transfer), not incoming money. Expired unmined transactions are left out.
     pub fn received_payments(&self) -> Result<Vec<ReceivedPayment>, WalletError> {
-        received_payments_at(&self.path, self.account.expose_uuid().as_bytes())
+        received_payments_at(&self.path, &self.key, self.account.expose_uuid().as_bytes())
     }
 
     /// Selects notes, builds and IO-finalizes a PCZT paying `payments`, with change back to
@@ -381,16 +482,13 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
 /// `VaultWallet::received_payments` for the account with this UUID in the database at `path`.
 fn received_payments_at(
     path: &Path,
+    key: &WalletKey,
     account: &[u8; 16],
 ) -> Result<Vec<ReceivedPayment>, WalletError> {
     // `WalletDb` doesn't expose its connection, so read the database's views
     // (`v_received_outputs`, `v_received_output_spends`) on a second, read-only connection.
     // Callers already serialize wallet access.
-    let conn = rusqlite::Connection::open_with_flags(
-        path,
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )
-    .map_err(db_err)?;
+    let conn = open_connection(path, key, true)?;
     let mut stmt = conn
         .prepare(
             "SELECT t.id_tx, t.txid, t.mined_height, b.time, SUM(ro.value),
@@ -638,7 +736,8 @@ mod tests {
             .unwrap()
             .ufvk()
             .unwrap();
-        let mut db = WalletDb::for_path(&path, net, SystemClock, OsRng).unwrap();
+        let key = WalletKey::random();
+        let mut db = open_wallet_db(&path, &key, net).unwrap();
         init_wallet_db(&mut db, None).unwrap();
         let birthday = AccountBirthday::from_parts(
             ChainState::empty(BlockHeight::from_u32(1), BlockHash([0; 32])),
@@ -655,7 +754,7 @@ mod tests {
             .unwrap()
             .id();
 
-        let conn = rusqlite::Connection::open(&path).unwrap();
+        let conn = open_connection(&path, &key, false).unwrap();
         let account_id: i64 = conn
             .query_row("SELECT id FROM accounts", [], |r| r.get(0))
             .unwrap();
@@ -713,7 +812,7 @@ mod tests {
         .unwrap();
         drop(conn);
 
-        let got = received_payments_at(&path, account.expose_uuid().as_bytes()).unwrap();
+        let got = received_payments_at(&path, &key, account.expose_uuid().as_bytes()).unwrap();
         let txid = |b: u8| zcash_protocol::TxId::from_bytes([b; 32]).to_string();
         assert_eq!(
             got,
@@ -752,5 +851,91 @@ mod tests {
         assert_eq!(memo_text(&text_memo("hi")), Some("hi".into()));
         assert_eq!(memo_text(&[0xf6]), None);
         assert_eq!(memo_text(&[0xff; 512]), None);
+    }
+
+    /// The wallet database is encrypted: it reopens with its key, and a wrong key or a plain
+    /// database from before encryption fails with `WrongKey` (so callers resync).
+    #[test]
+    fn wallet_database_is_encrypted() {
+        let dir = std::env::temp_dir().join(format!("zafe-enc-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("wallet.sqlite");
+        let _ = std::fs::remove_file(&path);
+        let net = regtest_network();
+        let key = WalletKey::random();
+
+        let ak: [u8; 32] = FullViewingKey::from(&SpendingKey::from_bytes([3u8; 32]).unwrap())
+            .to_bytes()[..32]
+            .try_into()
+            .unwrap();
+        let ufvk = VaultKeys::derive(&VaultSecret::from_bytes([9u8; 32]), &ak)
+            .unwrap()
+            .ufvk()
+            .unwrap();
+        // Opening a missing database doesn't create one.
+        assert!(VaultWallet::open(&path, &key, net).is_err());
+        assert!(!path.exists());
+
+        let mut db = open_wallet_db(&path, &key, net).unwrap();
+        init_wallet_db(&mut db, None).unwrap();
+        let birthday = AccountBirthday::from_parts(
+            ChainState::empty(BlockHeight::from_u32(1), BlockHash([0; 32])),
+            None,
+        );
+        db.import_account_ufvk(
+            "vault",
+            &ufvk,
+            &birthday,
+            AccountPurpose::Spending { derivation: None },
+            None,
+        )
+        .unwrap();
+        drop(db);
+
+        // Nothing readable on disk: no SQLite header, no account name.
+        let raw = std::fs::read(&path).unwrap();
+        assert!(!raw.starts_with(b"SQLite format 3"));
+        assert!(!raw.windows(5).any(|w| w == b"vault"));
+
+        // Reopens with the key (both the wallet and the read-only second connection).
+        assert!(VaultWallet::exists(&path, &key, net));
+        let wallet = VaultWallet::open(&path, &key, net).unwrap();
+        assert_eq!(wallet.balance().unwrap().total, 0);
+        assert_eq!(wallet.received_payments().unwrap(), vec![]);
+        drop(wallet);
+
+        // A wrong key fails with a typed error, on both kinds of connection.
+        let wrong = WalletKey::random();
+        assert!(matches!(
+            VaultWallet::open(&path, &wrong, net),
+            Err(WalletError::WrongKey)
+        ));
+        assert!(matches!(
+            open_connection(&path, &wrong, true),
+            Err(WalletError::WrongKey)
+        ));
+        assert!(!VaultWallet::exists(&path, &wrong, net));
+
+        // A plain database (as written before encryption) doesn't open with a key.
+        let plain = dir.join("plain.sqlite");
+        let _ = std::fs::remove_file(&plain);
+        let conn = rusqlite::Connection::open(&plain).unwrap();
+        conn.execute_batch("CREATE TABLE t (x); INSERT INTO t VALUES (1);")
+            .unwrap();
+        drop(conn);
+        assert!(std::fs::read(&plain)
+            .unwrap()
+            .starts_with(b"SQLite format 3"));
+        assert!(matches!(
+            VaultWallet::open(&plain, &key, net),
+            Err(WalletError::WrongKey)
+        ));
+
+        assert!(WalletKey::from_slice(&[0u8; 31]).is_err());
+        assert_eq!(
+            WalletKey::from_slice(key.as_bytes()).unwrap().as_bytes(),
+            key.as_bytes()
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

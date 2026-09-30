@@ -1,10 +1,10 @@
 //! Money the vault received, read from the local wallet database (no network).
 
-use zafe_core::wallet::VaultWallet;
+use zafe_core::wallet::{VaultWallet, WalletError};
 
 use super::{
     error::ZafeError,
-    vault::{material, network, wallet_lock, wallet_path},
+    vault::{material, network, wallet_key, wallet_lock, wallet_path},
 };
 
 /// One incoming payment (a transaction that pays the vault and spends none of its notes).
@@ -27,15 +27,26 @@ pub struct ReceivedInfo {
 
 /// The vault's received payments, newest first. Reads the wallet database created by
 /// `sync_vault`; before the first sync there is none and the list is empty.
-pub fn list_received(db_dir: String, material: Vec<u8>) -> Result<Vec<ReceivedInfo>, ZafeError> {
+/// A database this key can't open (from before encryption) also reads as empty until the
+/// next sync replaces it.
+pub fn list_received(
+    db_dir: String,
+    db_key: Vec<u8>,
+    material: Vec<u8>,
+) -> Result<Vec<ReceivedInfo>, ZafeError> {
     let m = self::material(&material)?;
     let net = network(&m.descriptor.network)?;
+    let key = wallet_key(&db_key)?;
     let path = wallet_path(&db_dir, &m);
     let _guard = wallet_lock();
     if !path.exists() {
         return Ok(vec![]);
     }
-    let wallet = VaultWallet::open(&path, net)?;
+    let wallet = match VaultWallet::open(&path, &key, net) {
+        Ok(w) => w,
+        Err(WalletError::WrongKey) => return Ok(vec![]),
+        Err(e) => return Err(e.into()),
+    };
     let tip = wallet.chain_height()?.unwrap_or(0);
     Ok(wallet
         .received_payments()?

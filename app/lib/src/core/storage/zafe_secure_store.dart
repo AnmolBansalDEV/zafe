@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -25,7 +26,8 @@ class StoredVault {
 }
 
 /// Platform secure storage (iOS Keychain / Android Keystore) for Zafe's secrets, per vault:
-/// identity seeds, the invite (not secret, kept so setup can resume) and the vault material.
+/// identity seeds, the invite (not secret, kept so setup can resume), the vault material and
+/// the wallet database key.
 /// `zafe_vaults` lists the vault ids in the order they were added.
 class ZafeSecureStore {
   ZafeSecureStore._();
@@ -89,9 +91,34 @@ class ZafeSecureStore {
   Future<void> writeMaterial(String id, List<int> material) =>
       _writeBytes(_key(id, 'material'), material);
 
+  final Map<String, Future<Uint8List>> _creatingWalletKey = {};
+
+  /// The key that encrypts this vault's wallet database (SQLCipher), made on first use.
+  /// Not part of backups: the wallet only caches chain data, so a restored vault (or one
+  /// whose key is lost) gets a new key and a fresh database that resyncs from the
+  /// birthday. Read from storage on every call (never cached): if the app and a
+  /// background isolate both create one, the stored key wins on the next call and the
+  /// wallet resyncs once.
+  Future<Uint8List> walletKey(String id) async {
+    final stored = await _readBytes(_key(id, 'walletKey'));
+    if (stored != null && stored.length == 32) return stored;
+    return _creatingWalletKey[id] ??= _createWalletKey(
+      id,
+    ).whenComplete(() => _creatingWalletKey.remove(id));
+  }
+
+  Future<Uint8List> _createWalletKey(String id) async {
+    final random = Random.secure();
+    final key = Uint8List.fromList(
+      List<int>.generate(32, (_) => random.nextInt(256)),
+    );
+    await _writeBytes(_key(id, 'walletKey'), key);
+    return await _readBytes(_key(id, 'walletKey')) ?? key;
+  }
+
   /// Removes a vault's secrets from this device (it stays a member on the relay).
   Future<void> remove(String id) async {
-    for (final field in ['identity', 'invite', 'material']) {
+    for (final field in ['identity', 'invite', 'material', 'walletKey']) {
       await _storage.delete(key: _key(id, field));
     }
     await _writeIds([

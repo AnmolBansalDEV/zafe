@@ -14,7 +14,7 @@ use zafe_core::{
     nonce_store::{FileNonceStore, FilePoolStore},
     relay_client::RelayClient,
     session::ProposalId,
-    wallet::{connect, latest_height, regtest_network, PaymentRequest, VaultWallet},
+    wallet::{connect, latest_height, regtest_network, PaymentRequest, VaultWallet, WalletKey},
 };
 use zafe_proto::{Identity, IdentitySeeds};
 use zcash_protocol::{local_consensus::LocalNetwork, memo::Memo};
@@ -161,11 +161,25 @@ async fn open_wallet(
     let mut client = connect(lwd).await?;
     let path = home.path("wallet.sqlite");
     let ufvk = material.vault_keys()?.ufvk()?;
-    let mut wallet = if path.exists() {
-        VaultWallet::open(&path, network())?
+    // Dev-only: the wallet key sits in a plain file next to the database.
+    let key_path = home.path("wallet.key");
+    let key = match fs::read(&key_path) {
+        Ok(bytes) => WalletKey::from_slice(&bytes)?,
+        Err(_) => {
+            let key = WalletKey::random();
+            fs::write(&key_path, key.as_bytes())?;
+            key
+        }
+    };
+    let mut wallet = if VaultWallet::exists(&path, &key, network()) {
+        VaultWallet::open(&path, &key, network())?
     } else {
+        // Missing, or not readable with this key (e.g. a plain database from an older
+        // build): the wallet is a cache of chain data, so start over from the birthday.
+        let _ = fs::remove_file(&path);
         VaultWallet::create(
             &path,
+            &key,
             network(),
             &material.descriptor.name,
             &ufvk,

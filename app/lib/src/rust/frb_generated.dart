@@ -85,6 +85,7 @@ abstract class RustLibApi extends BaseApi {
     required String relayUrl,
     required String lightwalletdUrl,
     required String dbDir,
+    required List<int> dbKey,
     required String stateDir,
     required List<int> seeds,
     required List<int> material,
@@ -94,6 +95,7 @@ abstract class RustLibApi extends BaseApi {
     required String relayUrl,
     required String lightwalletdUrl,
     required String dbDir,
+    required List<int> dbKey,
     required String stateDir,
     required List<int> seeds,
     required List<int> material,
@@ -150,6 +152,7 @@ abstract class RustLibApi extends BaseApi {
 
   Future<List<ReceivedInfo>> crateApiReceivedListReceived({
     required String dbDir,
+    required List<int> dbKey,
     required List<int> material,
   });
 
@@ -163,6 +166,7 @@ abstract class RustLibApi extends BaseApi {
     required String relayUrl,
     required String lightwalletdUrl,
     required String dbDir,
+    required List<int> dbKey,
     required List<int> seeds,
     required List<int> material,
     required List<PaymentInput> payments,
@@ -188,6 +192,7 @@ abstract class RustLibApi extends BaseApi {
     required String relayUrl,
     required String lightwalletdUrl,
     required String dbDir,
+    required List<int> dbKey,
     required List<int> seeds,
     required List<int> material,
     required String proposalId,
@@ -214,6 +219,7 @@ abstract class RustLibApi extends BaseApi {
     required String relayUrl,
     required String lightwalletdUrl,
     required String dbDir,
+    required List<int> dbKey,
     required String stateDir,
     required List<int> seeds,
     required List<int> material,
@@ -224,6 +230,7 @@ abstract class RustLibApi extends BaseApi {
 
   Future<Balance> crateApiVaultSyncVault({
     required String dbDir,
+    required List<int> dbKey,
     required String lightwalletdUrl,
     required List<int> material,
   });
@@ -250,6 +257,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String relayUrl,
     required String lightwalletdUrl,
     required String dbDir,
+    required List<int> dbKey,
     required String stateDir,
     required List<int> seeds,
     required List<int> material,
@@ -261,6 +269,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(relayUrl, serializer);
           sse_encode_String(lightwalletdUrl, serializer);
           sse_encode_String(dbDir, serializer);
+          sse_encode_list_prim_u_8_loose(dbKey, serializer);
           sse_encode_String(stateDir, serializer);
           sse_encode_list_prim_u_8_loose(seeds, serializer);
           sse_encode_list_prim_u_8_loose(material, serializer);
@@ -280,6 +289,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           relayUrl,
           lightwalletdUrl,
           dbDir,
+          dbKey,
           stateDir,
           seeds,
           material,
@@ -296,6 +306,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "relayUrl",
           "lightwalletdUrl",
           "dbDir",
+          "dbKey",
           "stateDir",
           "seeds",
           "material",
@@ -307,6 +318,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String relayUrl,
     required String lightwalletdUrl,
     required String dbDir,
+    required List<int> dbKey,
     required String stateDir,
     required List<int> seeds,
     required List<int> material,
@@ -319,6 +331,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(relayUrl, serializer);
           sse_encode_String(lightwalletdUrl, serializer);
           sse_encode_String(dbDir, serializer);
+          sse_encode_list_prim_u_8_loose(dbKey, serializer);
           sse_encode_String(stateDir, serializer);
           sse_encode_list_prim_u_8_loose(seeds, serializer);
           sse_encode_list_prim_u_8_loose(material, serializer);
@@ -339,6 +352,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           relayUrl,
           lightwalletdUrl,
           dbDir,
+          dbKey,
           stateDir,
           seeds,
           material,
@@ -356,6 +370,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "relayUrl",
           "lightwalletdUrl",
           "dbDir",
+          "dbKey",
           "stateDir",
           "seeds",
           "material",
@@ -688,6 +703,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @override
   Future<List<ReceivedInfo>> crateApiReceivedListReceived({
     required String dbDir,
+    required List<int> dbKey,
     required List<int> material,
   }) {
     return handler.executeNormal(
@@ -695,6 +711,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(dbDir, serializer);
+          sse_encode_list_prim_u_8_loose(dbKey, serializer);
           sse_encode_list_prim_u_8_loose(material, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
@@ -708,7 +725,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_zafe_error,
         ),
         constMeta: kCrateApiReceivedListReceivedConstMeta,
-        argValues: [dbDir, material],
+        argValues: [dbDir, dbKey, material],
         apiImpl: this,
       ),
     );
@@ -717,7 +734,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiReceivedListReceivedConstMeta =>
       const TaskConstMeta(
         debugName: "list_received",
-        argNames: ["dbDir", "material"],
+        argNames: ["dbDir", "dbKey", "material"],
       );
 
   @override
@@ -794,6 +811,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String relayUrl,
     required String lightwalletdUrl,
     required String dbDir,
+    required List<int> dbKey,
     required List<int> seeds,
     required List<int> material,
     required List<PaymentInput> payments,
@@ -806,6 +824,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(relayUrl, serializer);
           sse_encode_String(lightwalletdUrl, serializer);
           sse_encode_String(dbDir, serializer);
+          sse_encode_list_prim_u_8_loose(dbKey, serializer);
           sse_encode_list_prim_u_8_loose(seeds, serializer);
           sse_encode_list_prim_u_8_loose(material, serializer);
           sse_encode_list_payment_input(payments, serializer);
@@ -826,6 +845,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           relayUrl,
           lightwalletdUrl,
           dbDir,
+          dbKey,
           seeds,
           material,
           payments,
@@ -843,6 +863,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "relayUrl",
           "lightwalletdUrl",
           "dbDir",
+          "dbKey",
           "seeds",
           "material",
           "payments",
@@ -934,6 +955,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String relayUrl,
     required String lightwalletdUrl,
     required String dbDir,
+    required List<int> dbKey,
     required List<int> seeds,
     required List<int> material,
     required String proposalId,
@@ -945,6 +967,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_String(relayUrl, serializer);
           sse_encode_String(lightwalletdUrl, serializer);
           sse_encode_String(dbDir, serializer);
+          sse_encode_list_prim_u_8_loose(dbKey, serializer);
           sse_encode_list_prim_u_8_loose(seeds, serializer);
           sse_encode_list_prim_u_8_loose(material, serializer);
           sse_encode_String(proposalId, serializer);
@@ -964,6 +987,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           relayUrl,
           lightwalletdUrl,
           dbDir,
+          dbKey,
           seeds,
           material,
           proposalId,
@@ -980,6 +1004,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "relayUrl",
           "lightwalletdUrl",
           "dbDir",
+          "dbKey",
           "seeds",
           "material",
           "proposalId",
@@ -1091,6 +1116,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required String relayUrl,
     required String lightwalletdUrl,
     required String dbDir,
+    required List<int> dbKey,
     required String stateDir,
     required List<int> seeds,
     required List<int> material,
@@ -1105,6 +1131,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             sse_encode_String(relayUrl, serializer);
             sse_encode_String(lightwalletdUrl, serializer);
             sse_encode_String(dbDir, serializer);
+            sse_encode_list_prim_u_8_loose(dbKey, serializer);
             sse_encode_String(stateDir, serializer);
             sse_encode_list_prim_u_8_loose(seeds, serializer);
             sse_encode_list_prim_u_8_loose(material, serializer);
@@ -1126,6 +1153,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             relayUrl,
             lightwalletdUrl,
             dbDir,
+            dbKey,
             stateDir,
             seeds,
             material,
@@ -1146,6 +1174,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           "relayUrl",
           "lightwalletdUrl",
           "dbDir",
+          "dbKey",
           "stateDir",
           "seeds",
           "material",
@@ -1179,6 +1208,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @override
   Future<Balance> crateApiVaultSyncVault({
     required String dbDir,
+    required List<int> dbKey,
     required String lightwalletdUrl,
     required List<int> material,
   }) {
@@ -1187,6 +1217,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
           sse_encode_String(dbDir, serializer);
+          sse_encode_list_prim_u_8_loose(dbKey, serializer);
           sse_encode_String(lightwalletdUrl, serializer);
           sse_encode_list_prim_u_8_loose(material, serializer);
           pdeCallFfi(
@@ -1201,7 +1232,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_zafe_error,
         ),
         constMeta: kCrateApiVaultSyncVaultConstMeta,
-        argValues: [dbDir, lightwalletdUrl, material],
+        argValues: [dbDir, dbKey, lightwalletdUrl, material],
         apiImpl: this,
       ),
     );
@@ -1209,7 +1240,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   TaskConstMeta get kCrateApiVaultSyncVaultConstMeta => const TaskConstMeta(
     debugName: "sync_vault",
-    argNames: ["dbDir", "lightwalletdUrl", "material"],
+    argNames: ["dbDir", "dbKey", "lightwalletdUrl", "material"],
   );
 
   @override

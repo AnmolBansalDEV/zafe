@@ -18,7 +18,7 @@ use zafe_core::{
     session::{Leader, Member, MemoryNonceStore},
     tx,
     verify::{verify_pczt, Expectations, Payment},
-    wallet::{connect, regtest_network, PaymentRequest, VaultWallet},
+    wallet::{connect, regtest_network, PaymentRequest, VaultWallet, WalletKey},
 };
 use zcash_client_backend::proto::service::RawTransaction;
 use zcash_keys::{address::UnifiedAddress, keys::UnifiedFullViewingKey};
@@ -129,9 +129,17 @@ async fn vault_pays_on_regtest() {
     let mut wallets = Vec::new();
     for (i, _) in members.iter().enumerate() {
         let path = dir.join(format!("member{i}.sqlite"));
-        let mut w = VaultWallet::create(&path, network, "vault", &vault_ufvk, 2, &mut client)
-            .await
-            .unwrap();
+        let mut w = VaultWallet::create(
+            &path,
+            &WalletKey::random(),
+            network,
+            "vault",
+            &vault_ufvk,
+            2,
+            &mut client,
+        )
+        .await
+        .unwrap();
         w.sync(&mut client).await.unwrap();
         wallets.push(w);
     }
@@ -263,6 +271,7 @@ async fn vault_pays_on_regtest() {
     let recipient_ufvk = UnifiedFullViewingKey::from_orchard_fvk(recipient_fvk).unwrap();
     let mut recipient_wallet = VaultWallet::create(
         &dir.join("recipient.sqlite"),
+        &WalletKey::random(),
         network,
         "recipient",
         &recipient_ufvk,

@@ -252,12 +252,14 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
     final material = v.material!;
     final paths = await ZafePaths.get();
     final stateDir = await paths.stateDir(v.id);
+    final dbKey = await ZafeSecureStore.instance.walletKey(v.id);
     final summary = rust_vault.vaultSummary(material: material);
     debugPrint('vault check: ${summary.name}');
 
     try {
       final balance = await rust_vault.syncVault(
         dbDir: paths.dbDir,
+        dbKey: dbKey,
         lightwalletdUrl: kZafeLightwalletdUrl,
         material: material,
       );
@@ -267,6 +269,7 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
     try {
       received = await rust_received.listReceived(
         dbDir: paths.dbDir,
+        dbKey: dbKey,
         material: material,
       );
     } catch (_) {}
@@ -281,6 +284,7 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
         relayUrl: kZafeRelayUrl,
         lightwalletdUrl: kZafeLightwalletdUrl,
         dbDir: paths.dbDir,
+        dbKey: dbKey,
         stateDir: stateDir,
         seeds: seeds,
         material: material,
@@ -300,6 +304,7 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
                 relayUrl: kZafeRelayUrl,
                 lightwalletdUrl: kZafeLightwalletdUrl,
                 dbDir: paths.dbDir,
+                dbKey: dbKey,
                 stateDir: stateDir,
                 seeds: seeds,
                 material: material,

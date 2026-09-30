@@ -35,7 +35,9 @@ zip321.workspace = true
 zcash_address.workspace = true
 tonic.workspace = true
 async-trait.workspace = true
-rusqlite.workspace = true
+# SQLCipher for the encrypted wallet database, with OpenSSL built from source (static
+# libcrypto) so every target, Android included, needs no system crypto library.
+rusqlite = { workspace = true, features = ["bundled-sqlcipher-vendored-openssl", "array"] }
 rand.workspace = true
 zcash_note_encryption.workspace = true
 argon2 = "0.5"

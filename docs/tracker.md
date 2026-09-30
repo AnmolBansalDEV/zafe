@@ -108,7 +108,13 @@ Open
       needs the key while locked, spec V8). `LaunchTheme` should use a `Theme.AppCompat`
       parent or the biometric prompt can crash on Android 8 and below (minSdk 24). No
       "open security settings" shortcut from the no-screen-lock warning
-- [ ] SQLCipher for the wallet DB (spec §14; an improvement over Vizor)
+- [x] SQLCipher for the wallet DB (spec §14; done 2026-09-30): per-vault random key in
+      secure storage, `PRAGMA key` on every connection, unreadable/plain DBs are deleted
+      and resynced. Vendored OpenSSL (static libcrypto) on every target
+- [ ] Wallet DB follow-ups: iOS could use CommonCrypto instead of vendored OpenSSL
+      (smaller binary; target-specific rusqlite features); the key lives in the same secure
+      storage as the vault material, so it protects against file-level copies (backups,
+      forensic dumps of app data), not against an attacker who can read the Keystore
 - [ ] Pre-warm the proving key when a proposal becomes Approved (2–4 s on a phone)
 - [ ] Low-end device benchmark (V7 still open: Cortex-A55-class phone)
 - [x] App icon, launcher name/branding: original vault-dial icon (adaptive + themed

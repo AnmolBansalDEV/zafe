@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/config/network_config.dart';
 import '../core/errors/zafe_error_copy.dart';
 import '../core/storage/zafe_paths.dart';
+import '../core/storage/zafe_secure_store.dart';
 import '../core/storage/vault_summaries.dart';
 import '../notifications/vault_updates.dart' show actionableCount;
 import '../notifications/vault_watch.dart' show recordSeen;
@@ -139,6 +140,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
         relayUrl: kZafeRelayUrl,
         lightwalletdUrl: kZafeLightwalletdUrl,
         dbDir: paths.dbDir,
+        dbKey: await ZafeSecureStore.instance.walletKey(vault.activeId!),
         stateDir: await paths.stateDir(vault.activeId!),
         seeds: vault.identity!,
         material: vault.material!,
@@ -160,6 +162,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
       relayUrl: kZafeRelayUrl,
       lightwalletdUrl: kZafeLightwalletdUrl,
       dbDir: paths.dbDir,
+      dbKey: await ZafeSecureStore.instance.walletKey(vault.activeId!),
       seeds: vault.identity!,
       material: vault.material!,
       payments: [
@@ -178,6 +181,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
       relayUrl: kZafeRelayUrl,
       lightwalletdUrl: kZafeLightwalletdUrl,
       dbDir: paths.dbDir,
+      dbKey: await ZafeSecureStore.instance.walletKey(vault.activeId!),
       seeds: vault.identity!,
       material: vault.material!,
       proposalId: id,
@@ -193,6 +197,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
       relayUrl: kZafeRelayUrl,
       lightwalletdUrl: kZafeLightwalletdUrl,
       dbDir: paths.dbDir,
+      dbKey: await ZafeSecureStore.instance.walletKey(vault.activeId!),
       stateDir: await paths.stateDir(vault.activeId!),
       seeds: vault.identity!,
       material: vault.material!,
@@ -227,6 +232,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
           relayUrl: kZafeRelayUrl,
           lightwalletdUrl: kZafeLightwalletdUrl,
           dbDir: paths.dbDir,
+          dbKey: await ZafeSecureStore.instance.walletKey(vault.activeId!),
           stateDir: await paths.stateDir(vault.activeId!),
           seeds: vault.identity!,
           material: vault.material!,
