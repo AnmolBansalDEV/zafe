@@ -5,7 +5,7 @@
         <!-- Show a splash screen on the activity. Automatically removed when
              the Flutter engine draws its first frame -->
         <item name="android:windowBackground">@drawable/launch_background</item>
-        <!-- Android 12+ system splash: window colour + the dial mark. -->
+        <!-- Android 12+ system splash: window colour + the lime tile mark. -->
         <item name="android:windowSplashScreenBackground" tools:targetApi="31">@color/zafe_window</item>
         <item name="android:windowSplashScreenAnimatedIcon" tools:targetApi="31">@drawable/splash_icon</item>
     </style>

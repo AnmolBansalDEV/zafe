@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- background.window (light); the dark value is in values-night. -->
-    <color name="zafe_window">#F3F5F9</color>
+    <color name="zafe_window">#F4F4F3</color>
+    <!-- Adaptive icon background: the lime tile (scripts/brand/brand.py LIME). -->
+    <color name="zafe_icon_tile">#C9EE6E</color>
 </resources>

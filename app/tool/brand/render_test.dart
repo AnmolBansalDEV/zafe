@@ -3,7 +3,8 @@
 // preview sheet. Not part of `flutter test`; run scripts/brand/icons.sh.
 //
 // Output:
-//   android/app/src/main/res/mipmap-*/ic_launcher{,_foreground,_background,_monochrome}.png
+//   android/app/src/main/res/mipmap-*/ic_launcher{,_foreground,_monochrome}.png
+//   (the adaptive background is the colour @color/zafe_icon_tile)
 //   android/app/src/main/res/drawable{,-night}-*/splash_{icon,mark}.png
 //   ios/Runner/Assets.xcassets/AppIcon.appiconset/*.png
 //   ios/Runner/Assets.xcassets/LaunchImage.imageset/*.png
@@ -26,6 +27,9 @@ const _densities = {
 };
 
 final _pictures = <String, PictureInfo>{};
+
+/// @color/zafe_icon_tile (scripts/brand/brand.py LIME).
+const _tile = Color(0xFFC9EE6E);
 
 Future<PictureInfo> _load(String name) async =>
     _pictures[name] ??= await vg.loadPicture(
@@ -61,11 +65,6 @@ void main() {
         'adaptive_foreground',
         adaptive,
         '$dir/ic_launcher_foreground.png',
-      );
-      await _emit(
-        'adaptive_background',
-        adaptive,
-        '$dir/ic_launcher_background.png',
       );
       await _emit(
         'adaptive_monochrome',
@@ -125,7 +124,7 @@ Future<ui.Image> _sheet() async {
   final c = Canvas(recorder);
   c.drawRect(
     const Rect.fromLTWH(0, 0, w, h),
-    Paint()..color = const Color(0xFF6B7280),
+    Paint()..color = const Color(0xFF6B6B68),
   );
 
   Future<void> adaptive(Offset o, double size, Path Function(Rect) mask) async {
@@ -135,15 +134,14 @@ Future<ui.Image> _sheet() async {
     final layers = rect.inflate((full - size) / 2);
     c.save();
     c.clipPath(mask(rect));
-    for (final layer in ['adaptive_background', 'adaptive_foreground']) {
-      final img = await _render(layer, full.round());
-      c.drawImageRect(
-        img,
-        Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
-        layers,
-        Paint()..filterQuality = FilterQuality.high,
-      );
-    }
+    c.drawRect(layers, Paint()..color = _tile);
+    final img = await _render('adaptive_foreground', full.round());
+    c.drawImageRect(
+      img,
+      Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
+      layers,
+      Paint()..filterQuality = FilterQuality.high,
+    );
     c.restore();
   }
 
@@ -161,7 +159,7 @@ Future<ui.Image> _sheet() async {
 
   // Themed icon (Android 13+): the launcher tints the monochrome layer.
   final themed = const Offset(1120, 40) & const Size(320, 320);
-  c.drawOval(themed, Paint()..color = const Color(0xFFCFE6DE));
+  c.drawOval(themed, Paint()..color = const Color(0xFFDDE5CF));
   final mono = await _render('adaptive_monochrome', 480);
   c.drawImageRect(
     mono,
@@ -169,7 +167,7 @@ Future<ui.Image> _sheet() async {
     themed.inflate(80),
     Paint()
       ..colorFilter = const ColorFilter.mode(
-        Color(0xFF1F4D43),
+        Color(0xFF2D410F),
         BlendMode.srcIn,
       ),
   );
@@ -191,7 +189,7 @@ Future<ui.Image> _sheet() async {
   );
   c.restore();
   var x = 40.0;
-  for (final s in [48, 72, 96, 144, 192]) {
+  for (final s in [24, 32, 48, 72, 96, 144, 192]) {
     final img = await _render('icon_legacy', s);
     c.drawImage(img, Offset(x, 400), Paint());
     x += s + 30;
@@ -199,8 +197,8 @@ Future<ui.Image> _sheet() async {
 
   // Splash screens (phone frames scaled to 0.4 of 1080 x 2400 px at 3x).
   for (final (i, theme, bg) in [
-    (0, 'dark', const Color(0xFF080A0F)),
-    (1, 'light', const Color(0xFFF3F5F9)),
+    (0, 'dark', const Color(0xFF0A0A0A)),
+    (1, 'light', const Color(0xFFF4F4F3)),
   ]) {
     final frame = Offset(40 + i * 480.0, 640) & const Size(432, 840);
     c.drawRect(frame, Paint()..color = bg);
