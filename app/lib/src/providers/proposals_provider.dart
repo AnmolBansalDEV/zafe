@@ -277,6 +277,24 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
     await refresh();
   }
 
+  /// Proposes moving a cancelled payment's funds back to the vault so it can never be
+  /// sent (every signature for it may already be out). Returns the new proposal id.
+  Future<String> invalidate(String id) async {
+    final vault = _vault;
+    final paths = await ZafePaths.get();
+    final newId = await rust.invalidateProposal(
+      relayUrl: kZafeRelayUrl,
+      lightwalletdUrl: kZafeLightwalletdUrl,
+      dbDir: paths.dbDir,
+      dbKey: await ZafeSecureStore.instance.walletKey(vault.activeId!),
+      seeds: vault.identity!,
+      material: vault.material!,
+      proposalId: id,
+    );
+    await refresh();
+    return newId;
+  }
+
   /// Abandons this device's unfinished signing round and starts a new one with the
   /// approvers whose signatures are still unused.
   Future<void> startOver(String id) async {

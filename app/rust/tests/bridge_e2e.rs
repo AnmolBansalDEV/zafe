@@ -84,6 +84,7 @@ fn outside_address() -> String {
         .encode(&zafe_core::wallet::regtest_network())
 }
 
+#[derive(Clone)]
 struct Member {
     seeds: Vec<u8>,
     material: Vec<u8>,
@@ -592,6 +593,98 @@ fn payment_flow_through_bridge() {
     let p = list(&members[2]).into_iter().find(|p| p.id == id3).unwrap();
     assert_eq!(p.stage, ProposalStage::Cancelled);
     assert!(p.expiry_height > 0);
+
+    // Make the cancelled payment unsendable: a proposal with no payments spends its notes
+    // back to the vault. Every member's check accepts it (all outputs are the vault's).
+    let sweep = proposals::invalidate_proposal(
+        relay.clone(),
+        lwd.clone(),
+        a.db_dir.clone(),
+        a.db_key.clone(),
+        a.seeds.clone(),
+        a.material.clone(),
+        id3.clone(),
+    )
+    .unwrap();
+    let cancelled = list(&members[1]).into_iter().find(|p| p.id == id3).unwrap();
+    assert_eq!(cancelled.invalidated_by.as_deref(), Some(sweep.as_str()));
+    let s = list(&members[1])
+        .into_iter()
+        .find(|p| p.id == sweep)
+        .unwrap();
+    assert!(s.payments.is_empty() && s.auto_send);
+    let b = &members[1];
+    let r = proposals::review_proposal(
+        relay.clone(),
+        lwd.clone(),
+        b.db_dir.clone(),
+        b.db_key.clone(),
+        b.seeds.clone(),
+        b.material.clone(),
+        sweep.clone(),
+    )
+    .unwrap();
+    assert!(r.verified, "sweep review failed: {}", r.problem);
+    for m in [a, b] {
+        proposals::approve_proposal(
+            relay.clone(),
+            lwd.clone(),
+            m.db_dir.clone(),
+            m.db_key.clone(),
+            m.state_dir.clone(),
+            m.seeds.clone(),
+            m.material.clone(),
+            sweep.clone(),
+        )
+        .unwrap();
+    }
+    // One tap (pools are topped up) or interactive: B sends; A answers if asked.
+    let sender = {
+        let (relay, lwd, b) = (relay.clone(), lwd.clone(), b.clone());
+        let sweep = sweep.clone();
+        thread::spawn(move || {
+            let mut sent = None;
+            proposals::send_with_progress(
+                relay,
+                lwd,
+                b.db_dir,
+                b.db_key,
+                b.state_dir,
+                b.seeds,
+                b.material,
+                sweep,
+                Duration::from_secs(90),
+                |p| {
+                    if p.stage == SendStage::Sent {
+                        sent = p.txid;
+                    }
+                },
+            )
+            .map(|_| sent)
+        })
+    };
+    for _ in 0..60 {
+        if sender.is_finished() {
+            break;
+        }
+        let _ = proposals::answer_signing_requests(
+            relay.clone(),
+            lwd.clone(),
+            a.db_dir.clone(),
+            a.db_key.clone(),
+            a.state_dir.clone(),
+            a.seeds.clone(),
+            a.material.clone(),
+        );
+        thread::sleep(Duration::from_millis(500));
+    }
+    let swept = sender.join().unwrap().expect("sweep send").expect("txid");
+    println!("sweep broadcast {swept}");
+    let s = list(&members[2])
+        .into_iter()
+        .find(|p| p.id == sweep)
+        .unwrap();
+    assert_eq!(s.stage, ProposalStage::Sent);
 
     // History export (CSV): both sent payments with payee, amount, fee and memo, plus the
     // mining rewards received.

@@ -1009,6 +1009,73 @@ pub async fn propose<P: Parameters + Clone + Send + Sync + 'static, R: RngCore +
     ))
 }
 
+/// Makes a cancelled proposal unsendable: proposes spending exactly its notes back to the
+/// vault (its internal address; no payments, so members check every output is the
+/// vault's). Needs t approvals like any spend; once mined, the cancelled transaction can
+/// never be valid, even if every signature for it is out. Sent automatically when the
+/// approvals complete.
+#[allow(clippy::too_many_arguments)]
+pub async fn invalidate<P: Parameters + Clone + Send + Sync + 'static, R: RngCore + CryptoRng>(
+    relay: &RelayClient,
+    me: &Identity,
+    material: &VaultMaterial,
+    wallet: &mut VaultWallet<P>,
+    lightwalletd: &mut Client,
+    sent: &SentTxs,
+    cancelled: ProposalId,
+    rng: &mut R,
+) -> Result<ProposalId, NodeError> {
+    let (mut chain, mut state) = load_state(relay, me, material).await?;
+    let target = state
+        .proposals
+        .get(&cancelled)
+        .ok_or_else(|| NodeError::Protocol("unknown proposal".into()))?;
+    if target.status != ProposalStatus::Cancelled {
+        return Err(NodeError::NotReady(
+            "only a cancelled payment can be made unsendable".into(),
+        ));
+    }
+    let nullifiers = target.nullifiers.clone();
+    let keys = material.vault_keys()?;
+    let fvk = keys.fvk().clone();
+    let internal = zcash_keys::address::UnifiedAddress::from_receivers(
+        Some(fvk.address_at(0u32, orchard::keys::Scope::Internal)),
+        None,
+        None,
+    )
+    .ok_or_else(|| NodeError::Protocol("vault internal address".into()))?
+    .encode(wallet.params());
+    let recipient = zcash_address::ZcashAddress::try_from_encoded(&internal).map_err(proto)?;
+
+    reserve_notes(&state, wallet, lightwalletd, sent).await?;
+    let pczt = wallet.propose_sweep(
+        &nullifiers,
+        recipient,
+        material.descriptor.proposal_expiry_blocks,
+    )?;
+    let tip = wallet
+        .chain_height()
+        .map_err(proto)?
+        .ok_or_else(|| NodeError::NotReady("wallet not synced".into()))?;
+    let signing_spends = tx::spends_to_sign(&pczt, &fvk).map_err(proto)?.len() as u16;
+    let mut id = [0u8; 16];
+    rng.fill_bytes(&mut id);
+    let event = VaultEvent::Proposal {
+        id,
+        payments: vec![],
+        pczt_hash: pczt_hash(&pczt).map_err(proto)?,
+        pczt: pczt.serialize().map_err(proto)?,
+        tip_height: tip,
+        created_at: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs()),
+        signing_spends,
+        auto_send: true,
+    };
+    append_event(relay, me, material, &mut chain, &mut state, &event, rng).await?;
+    Ok(id)
+}
+
 /// Refreshes this member's note holds from the vault log (see [`note_holds`]), so its
 /// spendable balance and its next proposal leave out notes live proposals spend.
 ///

@@ -24,6 +24,7 @@ ProposalInfo proposal(String id, int createdAt) => ProposalInfo(
   autoSend: true,
   expiryHeight: 0,
   needsReapproval: false,
+  stillSendable: false,
 );
 
 ReceivedInfo receipt(String txid, int time, {int height = 10}) => ReceivedInfo(

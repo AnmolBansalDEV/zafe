@@ -38,6 +38,7 @@ ProposalInfo proposal(
   autoSend: autoSend,
   expiryHeight: expiryHeight,
   needsReapproval: needsReapproval,
+  stillSendable: false,
 );
 
 ReceivedInfo receipt(String txid, {bool coinbase = false}) => ReceivedInfo(

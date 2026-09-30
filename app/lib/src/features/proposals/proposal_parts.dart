@@ -46,7 +46,6 @@ class ProposalBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final p = proposal;
-    final payment = p.payments.first;
     final progress = send?.progress;
     final sending = send?.running ?? false;
     final expired = proposalExpired(p, height);
@@ -56,24 +55,28 @@ class ProposalBody extends ConsumerWidget {
             p.stage == rust.ProposalStage.approved);
     final txid = p.txid ?? progress?.txid;
 
+    final payment = p.payments.isEmpty ? null : p.payments.first;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        PaymentCard(
-          amountText: ZecAmount.fromZatoshi(p.totalZat).receipt.amountText,
-          hidden: ref.watch(privacyModeProvider),
-          address: payment.address,
-          recipients: p.payments.length,
-          strikethrough:
-              expired ||
-              p.stage == rust.ProposalStage.rejected ||
-              p.stage == rust.ProposalStage.cancelled,
-          onFullAddress: () => showMobileAddressVerifySheet(
-            context,
-            title: 'Full address',
+        if (payment == null)
+          const SweepCard()
+        else
+          PaymentCard(
+            amountText: ZecAmount.fromZatoshi(p.totalZat).receipt.amountText,
+            hidden: ref.watch(privacyModeProvider),
             address: payment.address,
+            recipients: p.payments.length,
+            strikethrough:
+                expired ||
+                p.stage == rust.ProposalStage.rejected ||
+                p.stage == rust.ProposalStage.cancelled,
+            onFullAddress: () => showMobileAddressVerifySheet(
+              context,
+              title: 'Full address',
+              address: payment.address,
+            ),
           ),
-        ),
         if (p.payments.length > 1) ...[
           const SizedBox(height: AppSpacing.md),
           RecipientsCard.fromProposal(p.payments),
@@ -107,7 +110,9 @@ class ProposalBody extends ConsumerWidget {
                   value: formatTimestamp(p.createdAt),
                 ),
               ],
-              if (p.payments.length == 1 && payment.memo.isNotEmpty) ...[
+              if (payment != null &&
+                  p.payments.length == 1 &&
+                  payment.memo.isNotEmpty) ...[
                 const DetailDivider(),
                 DetailRow(label: 'Message', value: payment.memo),
               ],
@@ -549,6 +554,50 @@ class RecipientsCard extends ConsumerWidget {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A proposal with no payments: it spends a cancelled payment's funds back to the vault
+/// (`invalidate_proposal`), so that payment can never be sent.
+class SweepCard extends StatelessWidget {
+  const SweepCard({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return MobileSurfaceCard(
+      cornerRadius: AppRadii.large,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              AppIcon(
+                AppIcons.shieldKeyhole,
+                size: 20,
+                color: colors.icon.accent,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                'Move funds back to the vault',
+                style: AppTypography.labelLarge.copyWith(
+                  color: colors.text.accent,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Spends the funds of a cancelled payment back to this vault, so that payment '
+            'can never be sent. Nothing leaves the vault except the network fee.',
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.text.secondary,
+            ),
+          ),
         ],
       ),
     );

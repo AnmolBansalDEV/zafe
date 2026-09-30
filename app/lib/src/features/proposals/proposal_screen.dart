@@ -35,6 +35,7 @@ class ProposalScreen extends ConsumerStatefulWidget {
 class _ProposalScreenState extends ConsumerState<ProposalScreen> {
   bool _voting = false;
   bool _cancelling = false;
+  bool _invalidating = false;
   Timer? _poll;
 
   @override
@@ -190,6 +191,36 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
       }
     } finally {
       if (mounted) setState(() => _cancelling = false);
+    }
+  }
+
+  Future<void> _invalidate(rust.ProposalInfo p) async {
+    if (!await confirmUnlock(
+      context,
+      ref,
+      reason: 'Unlock to propose moving these funds back to the vault',
+    )) {
+      return;
+    }
+    setState(() => _invalidating = true);
+    try {
+      final id = await ref.read(proposalsProvider.notifier).invalidate(p.id);
+      if (mounted) context.push('/proposal/$id');
+    } catch (e) {
+      debugPrint('invalidate failed: ${describeError(e)}');
+      if (mounted) {
+        showAppToast(
+          context,
+          zafeErrorMessage(
+            e,
+            fallback: 'Couldn\'t build the transaction. Try again.',
+          ),
+          iconName: AppIcons.warningCircle,
+          tone: AppToastTone.destructive,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _invalidating = false);
     }
   }
 
@@ -508,6 +539,42 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
             ),
           ),
           ...footer,
+        ];
+      case rust.ProposalStage.cancelled when p.invalidatedBy != null:
+        return [
+          Text(
+            'Being made unsendable: a proposal moves its funds back to the vault.',
+            textAlign: TextAlign.center,
+            style: note,
+          ),
+          const SizedBox(height: AppSpacing.s),
+          AppButton(
+            expand: true,
+            variant: AppButtonVariant.secondary,
+            onPressed: () => context.push('/proposal/${p.invalidatedBy}'),
+            child: const Text('Open that proposal'),
+          ),
+        ];
+      case rust.ProposalStage.cancelled when p.stillSendable:
+        return [
+          Text(
+            'Every signature for this payment was already in, so it could still be sent '
+            'until it expires. Move its funds back to the vault to make that impossible '
+            '(needs ${p.threshold} approvals).',
+            textAlign: TextAlign.center,
+            style: note,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          AppButton(
+            expand: true,
+            leading: _invalidating
+                ? null
+                : const AppIcon(AppIcons.shieldKeyhole, size: 20),
+            onPressed: _invalidating ? null : () => _invalidate(p),
+            child: Text(
+              _invalidating ? 'Building transaction...' : 'Make it unsendable',
+            ),
+          ),
         ];
       case rust.ProposalStage.rejected:
       case rust.ProposalStage.cancelled:

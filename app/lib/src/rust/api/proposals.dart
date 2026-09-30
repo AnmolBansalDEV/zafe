@@ -79,6 +79,26 @@ Future<String> proposePayment({
   autoSend: autoSend,
 );
 
+/// Proposes spending a cancelled proposal's notes back to the vault, so the cancelled
+/// transaction can never be sent (see `node::invalidate`). Returns the new proposal id.
+Future<String> invalidateProposal({
+  required String relayUrl,
+  required String lightwalletdUrl,
+  required String dbDir,
+  required List<int> dbKey,
+  required List<int> seeds,
+  required List<int> material,
+  required String proposalId,
+}) => RustLib.instance.api.crateApiProposalsInvalidateProposal(
+  relayUrl: relayUrl,
+  lightwalletdUrl: lightwalletdUrl,
+  dbDir: dbDir,
+  dbKey: dbKey,
+  seeds: seeds,
+  material: material,
+  proposalId: proposalId,
+);
+
 Future<ReviewInfo> reviewProposal({
   required String relayUrl,
   required String lightwalletdUrl,
@@ -340,6 +360,13 @@ class ProposalInfo {
   /// must approve again before a new round can include it.
   final bool needsReapproval;
 
+  /// Cancelled, but every signature is already in: anyone holding them could still send
+  /// it until it expires (offer to make it unsendable).
+  final bool stillSendable;
+
+  /// A live proposal (id) that spends this cancelled one's notes back to the vault.
+  final String? invalidatedBy;
+
   const ProposalInfo({
     required this.id,
     required this.author,
@@ -361,6 +388,8 @@ class ProposalInfo {
     required this.autoSend,
     required this.expiryHeight,
     required this.needsReapproval,
+    required this.stillSendable,
+    this.invalidatedBy,
   });
 
   @override
@@ -384,7 +413,9 @@ class ProposalInfo {
       completedByMe.hashCode ^
       autoSend.hashCode ^
       expiryHeight.hashCode ^
-      needsReapproval.hashCode;
+      needsReapproval.hashCode ^
+      stillSendable.hashCode ^
+      invalidatedBy.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -410,7 +441,9 @@ class ProposalInfo {
           completedByMe == other.completedByMe &&
           autoSend == other.autoSend &&
           expiryHeight == other.expiryHeight &&
-          needsReapproval == other.needsReapproval;
+          needsReapproval == other.needsReapproval &&
+          stillSendable == other.stillSendable &&
+          invalidatedBy == other.invalidatedBy;
 }
 
 class ProposalList {

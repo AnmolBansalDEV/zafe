@@ -241,6 +241,11 @@ pub struct ProposalInfo {
     /// device (used in a signing round that didn't finish, or restored from a backup): it
     /// must approve again before a new round can include it.
     pub needs_reapproval: bool,
+    /// Cancelled, but every signature is already in: anyone holding them could still send
+    /// it until it expires (offer to make it unsendable).
+    pub still_sendable: bool,
+    /// A live proposal (id) that spends this cancelled one's notes back to the vault.
+    pub invalidated_by: Option<String>,
 }
 
 fn parse_id(hex_id: &str) -> Result<ProposalId, ZafeError> {
@@ -316,6 +321,21 @@ fn info(state: &VaultState, me: [u8; 32], state_dir: &str) -> Vec<ProposalInfo> 
             completed_by_me: p.completed_by == Some(me),
             auto_send: p.auto_send,
             expiry_height: p.expiry_height,
+            still_sendable: p.status == ProposalStatus::Cancelled && p.ready_group.is_some(),
+            invalidated_by: (p.status == ProposalStatus::Cancelled)
+                .then(|| {
+                    state.proposals.values().find(|q| {
+                        matches!(
+                            q.status,
+                            ProposalStatus::Open
+                                | ProposalStatus::Approved
+                                | ProposalStatus::Broadcast
+                        ) && q.payments.is_empty()
+                            && q.nullifiers.iter().any(|nf| p.nullifiers.contains(nf))
+                    })
+                })
+                .flatten()
+                .map(|q| hex::encode(q.id)),
             needs_reapproval: matches!(p.status, ProposalStatus::Open | ProposalStatus::Approved)
                 && p.approvals.get(&me).is_some_and(|c| !c.is_empty())
                 && !nonces.contains(&p.id, &p.pczt_hash),
@@ -420,6 +440,42 @@ pub fn propose_payment(
                 &sent_txs(&db_dir, &m),
                 &requests,
                 auto_send,
+                &mut OsRng,
+            )
+            .await?,
+        )
+    })?;
+    Ok(hex::encode(id))
+}
+
+/// Proposes spending a cancelled proposal's notes back to the vault, so the cancelled
+/// transaction can never be sent (see `node::invalidate`). Returns the new proposal id.
+pub fn invalidate_proposal(
+    relay_url: String,
+    lightwalletd_url: String,
+    db_dir: String,
+    db_key: Vec<u8>,
+    seeds: Vec<u8>,
+    material: Vec<u8>,
+    proposal_id: String,
+) -> Result<String, ZafeError> {
+    let me = identity(&seeds)?;
+    let m = self::material(&material)?;
+    let target = parse_id(&proposal_id)?;
+    let _guard = wallet_lock();
+    let id = runtime().block_on(async {
+        let mut wallet = open_wallet(&db_dir, &db_key, &lightwalletd_url, &m).await?;
+        let mut client = connect(&lightwalletd_url).await?;
+        wallet.sync(&mut client).await?;
+        Ok::<_, ZafeError>(
+            node::invalidate(
+                &RelayClient::new(relay_url),
+                &me,
+                &m,
+                &mut wallet,
+                &mut client,
+                &sent_txs(&db_dir, &m),
+                target,
                 &mut OsRng,
             )
             .await?,

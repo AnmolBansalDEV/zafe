@@ -149,6 +149,11 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   commitment is ours and present **before** taking any nonce. Falls back to interactive
   signing when pools are short or C(n, t) > 64. Security reading of ePrint 2024/436 is in
   spec §9.5.1; ZF confirmation pending (U5 / upstream-asks Q7).
+- **Sweeps**: a `Proposal` with **no payments** spends a cancelled proposal's notes back
+  to the vault (`node::invalidate`, `VaultWallet::propose_sweep`) so a fully signed
+  cancelled transaction can never be mined. UI code must handle `payments.isEmpty`
+  (`SweepCard`, rows say "To vault"). A proposal's `nullifiers` include padding spends
+  that match no note: filter to the wallet's notes before requiring them.
 - **Expiry**: `descriptor.proposal_expiry_blocks` (default 7 days); proposer sets expiry =
   target + window; members accept window + 96 blocks of slack. Never remove expiry: a
   complete one-tap group stays sendable until it.

@@ -274,10 +274,15 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 
 ## One-tap follow-ups
 
-- [ ] **Cancel after completion**: a cancelled proposal whose signer group is complete can
-      still be sent until expiry. Offer "invalidate now" (spend its notes to self) and
-      explain it in the cancel UI. The log and wallet holds already allow it (cancelled
-      proposals hold no notes); what's missing is the UI and a self-send proposal
+- [x] **Cancel after completion** (2026-09-30): a cancelled proposal whose signatures
+      are complete (`ProposalInfo.still_sendable`) offers "Make it unsendable":
+      `node::invalidate` proposes a **sweep** (a `Proposal` with no payments, auto-send)
+      spending exactly its vault notes (padding spends excluded) to the vault's internal
+      address (`VaultWallet::propose_sweep`: every other note is locked for the call, then
+      `propose_send_max_transfer`). Members' verification accepts it unchanged (all
+      outputs are the vault's). The cancelled page links to it (`invalidated_by`); rows show
+      "To vault"; `SweepCard` on its page. Tested in `bridge_e2e` (invalidate, review,
+      approve, send)
 - [x] Delete pool nonces of **expired** proposals (2026-09-30): `forget_closed` takes the
       synced tip (bridge `list_proposals(tip_height)`, passed by the app and background
       check); tested in `tests/vault.rs`. Interactive nonces of closed or expired

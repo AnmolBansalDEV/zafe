@@ -23,10 +23,13 @@ use zcash_client_backend::{
         scanning::ScanRange,
         wallet::{
             create_pczt_from_proposal,
-            input_selection::{GreedyInputSelector, GreedyInputSelectorError, SpendPolicy},
-            propose_transfer, ConfirmationsPolicy,
+            input_selection::{
+                GreedyInputSelector, GreedyInputSelectorError, LockedInputPolicy, SpendPolicy,
+            },
+            propose_send_max_transfer, propose_transfer, ConfirmationsPolicy,
         },
-        Account as _, AccountBirthday, AccountPurpose, OutputLockStore, WalletRead, WalletWrite,
+        Account as _, AccountBirthday, AccountPurpose, MaxSpendMode, OutputLockStore, WalletRead,
+        WalletWrite,
     },
     fees::{standard::MultiOutputChangeStrategy, DustOutputPolicy, SplitPolicy, StandardFeeRule},
     proto::{
@@ -638,6 +641,127 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
             BundlePadding::DEFAULT,
         )
         .map_err(|e| WalletError::Proposal(format!("{e:?}")))
+    }
+
+    /// Builds and IO-finalizes a PCZT that spends exactly the notes with `nullifiers` (all
+    /// of their value minus the ZIP 317 fee) to `recipient`, the vault's own internal
+    /// address. Used to make a cancelled proposal unsendable: once this is mined, the
+    /// cancelled transaction's notes are spent. Every other note is locked for the
+    /// duration of the call, so selection can only pick the target notes.
+    pub fn propose_sweep(
+        &mut self,
+        nullifiers: &[[u8; 32]],
+        recipient: ZcashAddress,
+        expiry_blocks: u32,
+    ) -> Result<Pczt, WalletError> {
+        const SWEEP: LockOwner = LockOwner::new(*b"zafe-sweep-temporary-lock-owner!");
+        // The proposal's nullifiers include padding (dummy) spends that match no note:
+        // only the vault notes among them must be swept.
+        let mut targets: Vec<[u8; 32]> = Vec::new();
+        let others: Vec<OutputRef> = {
+            let conn = open_connection(&self.path, &self.key, true)?;
+            let mut stmt = conn
+                .prepare(
+                    "SELECT t.txid, rn.action_index, rn.nf
+                     FROM ironwood_received_notes rn
+                     JOIN transactions t ON t.id_tx = rn.transaction_id
+                     JOIN accounts a ON a.id = rn.account_id
+                     WHERE a.uuid = ?1",
+                )
+                .map_err(db_err)?;
+            let rows = stmt
+                .query_map([self.account.expose_uuid().as_bytes().as_slice()], |r| {
+                    Ok((
+                        r.get::<_, [u8; 32]>(0)?,
+                        r.get::<_, u32>(1)?,
+                        r.get::<_, Option<Vec<u8>>>(2)?,
+                    ))
+                })
+                .map_err(db_err)?;
+            let mut others = Vec::new();
+            for row in rows {
+                let (txid, index, nf) = row.map_err(db_err)?;
+                let target = nf
+                    .as_deref()
+                    .and_then(|nf| nullifiers.iter().find(|t| t[..] == *nf));
+                if let Some(t) = target {
+                    targets.push(*t);
+                } else {
+                    others.push(OutputRef::new(
+                        TxId::from_bytes(txid),
+                        PoolType::IRONWOOD,
+                        index,
+                    ));
+                }
+            }
+            others
+        };
+        if targets.is_empty() {
+            return Err(WalletError::Proposal(
+                "none of those notes are in this wallet yet; sync and try again".into(),
+            ));
+        }
+        let tip = self.chain_height()?.unwrap_or(0);
+        for output in &others {
+            // Already locked by a live proposal: excluded anyway.
+            match self.db.lock_outputs(
+                std::slice::from_ref(output),
+                SWEEP,
+                BlockHeight::from(tip + 10_000),
+            ) {
+                Ok(_) | Err(LockError::LockFailure(_)) => {}
+                Err(e) => return Err(db_err(e)),
+            }
+        }
+        let proposal = propose_send_max_transfer::<
+            _,
+            _,
+            _,
+            zcash_client_sqlite::wallet::commitment_tree::Error,
+        >(
+            &mut self.db,
+            &self.params,
+            self.account,
+            &[ShieldedPool::Ironwood],
+            &StandardFeeRule::Zip317,
+            recipient,
+            None,
+            MaxSpendMode::MaxSpendable,
+            ConfirmationsPolicy::default(),
+            &LockedInputPolicy::Exclude,
+            None,
+        )
+        .map_err(|e| WalletError::Proposal(format!("{e:?}")));
+        for output in &others {
+            let _ = self.db.unlock_output(output, SWEEP);
+        }
+        let proposal = proposal?;
+        let pczt = create_pczt_from_proposal::<
+            _,
+            _,
+            GreedyInputSelectorError,
+            _,
+            zcash_primitives::transaction::fees::zip317::FeeError,
+            _,
+        >(
+            &mut self.db,
+            &self.params,
+            self.account,
+            OvkPolicy::Sender,
+            &proposal,
+            Some(BlockHeight::from(proposal.min_target_height()) + expiry_blocks),
+            BundlePadding::DEFAULT,
+        )
+        .map_err(|e| WalletError::Proposal(format!("{e:?}")))?;
+        // Every target note must be spent, or the cancelled transaction stays sendable.
+        let spent = crate::tx::spent_nullifiers(&pczt)
+            .map_err(|e| WalletError::Proposal(format!("{e:?}")))?;
+        if !targets.iter().all(|nf| spent.contains(nf)) {
+            return Err(WalletError::Proposal(
+                "some of those funds can't be moved yet (unconfirmed or already spent)".into(),
+            ));
+        }
+        Ok(pczt)
     }
 }
 

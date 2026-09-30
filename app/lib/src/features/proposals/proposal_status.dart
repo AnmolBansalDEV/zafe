@@ -220,11 +220,13 @@ class ProposalRow extends StatelessWidget {
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 128),
                 child: Text(
-                  amountWithTicker(
-                    ZecAmount.fromZatoshi(p.totalZat).activity.amountText,
-                    hide: hideAmount,
-                    maskLength: 3, // short mask for list rows
-                  ),
+                  p.payments.isEmpty
+                      ? 'To vault'
+                      : amountWithTicker(
+                          ZecAmount.fromZatoshi(p.totalZat).activity.amountText,
+                          hide: hideAmount,
+                          maskLength: 3, // short mask for list rows
+                        ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.labelLarge.copyWith(

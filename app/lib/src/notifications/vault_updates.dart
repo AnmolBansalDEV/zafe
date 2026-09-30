@@ -94,7 +94,11 @@ List<VaultUpdate> vaultUpdates({
     final to = p.payments.length == 1
         ? compactAddress(p.payments.first.address)
         : '${p.payments.length} recipients';
-    final what = hideAmounts ? 'A payment' : '$amount to $to';
+    final what = p.payments.isEmpty
+        ? 'Funds back to the vault (cancels a signed payment)'
+        : hideAmounts
+        ? 'A payment'
+        : '$amount to $to';
     VaultUpdate update(String title, String body) =>
         VaultUpdate(proposalId: p.id, title: '$vaultName: $title', body: body);
 
