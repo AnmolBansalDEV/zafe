@@ -320,6 +320,12 @@ pub(crate) async fn open_wallet(
     .await?)
 }
 
+/// The chain tip lightwalletd reports: one cheap call. The app runs `sync_vault` only
+/// when it moved since the last successful sync (or when something else changed).
+pub fn chain_tip(lightwalletd_url: String) -> Result<u32, ZafeError> {
+    runtime().block_on(async { Ok(latest_height(&mut connect(&lightwalletd_url).await?).await?) })
+}
+
 /// Upper bound for one sync pass (see `sync_vault`).
 const SYNC_PASS_TIMEOUT: Duration = Duration::from_secs(300);
 

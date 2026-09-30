@@ -110,6 +110,11 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
 
   VaultState get _vault => ref.read(vaultProvider);
 
+  static String _fingerprint(List<rust.ProposalInfo> items) => [
+    for (final p in items)
+      '${p.id}:${p.stage.name}:${p.approvals.length}:${p.rejections.length}',
+  ].join(',');
+
   ZafeEndpoints get _endpoints => ref.read(endpointsProvider);
 
   /// Synced chain tip of the active vault (null before the first sync).
@@ -129,6 +134,10 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
         tipHeight: _height,
       );
       final items = list.items;
+      // Proposals hold notes: when they change, the next wallet sync must run in full.
+      if (_fingerprint(items) != _fingerprint(state.items)) {
+        ref.read(vaultProvider.notifier).markDirty();
+      }
       state = state.copyWith(
         items: items,
         loaded: true,

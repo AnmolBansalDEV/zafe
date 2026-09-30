@@ -61,15 +61,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     }
     if (state == AppLifecycleState.resumed) {
       _poll ??= Timer.periodic(const Duration(seconds: 15), (_) => _refresh());
-      unawaited(_refresh());
+      unawaited(_refresh(force: true));
     }
   }
 
-  Future<void> _refresh() async {
+  /// The poll: proposals, then the wallet only if the chain tip moved (or proposals
+  /// changed); `force` syncs regardless (resume, first open).
+  Future<void> _refresh({bool force = false}) async {
     // Proposals first: answering signing requests needs the synced tip, which the
     // previous sync already stored.
     await ref.read(proposalsProvider.notifier).refresh();
-    await ref.read(vaultProvider.notifier).sync();
+    await ref.read(vaultProvider.notifier).sync(force: force);
   }
 
   @override

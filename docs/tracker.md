@@ -337,6 +337,12 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 
 ## Known issues and tech debt
 
+- [x] Height-gated wallet sync (2026-09-30): the Home poll asks lightwalletd for the tip
+      (bridge `chain_tip`, one `GetLatestBlock`) and skips `sync_vault` when it equals the
+      last synced height; a changed proposal list (`ProposalsNotifier` fingerprint →
+      `VaultNotifier.markDirty`), a failed sync, resume and explicit actions still sync in
+      full. Not measured on a device yet
+
 - [x] **First sync after keygen stuck on "Syncing..."** (2026-09-30): reproduced on the
       Nothing phone (release, testnet): the breadcrumb said `sync failed at wallet key`
       after the 6-minute guard, and the very next `walletKey` call answered at once. A

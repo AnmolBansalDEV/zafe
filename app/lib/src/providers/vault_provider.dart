@@ -329,13 +329,36 @@ class VaultNotifier extends Notifier<VaultState> {
     if (next != null) unawaited(sync());
   }
 
-  Future<void> sync() async {
+  /// Set when something besides the chain changed what a sync computes (proposals hold
+  /// notes): the next `sync(force: false)` runs in full even at the same tip.
+  bool _dirty = true;
+
+  /// Proposals changed (new ones, votes, sends): note holds and the spendable balance
+  /// need a full sync even if no block arrived.
+  void markDirty() => _dirty = true;
+
+  /// Syncs the active vault's wallet. With `force: false` (the Home poll), it first asks
+  /// lightwalletd for the tip (one cheap call) and skips the full sync when nothing moved
+  /// since the last successful one.
+  Future<void> sync({bool force = true}) async {
     final material = state.material;
     final seeds = state.identity;
     final vaultId = state.activeId;
     if (material == null || seeds == null || vaultId == null || state.syncing) {
       return;
     }
+    final last = state.balances[vaultId];
+    if (!force && !_dirty && last != null && state.syncError == null) {
+      try {
+        final tip = await rust.chainTip(
+          lightwalletdUrl: _endpoints.lightwalletdUrl,
+        );
+        if (tip == last.height) return;
+      } catch (_) {
+        // Fall through: the full sync reports the failure properly.
+      }
+    }
+    _dirty = false;
     // Keep the last error on screen while retrying, so the status doesn't flicker
     // between "Syncing..." and the failure every poll.
     state = state.copyWith(syncing: true);
@@ -374,6 +397,7 @@ class VaultNotifier extends Notifier<VaultState> {
         ),
       );
     } catch (e) {
+      _dirty = true;
       debugPrint('sync failed at $step: ${describeError(e)}');
       state = state.copyWith(syncing: false, syncError: e);
     }

@@ -99,6 +99,11 @@ VaultSummary vaultSummary({required List<int> material}) =>
 String vaultViewingKey({required List<int> material}) =>
     RustLib.instance.api.crateApiVaultVaultViewingKey(material: material);
 
+/// The chain tip lightwalletd reports: one cheap call. The app runs `sync_vault` only
+/// when it moved since the last successful sync (or when something else changed).
+Future<int> chainTip({required String lightwalletdUrl}) => RustLib.instance.api
+    .crateApiVaultChainTip(lightwalletdUrl: lightwalletdUrl);
+
 /// Syncs the vault wallet (creating its database under `db_dir` on first use), then holds
 /// back the notes that live proposals spend, so `spendable_zat` is what a new proposal can
 /// use. Holds are best effort: if the relay can't be reached, the previous ones stay.
