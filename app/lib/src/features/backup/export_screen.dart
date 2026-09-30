@@ -9,6 +9,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/errors/zafe_error_copy.dart';
 import '../../core/layout/mobile/zafe_screen.dart';
+import '../../core/security/unlock_gate.dart';
 import '../../core/storage/vault_summaries.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_button.dart';
@@ -61,6 +62,13 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
   }
 
   Future<void> _export() async {
+    if (!await confirmUnlock(
+      context,
+      ref,
+      reason: 'Unlock to export a backup',
+    )) {
+      return;
+    }
     final vault = ref.read(vaultProvider);
     setState(() => _busy = true);
     try {

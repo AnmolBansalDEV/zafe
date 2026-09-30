@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/feedback/app_haptics.dart';
+import '../../core/security/unlock_gate.dart';
 import '../../core/widgets/mobile/mobile_transaction_progress_screen.dart';
 import '../../providers/proposals_provider.dart';
 import '../../rust/api/proposals.dart' as rust;
@@ -104,7 +105,14 @@ class _SendingScreenState extends ConsumerState<SendingScreen> {
       },
       onPrimaryAction: switch (phase) {
         MobileTransactionProgressPhase.succeeded => () => context.go('/home'),
-        MobileTransactionProgressPhase.failed => () {
+        MobileTransactionProgressPhase.failed => () async {
+          if (!await confirmUnlock(
+            context,
+            ref,
+            reason: 'Unlock to send this payment',
+          )) {
+            return;
+          }
           _announced = null;
           unawaited(ref.read(proposalsProvider.notifier).startSend(widget.id));
         },

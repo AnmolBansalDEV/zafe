@@ -266,6 +266,19 @@ Learned while studying it:
 - Settings (`/settings`, opened from the vault name on home): vault info, signer key,
   hide amounts, theme (`themeModeProvider`, persisted), endpoints (read-only; compile-time
   dart-defines), open-source licenses (fonts + NOTICE registered in `main.dart`).
+- **Unlock gate** (spec §14; `core/security/device_auth.dart` pure logic behind a
+  `DeviceAuthenticator`, `core/security/unlock_gate.dart` `confirmUnlock(context, ref,
+  reason:)`, `providers/device_lock_provider.dart`): approving, Send now / Collect
+  signatures & send / Try again, proposing, exporting a backup and removing a vault call
+  `if (!await confirmUnlock(...)) return;` before acting. Rejecting doesn't. The setting
+  "Require unlock to approve" (`zafe_require_unlock`, default on, read in the bootstrap)
+  needs an unlock to turn **off**. Biometrics **or** device credential. No screen lock
+  (e.g. the emulator) → the action goes ahead, a one-time toast (`zafe_no_screen_lock_warned`)
+  and a permanent note in Settings; unknown errors fail closed. Background checks (push,
+  WorkManager) answer signing requests and finish auto-sends **without** a prompt: they only
+  act on approvals the owner already gave with an unlock. `local_auth` 3.x needs
+  `MainActivity : FlutterFragmentActivity` (else `uiUnavailable` → every gated action is
+  blocked), `USE_BIOMETRIC`, and iOS `NSFaceIDUsageDescription`.
 - **Backups** (spec §12.2; `zafe_core::backup`, bridge `api/backup.rs`, app `features/backup/`):
   `ZAFEBAK` v1 = header (Argon2id params, salt, nonce; authenticated as AEAD data) +
   XChaCha20-Poly1305 of {identity seeds, material, invite}; **never nonces**. Import checks

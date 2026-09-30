@@ -12,6 +12,7 @@ import '../core/storage/zafe_paths.dart';
 import '../core/storage/zafe_secure_store.dart';
 import '../rust/api/error.dart';
 import '../rust/api/vault.dart' as rust;
+import 'device_lock_provider.dart' show kRequireUnlockKey;
 import 'privacy_mode_provider.dart' show kPrivacyModeKey;
 import 'theme_mode_provider.dart' show kThemeModeKey, themeModeFromName;
 
@@ -25,11 +26,13 @@ class VaultBootstrap {
     this.activeId,
     this.privacyMode = false,
     this.themeMode = ThemeMode.system,
+    this.requireUnlock = true,
   });
   final List<StoredVault> vaults;
   final String? activeId;
   final bool privacyMode;
   final ThemeMode themeMode;
+  final bool requireUnlock;
 
   /// Needs Rust initialized (parses the legacy invite when migrating).
   static Future<VaultBootstrap> load() async {
@@ -52,6 +55,7 @@ class VaultBootstrap {
       activeId: activeId,
       privacyMode: prefs.getBool(kPrivacyModeKey) ?? false,
       themeMode: themeModeFromName(prefs.getString(kThemeModeKey)),
+      requireUnlock: prefs.getBool(kRequireUnlockKey) ?? true,
     );
   }
 }

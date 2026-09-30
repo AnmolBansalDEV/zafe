@@ -67,7 +67,15 @@ Open
 - [ ] Endpoint settings editable (today: compile-time dart-defines, read-only)
 - [ ] iOS: build and run at all (only Android has been exercised)
 - [ ] iOS: exclude the nonce directory from backups (`isExcludedFromBackup`)
-- [ ] Biometric/passcode gate before approving and signing (spec §14)
+- [x] Biometric/passcode gate before approving and signing (spec §14; done 2026-09-30,
+      `local_auth`; approve, send, propose, backup export, vault removal; setting in
+      Settings, default on). Needs an on-device check with a real screen lock
+- [ ] Unlock gate follow-ups: it is a UI gate only (key material in secure storage is not
+      bound to user authentication; a Keystore key with `setUserAuthenticationRequired` /
+      Keychain `.userPresence` would make it cryptographic, but background round-2 signing
+      needs the key while locked, spec V8). `LaunchTheme` should use a `Theme.AppCompat`
+      parent or the biometric prompt can crash on Android 8 and below (minSdk 24). No
+      "open security settings" shortcut from the no-screen-lock warning
 - [ ] SQLCipher for the wallet DB (spec §14; an improvement over Vizor)
 - [ ] Pre-warm the proving key when a proposal becomes Approved (2–4 s on a phone)
 - [ ] Low-end device benchmark (V7 still open: Cortex-A55-class phone)
