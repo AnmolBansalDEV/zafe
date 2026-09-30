@@ -213,6 +213,10 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
       material: vault.material!,
       proposalId: id,
     );
+    // A new approval makes an earlier failed send's message stale.
+    if (state.sends[id] case final send? when !send.running) {
+      state = state.copyWith(sends: {...state.sends}..remove(id));
+    }
     await refresh();
     return result;
   }

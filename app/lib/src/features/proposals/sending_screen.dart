@@ -62,6 +62,15 @@ class _SendingScreenState extends ConsumerState<SendingScreen> {
         p?.stage == rust.ProposalStage.sent ||
         progress?.stage == rust.SendStage.sent;
     final failed = !sent && send?.error != null;
+    // Failed because this member's signature went into an unfinished round: it has to
+    // approve again (on the payment page) before any new round can include it.
+    final reapprove = failed && (p?.needsReapproval ?? false);
+    // Chosen signers didn't answer: a new round can go to other approvers.
+    final canStartOver =
+        failed &&
+        !reapprove &&
+        (send?.timedOut ?? false) &&
+        !(p?.ready ?? false);
 
     final phase = sent
         ? MobileTransactionProgressPhase.succeeded
@@ -100,11 +109,16 @@ class _SendingScreenState extends ConsumerState<SendingScreen> {
       background: const IllustrationBackground('sent_slot'),
       primaryActionLabel: switch (phase) {
         MobileTransactionProgressPhase.succeeded => 'Done',
+        MobileTransactionProgressPhase.failed when reapprove => 'Approve again',
         MobileTransactionProgressPhase.failed => 'Try again',
         _ => null,
       },
       onPrimaryAction: switch (phase) {
         MobileTransactionProgressPhase.succeeded => () => context.go('/home'),
+        MobileTransactionProgressPhase.failed when reapprove => () {
+          context.go('/home');
+          context.push('/proposal/${widget.id}');
+        },
         MobileTransactionProgressPhase.failed => () async {
           if (!await confirmUnlock(
             context,
@@ -119,12 +133,25 @@ class _SendingScreenState extends ConsumerState<SendingScreen> {
         _ => null,
       },
       secondaryActionLabel: switch (phase) {
+        MobileTransactionProgressPhase.failed when canStartOver =>
+          'Start over with other signers',
         MobileTransactionProgressPhase.failed => 'Return home',
         MobileTransactionProgressPhase.inProgress =>
           'Keep sending in background',
         _ => null,
       },
       onSecondaryAction: switch (phase) {
+        MobileTransactionProgressPhase.failed when canStartOver => () async {
+          if (!await confirmUnlock(
+            context,
+            ref,
+            reason: 'Unlock to start a new signing round',
+          )) {
+            return;
+          }
+          _announced = null;
+          await ref.read(proposalsProvider.notifier).startOver(widget.id);
+        },
         MobileTransactionProgressPhase.failed ||
         MobileTransactionProgressPhase.inProgress => () => context.go('/home'),
         _ => null,

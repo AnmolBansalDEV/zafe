@@ -145,6 +145,9 @@ class VaultState {
 
 /// Owns the device's vaults: which one is active, adding (create/join, membership, key
 /// generation), removing, and wallet sync of the active vault.
+/// Longest a sync may keep the home screen on "Syncing..." (Rust caps a pass at 5 min).
+const _syncTimeout = Duration(minutes: 6);
+
 class VaultNotifier extends Notifier<VaultState> {
   final _store = ZafeSecureStore.instance;
 
@@ -319,15 +322,19 @@ class VaultNotifier extends Notifier<VaultState> {
     }
     state = state.copyWith(syncing: true, clearSyncError: true);
     try {
-      final paths = await ZafePaths.get();
-      final balance = await rust.syncVault(
-        dbDir: paths.dbDir,
-        dbKey: await ZafeSecureStore.instance.walletKey(vaultId),
-        lightwalletdUrl: kZafeLightwalletdUrl,
-        relayUrl: kZafeRelayUrl,
-        seeds: seeds,
-        material: material,
-      );
+      final balance = await () async {
+        final paths = await ZafePaths.get();
+        return rust.syncVault(
+          dbDir: paths.dbDir,
+          dbKey: await ZafeSecureStore.instance.walletKey(vaultId),
+          lightwalletdUrl: kZafeLightwalletdUrl,
+          relayUrl: kZafeRelayUrl,
+          seeds: seeds,
+          material: material,
+        );
+        // A pass is capped at 5 minutes in Rust; this guard frees `syncing` if anything
+        // else never answers (seen once on the first sync after keygen, 2026-09-30).
+      }().timeout(_syncTimeout);
       state = state.copyWith(
         balances: {...state.balances, vaultId: balance},
         syncing: false,

@@ -92,7 +92,8 @@ Open
       about N days" on open/approved proposals; once the synced tip reaches it, rows, chip
       and page say "Expired", it stops counting as needing action and isn't auto-sent;
       "Propose again" opens Send on the review step prefilled (`SendPrefill`, single
-      payment). Dart tests in `test/proposal_expiry_test.dart`. Not checked on a device yet
+      payment). Dart tests in `test/proposal_expiry_test.dart`. Emulator: the "Expires in
+      about 7 days" line shows on open/approved proposals
 - [ ] Expiry window configurable at vault creation (D2): every member builds and signs the
       descriptor, so the choice has to travel in the invite (invite format bump) or the
       seal; today it's `DEFAULT_PROPOSAL_EXPIRY_BLOCKS` (7 days)
@@ -102,7 +103,11 @@ Open
       commitment sets stay used); members whose approval's nonces are gone
       (`ProposalInfo.needs_reapproval`: used in the unfinished round, or restored from a
       backup) see "Approve again". Tested in `bridge_e2e` (round 1 times out, start over,
-      A re-approves, C joins, sent). Not checked on a device yet
+      A re-approves, C joins, sent). Emulator walkthrough (2026-09-30, app + CLI B/C):
+      round with C timed out, start over reported "0 of 2 signers are ready", B approved,
+      the app showed "Approve again", the new round with B was sent. It found and fixed:
+      the proposal page kept the failed-send card with only "Try again" and never offered
+      "Approve again"; the sending screen had no "Start over". Cancel checked too
 - [ ] Start-over follow-ups: the unresponsive signer keeps nonces for commitments no
       leader will use (harmless, never reused; deleted only when the proposal closes if at
       all); members aren't notified that they need to approve again (only the page says so)
@@ -249,6 +254,16 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 - [ ] Zakura's faster prover once it supports Ironwood (V7)
 
 ## Known issues and tech debt
+
+- [ ] **First sync after keygen stuck on "Syncing..."** (emulator, 2026-09-30, once):
+      Rust and platform threads were idle (native + Java stack dumps), no `sync failed`
+      log, `ZafeSecureStore._creatingWalletKey` empty; a restart synced at once. Not
+      reproducible with lightwalletd down (that fails cleanly). Guarded: `sync()` now times
+      out after 6 minutes so `syncing` can't stick. Root cause unknown; add breadcrumbs if
+      it recurs
+- [ ] A payment to the vault's **own address** fails every member's check ("1 proposed
+      payment(s) have no matching output"): verification counts the output as change.
+      Either block own addresses in Send (with copy) or match self-payments explicitly
 
 - [ ] `AppButton` label is a separate node in accessibility trees (button role is fixed;
       merge still not happening). Upstream Vizor `4bff2e7` has no fix: its `AppButton` still

@@ -260,6 +260,22 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
     );
   }
 
+  List<Widget> _approveAgain(TextStyle note) => [
+    AppButton(
+      expand: true,
+      leading: _voting ? null : const AppIcon(AppIcons.check, size: 20),
+      onPressed: _voting ? null : () => _vote(true),
+      child: Text(_voting ? 'Checking and approving...' : 'Approve again'),
+    ),
+    const SizedBox(height: AppSpacing.xs),
+    Text(
+      'Your signature went into a signing round that didn\'t finish, or this phone '
+      'was restored from a backup. Approve again so a new round can include you.',
+      textAlign: TextAlign.center,
+      style: note,
+    ),
+  ];
+
   List<Widget> _actions(
     rust.ProposalInfo p, {
     required bool sent,
@@ -323,7 +339,10 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
             ],
           ),
         ),
-        if (!sending) ...[
+        if (!sending && p.needsReapproval) ...[
+          const SizedBox(height: AppSpacing.sm),
+          ..._approveAgain(note),
+        ] else if (!sending) ...[
           const SizedBox(height: AppSpacing.sm),
           AppButton(
             expand: true,
@@ -391,24 +410,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
       ],
     ];
 
-    if (p.needsReapproval) {
-      return [
-        AppButton(
-          expand: true,
-          leading: _voting ? null : const AppIcon(AppIcons.check, size: 20),
-          onPressed: _voting ? null : () => _vote(true),
-          child: Text(_voting ? 'Checking and approving...' : 'Approve again'),
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          'Your signature went into a signing round that didn\'t finish, or this phone '
-          'was restored from a backup. Approve again so a new round can include you.',
-          textAlign: TextAlign.center,
-          style: note,
-        ),
-        ...footer,
-      ];
-    }
+    if (p.needsReapproval) return [..._approveAgain(note), ...footer];
 
     switch (p.stage) {
       case rust.ProposalStage.open:
