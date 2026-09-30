@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Turns infra/site/dist (from build.sh) into Vercel's prebuilt output
+# (.vercel/output, Build Output API v3) for `vercel deploy --prebuilt`, so Vercel serves
+# exactly what build.sh made and never builds anything itself. Carries over what other
+# hosts get from public/_headers: the same response headers, /join served from
+# join.html, and JSON content types for .well-known.
+set -euo pipefail
+
+here="$(cd "$(dirname "$0")" && pwd)"
+dist="$here/dist"
+output="$here/.vercel/output"
+
+die() { echo "error: $*" >&2; exit 1; }
+
+[[ -f "$dist/index.html" && -f "$dist/join.html" ]] || die "run build.sh first"
+
+# One source for the headers: public/_headers ("/*" block, "  Name: value" lines).
+headers_json="$(awk '
+  /^\/\*$/ { block = 1; next }
+  /^[^ ]/  { block = 0 }
+  block && /^  [A-Za-z-]+: / {
+    line = substr($0, 3); i = index(line, ": ")
+    name = substr(line, 1, i - 1); value = substr(line, i + 2)
+    gsub(/\\/, "\\\\", value); gsub(/"/, "\\\"", value)
+    printf "%s\"%s\": \"%s\"", (n++ ? ", " : ""), name, value
+  }
+' "$here/public/_headers")"
+[[ "$headers_json" == *Content-Security-Policy* ]] || die "no CSP found in public/_headers"
+
+rm -rf "$output"
+mkdir -p "$output"
+cp -R "$dist" "$output/static"
+rm -f "$output/static/_headers" "$output/static/.nojekyll"
+
+overrides='"join.html": { "path": "join", "contentType": "text/html; charset=utf-8" }'
+for f in assetlinks.json apple-app-site-association; do
+  if [[ -f "$output/static/.well-known/$f" ]]; then
+    overrides+=", \".well-known/$f\": { \"contentType\": \"application/json\" }"
+  fi
+done
+
+cat > "$output/config.json" <<EOF
+{
+  "version": 3,
+  "routes": [
+    { "src": "^/join/$", "status": 308, "headers": { "Location": "/join" } },
+    { "src": "^/join\\\\.html$", "status": 308, "headers": { "Location": "/join" } },
+    { "src": "^/(.*)$", "headers": { $headers_json }, "continue": true },
+    { "src": "^/\\\\.well-known/(.*)$", "headers": { "Cache-Control": "public, max-age=300" }, "continue": true },
+    { "handle": "filesystem" }
+  ],
+  "overrides": { $overrides }
+}
+EOF
+
+python3 -m json.tool "$output/config.json" > /dev/null || die "invalid config.json"
+echo "Wrote $output"

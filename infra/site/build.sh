@@ -2,8 +2,9 @@
 # Builds the site (home page, and the invite page https://<ZAFE_LINK_HOST>/join#<invite>) into
 # infra/site/dist, ready to upload to any static host. See README.md.
 #
-#   ZAFE_ANDROID_CERT_SHA256   required: SHA-256 fingerprints of the APK signing
-#                              certificates, comma-separated (AA:BB:... or plain hex)
+#   ZAFE_ANDROID_CERT_SHA256   SHA-256 fingerprints of the APK signing certificates,
+#                              comma-separated (AA:BB:... or plain hex). Without them
+#                              there is no assetlinks.json, so App Links can't verify.
 #   ZAFE_IOS_APP_IDS           optional: <TeamID>.xyz.zafe.zafe, comma-separated
 #   ZAFE_DOWNLOAD_URL          optional: where "Download for Android" points
 #                              (default: the GitHub releases page)
@@ -24,19 +25,19 @@ plain_https() {
   [[ "$1" =~ ^https://[A-Za-z0-9._~:/?#@!\$\&\(\)*+,\;=%-]+$ && "$1" != *"'"* ]]
 }
 
-[[ -n "${ZAFE_ANDROID_CERT_SHA256:-}" ]] ||
-  die "set ZAFE_ANDROID_CERT_SHA256 (see README.md: 'Signing fingerprints')"
 plain_https "$download" || die "ZAFE_DOWNLOAD_URL must be a plain https:// URL"
 plain_https "$source_url" || die "ZAFE_SOURCE_URL must be a plain https:// URL"
 
 # Fingerprints → "AA:BB:...", upper case, exactly 32 bytes.
 fingerprints=()
-IFS=',' read -ra raw <<< "$ZAFE_ANDROID_CERT_SHA256"
-for f in "${raw[@]}"; do
-  hex="$(tr -d ': \t' <<< "$f" | tr 'a-f' 'A-F')"
-  [[ "$hex" =~ ^[0-9A-F]{64}$ ]] || die "not a SHA-256 fingerprint: '$f'"
-  fingerprints+=("$(sed 's/../&:/g; s/:$//' <<< "$hex")")
-done
+if [[ -n "${ZAFE_ANDROID_CERT_SHA256:-}" ]]; then
+  IFS=',' read -ra raw <<< "$ZAFE_ANDROID_CERT_SHA256"
+  for f in "${raw[@]}"; do
+    hex="$(tr -d ': \t' <<< "$f" | tr 'a-f' 'A-F')"
+    [[ "$hex" =~ ^[0-9A-F]{64}$ ]] || die "not a SHA-256 fingerprint: '$f'"
+    fingerprints+=("$(sed 's/../&:/g; s/:$//' <<< "$hex")")
+  done
+fi
 
 app_ids=()
 if [[ -n "${ZAFE_IOS_APP_IDS:-}" ]]; then
@@ -61,8 +62,9 @@ if grep -l -E '<script(>| (type|is)=)|<style|[[:space:]](style|on[a-z]+)=' "$out
   die "inline script or style in the pages above (the CSP would block it)"
 fi
 
-mkdir -p "$out/.well-known"
-cat > "$out/.well-known/assetlinks.json" <<EOF
+if (( ${#fingerprints[@]} )); then
+  mkdir -p "$out/.well-known"
+  cat > "$out/.well-known/assetlinks.json" <<EOF
 [
   {
     "relation": ["delegate_permission/common.handle_all_urls"],
@@ -74,14 +76,19 @@ cat > "$out/.well-known/assetlinks.json" <<EOF
   }
 ]
 EOF
+else
+  echo "warning: no ZAFE_ANDROID_CERT_SHA256, so no assetlinks.json (App Links won't verify)" >&2
+fi
 
 # Universal Links, only for the join path (the invite is in the fragment).
-cat > "$out/.well-known/apple-app-site-association" <<EOF
+if (( ${#app_ids[@]} )); then
+  mkdir -p "$out/.well-known"
+  cat > "$out/.well-known/apple-app-site-association" <<EOF
 {
   "applinks": {
     "details": [
       {
-        "appIDs": [$(join_quoted "${app_ids[@]+"${app_ids[@]}"}")],
+        "appIDs": [$(join_quoted "${app_ids[@]}")],
         "components": [
           { "/": "/join", "comment": "Invite links" },
           { "/": "/join/", "comment": "Invite links" }
@@ -91,9 +98,11 @@ cat > "$out/.well-known/apple-app-site-association" <<EOF
   }
 }
 EOF
+fi
 
 if command -v python3 > /dev/null; then
-  for f in "$out/.well-known/assetlinks.json" "$out/.well-known/apple-app-site-association"; do
+  for f in "$out"/.well-known/*; do
+    [[ -e "$f" ]] || continue
     python3 -m json.tool "$f" > /dev/null || die "invalid JSON: $f"
   done
 fi

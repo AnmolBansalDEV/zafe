@@ -820,6 +820,14 @@ Learned while studying it:
   are the app's own renders (`tool/screens/*_render_test.dart` → `infra/site/assets.py`
   → WebP); fonts are the app's, subset to WOFF2. Landing copy must only claim shipped
   features. Look at it with agent-browser at 1280 and 390 wide, light and dark.
+  **Deploy**: `.github/workflows/site.yml` → Vercel with `vercel deploy --prebuilt` on
+  `.vercel/output` from `vercel-output.sh` (Build Output API v3; headers read from
+  `public/_headers`, `overrides` serve `join.html` at `/join`). `builds.json` isn't
+  needed (the CLI only reads it for `vercel build` errors). Vercel never builds.
+- **CI disk**: the Rust job's test binaries (arti, Halo 2, SQLCipher linked into each)
+  filled the runner disk and `ld` died with `signal 7 [Bus error]`. `ci.yml` frees ~30 GB
+  first and builds with `CARGO_PROFILE_DEV_DEBUG=line-tables-only`. A bus error or "No
+  space left" in a link step means disk, not code.
 - **Scanner**: `mobile_scanner` 7.4.2 with our own controller, so `scan_invite_screen.dart`
   handles lifecycle itself (stop on inactive only while running, because the permission
   prompt makes the app inactive; `start()` on resume also picks up a permission granted

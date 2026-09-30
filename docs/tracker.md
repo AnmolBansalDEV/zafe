@@ -481,6 +481,14 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       `cargo test --workspace`, the ZIP 2005 Python check, `flutter analyze` and
       `flutter test test` (regtest/Docker tests stay manual). No GitHub remote yet, so it
       runs once the repo is pushed
+- [x] CI Rust job failing since the Tor commit (2026-10-01): `ld terminated with signal 7
+      [Bus error]` linking the test binaries = runner disk full. Fixed with a "Free disk
+      space" step and `CARGO_PROFILE_DEV_DEBUG=line-tables-only`; a "Disk usage" step
+      prints what's left
+- [x] Site deploys to Vercel from GitHub Actions (`.github/workflows/site.yml`, 2026-10-01)
+  - [ ] **(you)** Create the Vercel project and token; set `VERCEL_TOKEN` (secret),
+        `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` (variables); add the domain
+        (`infra/site/README.md` → Deploy → Vercel)
 - [ ] Agent-device flows are manual; capture them as a repeatable script
       (`scripts/app-harness.sh` covers the backend side). Model: Vizor's app-level regtest
       E2E, `integration_test/payment_uri_prefill_test.dart` driven by

@@ -8,6 +8,7 @@
 /infra/site/dist
 /infra/site/node_modules
 /infra/site/.astro
+/infra/site/.vercel
 __pycache__/
 *.pyc
 

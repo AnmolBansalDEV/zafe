@@ -1,0 +1,81 @@
+name: Site
+
+# Builds infra/site (Astro) and deploys it to Vercel: production on pushes to main,
+# a preview for pull requests. The site is built here by build.sh, and Vercel only
+# serves the result (`vercel deploy --prebuilt`, output from vercel-output.sh).
+#
+# Needs (Settings > Secrets and variables > Actions), see infra/site/README.md:
+#   secret   VERCEL_TOKEN               a Vercel access token
+#   variable VERCEL_ORG_ID              the team / account id (.vercel/project.json "orgId")
+#   variable VERCEL_PROJECT_ID          the project id (.vercel/project.json "projectId")
+#   variable ZAFE_ANDROID_CERT_SHA256   optional: release signing cert, for assetlinks.json
+#   variable ZAFE_IOS_APP_IDS           optional: for apple-app-site-association
+# Without the Vercel settings the site is still built and checked, just not deployed.
+
+on:
+  push:
+    branches: [main]
+    paths: ['infra/site/**', '.github/workflows/site.yml']
+  pull_request:
+    paths: ['infra/site/**', '.github/workflows/site.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  site:
+    name: Build and deploy the site
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: infra/site
+    env:
+      ASTRO_TELEMETRY_DISABLED: 1
+      VERCEL_TELEMETRY_DISABLED: 1
+      VERCEL_CLI: vercel@62.0.0
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      ZAFE_ANDROID_CERT_SHA256: ${{ vars.ZAFE_ANDROID_CERT_SHA256 }}
+      ZAFE_IOS_APP_IDS: ${{ vars.ZAFE_IOS_APP_IDS }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: infra/site/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: ./build.sh
+      - run: ./vercel-output.sh
+
+      - name: Vercel settings
+        id: vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_ORG_ID" ] && [ -n "$VERCEL_PROJECT_ID" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Not deploying: set the VERCEL_TOKEN secret and the VERCEL_ORG_ID / VERCEL_PROJECT_ID variables (infra/site/README.md)"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy
+        if: steps.vercel.outputs.ready == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ "$GITHUB_REF" = refs/heads/main ] && [ "$GITHUB_EVENT_NAME" != pull_request ]; then
+            target=--prod; kind=Production
+          else
+            target=; kind=Preview
+          fi
+          url=$(npx --yes "$VERCEL_CLI" deploy --prebuilt $target --yes --token "$VERCEL_TOKEN")
+          echo "$kind deployment: $url"
+          echo "**$kind deployment:** $url" >> "$GITHUB_STEP_SUMMARY"

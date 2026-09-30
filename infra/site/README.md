@@ -53,7 +53,7 @@ npm run dev                                  # http://localhost:4321
 ```
 
 ```sh
-ZAFE_ANDROID_CERT_SHA256=<release cert SHA-256>[,<debug cert SHA-256>] \
+ZAFE_ANDROID_CERT_SHA256=<release cert SHA-256>[,<debug cert SHA-256>] \  # else no assetlinks.json
 ZAFE_IOS_APP_IDS=<TeamID>.xyz.zafe.zafe \   # optional, once there is an iOS build
 ZAFE_DOWNLOAD_URL=https://… \               # optional, default: GitHub releases
 ZAFE_SOURCE_URL=https://… \                 # optional, default: the GitHub repo
@@ -85,7 +85,29 @@ Any static host with HTTPS on the exact host in `ZAFE_LINK_HOST` works. Requirem
 - `/join` serves `join.html` (with or without a trailing slash).
 - The `_headers` security headers, or their equivalent.
 
-**Cloudflare Pages** (recommended; reads `_headers`, serves `/join` from `join.html`):
+**Vercel** (what we use; `.github/workflows/site.yml`). The workflow builds the site with
+`build.sh`, turns `dist/` into Vercel's prebuilt output with `vercel-output.sh` (headers
+taken from `public/_headers`, `/join` served from `join.html`, JSON content types for
+`.well-known`), and runs `vercel deploy --prebuilt`: production on pushes to `main` that
+touch `infra/site`, a preview for such pull requests. Vercel never builds anything itself.
+One-time setup:
+
+1. In Vercel, create an empty project (Add New → Project, or `vercel link` in
+   `infra/site`). No framework, build command or Git connection is needed: the workflow
+   uploads finished files. Its ids are in the project's settings, or in
+   `infra/site/.vercel/project.json` after `vercel link` (`orgId`, `projectId`).
+2. Create a token: Vercel → Account Settings → Tokens, scoped to that team.
+3. In GitHub (Settings → Secrets and variables → Actions): secret `VERCEL_TOKEN`;
+   variables `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID`. Optional variables
+   `ZAFE_ANDROID_CERT_SHA256` / `ZAFE_IOS_APP_IDS` (see "Build").
+4. Run the workflow (Actions → Site → Run workflow), then add the domain in the Vercel
+   project (Settings → Domains). Without the Vercel settings the workflow still builds
+   and checks the site, it just doesn't deploy.
+
+Try the Vercel output locally: `./build.sh && ./vercel-output.sh`, then read
+`.vercel/output/config.json`.
+
+**Cloudflare Pages** (reads `_headers`, serves `/join` from `join.html`):
 
 ```sh
 npx wrangler pages deploy infra/site/dist --project-name zafe-site

@@ -1,4 +1,5 @@
-# Response headers for Cloudflare Pages and Netlify (other hosts: see README.md).
+# Response headers for Cloudflare Pages and Netlify; vercel-output.sh copies the "/*" block
+# for Vercel (other hosts: see README.md).
 /*
   Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   Referrer-Policy: no-referrer
