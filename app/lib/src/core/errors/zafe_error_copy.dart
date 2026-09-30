@@ -27,6 +27,10 @@ String zafeErrorMessage(
     ZafeErrorKind.relayOutdated =>
       'The relay server runs an older version of Zafe than this app. '
           'Ask whoever runs it to update it.',
+    ZafeErrorKind.relayStorageFull =>
+      'The relay\'s storage for this vault is full, so it can\'t take new messages '
+          'right now. Old messages expire after 30 days; if this keeps happening, ask '
+          'whoever runs the relay to raise the vault\'s limit.',
     ZafeErrorKind.other => fallback,
   };
 }

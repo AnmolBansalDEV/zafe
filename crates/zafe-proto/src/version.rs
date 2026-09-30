@@ -46,8 +46,9 @@ pub const OWN_SHARES: u16 = 1;
 pub const USED_COMMITMENTS: u16 = 1;
 /// Encrypted vault backups (`ZAFEBAK`; the tag is a single byte there).
 pub const BACKUP: u16 = 1;
-/// The relay's SQLite schema (`PRAGMA user_version`).
-pub const RELAY_DB: u16 = 1;
+/// The relay's SQLite schema (`PRAGMA user_version`). 2: storage quota counters on
+/// `mailboxes` (migrated from 1 at startup).
+pub const RELAY_DB: u16 = 2;
 
 /// Each versioned format. [`Format::current`] is the version this build writes and reads.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

@@ -33,6 +33,14 @@ Runtime contract (both paths):
   or every client shares the proxy's address. Never point it at a header clients can set
   directly.
 - Request bodies are capped at 1 MiB (`413` above it).
+- Storage quotas per vault (on by default): 10,000 undelivered envelopes per member,
+  256 MiB of undelivered envelopes and 512 MiB of vault log. A write over a quota is
+  refused whole with `507 Insufficient Storage`, and the app says the relay's storage for
+  the vault is full. Undelivered envelopes expire after 30 days (hourly pruning), which
+  frees their share; the log is kept forever. Tune with `ZAFE_RELAY_MAX_INBOX` (envelopes),
+  `ZAFE_RELAY_MAX_DELIVERY_MB` / `ZAFE_RELAY_MAX_LOG_MB` (MiB), `0` = that quota off, or
+  `ZAFE_RELAY_QUOTAS=off`. A database from schema 1 gets the quota counters added at
+  startup (one scan); keep a backup before upgrading as usual.
 - SIGTERM shuts down gracefully.
 - Exactly **one** instance per database. Don't scale out.
 

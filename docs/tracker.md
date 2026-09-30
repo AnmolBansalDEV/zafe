@@ -81,10 +81,11 @@ Open
       env-tunable, proxy header for Fly/Caddy), 1 MiB body cap; client
       `RelayClientError::RateLimited` → `NotReady` ("the relay is busy"). Keygen
       (`node_keygen`) and the whole payment flow (`bridge_e2e`) run under the hosted limits
-- [ ] Relay follow-ups: storage quotas (undelivered envelopes per recipient, log size per
-      mailbox), off-site backups (Litestream) *(idea)*. Done: dead FCM tokens (404
-      `UNREGISTERED`) are deleted (`FcmNotifier::on_unregistered` →
-      `Relay::forget_push_token`)
+- [ ] Relay follow-ups: off-site backups (Litestream) *(idea)*; a cap on mailboxes
+      created per key/IP (creation is free, so quotas per mailbox don't bound the whole
+      DB). Done: dead FCM tokens (404 `UNREGISTERED`) are deleted
+      (`FcmNotifier::on_unregistered` → `Relay::forget_push_token`); storage quotas (see
+      below)
 - [x] Invite by link: `zafe://join?invite=...` custom scheme (see Next up 5)
 - [ ] Universal/App Links (`https://…/join#invite`) so a link works for people without
       Zafe installed (landing page + `assetlinks.json` / AASA). Put the invite in the URL
@@ -347,7 +348,12 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       "No response to onStartJob" for the WorkManager vault check. Likely load, but check
       that the job's startup (RustLib.init, Firebase, secure storage reads) doesn't block
       the main thread before WorkManager gets its answer
-- [ ] Relay: storage quotas for the hosted tier (rate limits done); retention is 30 days
+- [x] Relay: storage quotas for the hosted tier (2026-09-30): `zafe_relay::quota`, per
+      mailbox: undelivered envelopes per recipient (indexed count), delivery bytes and
+      log bytes (running counters on `mailboxes`, schema `RELAY_DB` 2 with a migration
+      from 1; pruning gives bytes back). 507 → `RelayClientError::StorageFull` →
+      `ZafeErrorKind::RelayStorageFull` with copy; env overrides in the binary. Retention
+      stays 30 days
 - [x] **Versioned formats** (2026-09-30): every wire and stored format carries a version
       tag (`zafe_proto::version`; inventory and bump rules in AGENTS.md), signed where a
       downgrade matters (envelope and log-entry headers, relay requests, descriptor).

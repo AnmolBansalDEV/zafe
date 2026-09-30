@@ -22,6 +22,11 @@ pub enum RelayClientError {
     /// The relay is limiting this key or address (HTTP 429).
     #[error("the relay is busy; try again in {retry_after_secs} s")]
     RateLimited { retry_after_secs: u64 },
+    /// The relay refused to store more for this vault (HTTP 507): a member's inbox, the
+    /// vault's undelivered messages or its log is over the relay's storage quota.
+    /// `detail` is the relay's explanation.
+    #[error("the relay's storage for this vault is full: {detail}")]
+    StorageFull { detail: String },
     #[error("encoding")]
     Encoding,
     /// The relay refused this client's version of `format` (HTTP 426). `ours` newer than
@@ -155,6 +160,11 @@ impl RelayClient {
             return Err(RelayClientError::RateLimited { retry_after_secs });
         }
         let bytes = response.bytes().await.map_err(transport)?;
+        if status.as_u16() == 507 {
+            return Err(RelayClientError::StorageFull {
+                detail: String::from_utf8_lossy(&bytes).into_owned(),
+            });
+        }
         if !status.is_success() {
             return Err(RelayClientError::Status {
                 status: status.as_u16(),

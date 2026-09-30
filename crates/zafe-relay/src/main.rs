@@ -12,12 +12,22 @@
 //!   client IP (burst: half of it); `0` turns that limit off
 //! - `ZAFE_RELAY_CLIENT_IP_HEADER`: behind a proxy, the header carrying the client address
 //!   (`fly-client-ip` on Fly.io, `x-forwarded-for` behind Caddy). Unset: the TCP peer
+//! - `ZAFE_RELAY_QUOTAS`: `off` disables storage quotas (default: on, [`Quotas::hosted`]:
+//!   10,000 undelivered envelopes per recipient, 256 MiB of undelivered envelopes and
+//!   512 MiB of vault log per mailbox). Over a quota the relay answers 507
+//! - `ZAFE_RELAY_MAX_INBOX`: undelivered envelopes per recipient in a mailbox
+//! - `ZAFE_RELAY_MAX_DELIVERY_MB` / `ZAFE_RELAY_MAX_LOG_MB`: MiB of undelivered envelopes /
+//!   of vault log per mailbox. For all three, `0` turns that quota off
 //!
 //! [`Limits::hosted`]: zafe_relay::limits::Limits::hosted
+//! [`Quotas::hosted`]: zafe_relay::quota::Quotas::hosted
 
 use std::{net::SocketAddr, path::Path, time::Duration};
 
-use zafe_relay::limits::{Limits, Rate};
+use zafe_relay::{
+    limits::{Limits, Rate},
+    quota::Quotas,
+};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -70,7 +80,14 @@ async fn main() -> std::io::Result<()> {
         limits.per_ip,
         limits.client_ip_header.as_deref().unwrap_or("the TCP peer")
     );
-    let relay = relay.with_limits(limits);
+    let quotas = quotas_from_env(|name| std::env::var(name).ok());
+    tracing::info!(
+        "quotas: envelopes per recipient {:?}, delivery bytes {:?}, log bytes {:?}",
+        quotas.envelopes_per_recipient,
+        quotas.delivery_bytes,
+        quotas.log_bytes
+    );
+    let relay = relay.with_limits(limits).with_quotas(quotas);
 
     // Hourly retention pruning of old undelivered envelopes.
     let pruner = relay.clone();
@@ -116,6 +133,26 @@ fn limits_from_env(var: impl Fn(&str) -> Option<String>) -> Limits {
     limits
 }
 
+/// Storage quotas from the environment (see the module docs).
+fn quotas_from_env(var: impl Fn(&str) -> Option<String>) -> Quotas {
+    if var("ZAFE_RELAY_QUOTAS").is_some_and(|v| v.eq_ignore_ascii_case("off")) {
+        return Quotas::none();
+    }
+    let mut quotas = Quotas::hosted();
+    let value = |name: &str, scale: u64, default: Option<u64>| match var(name)
+        .map(|v| v.trim().parse::<u64>())
+    {
+        Some(Ok(0)) => None,
+        Some(Ok(n)) => Some(n.saturating_mul(scale)),
+        _ => default,
+    };
+    quotas.envelopes_per_recipient =
+        value("ZAFE_RELAY_MAX_INBOX", 1, quotas.envelopes_per_recipient);
+    quotas.delivery_bytes = value("ZAFE_RELAY_MAX_DELIVERY_MB", 1 << 20, quotas.delivery_bytes);
+    quotas.log_bytes = value("ZAFE_RELAY_MAX_LOG_MB", 1 << 20, quotas.log_bytes);
+    quotas
+}
+
 /// `ZAFE_RELAY_LISTEN` wins; otherwise `PORT` (Fly.io, Cloud Run, ...) on all interfaces;
 /// otherwise the local development default.
 fn listen_addr(listen: Option<String>, port: Option<String>) -> String {
@@ -146,19 +183,42 @@ async fn shutdown_signal() {
 
 #[cfg(test)]
 mod tests {
-    use super::{limits_from_env, listen_addr};
-    use zafe_relay::limits::{Limits, Rate};
+    use super::{limits_from_env, listen_addr, quotas_from_env};
+    use zafe_relay::{
+        limits::{Limits, Rate},
+        quota::Quotas,
+    };
+
+    fn env(pairs: &'static [(&'static str, &'static str)]) -> impl Fn(&str) -> Option<String> {
+        move |name: &str| {
+            pairs
+                .iter()
+                .find(|(k, _)| *k == name)
+                .map(|(_, v)| v.to_string())
+        }
+    }
+
+    #[test]
+    fn quotas_from_the_environment() {
+        assert_eq!(quotas_from_env(env(&[])), Quotas::hosted());
+        assert_eq!(
+            quotas_from_env(env(&[("ZAFE_RELAY_QUOTAS", "off")])),
+            Quotas::none()
+        );
+        let q = quotas_from_env(env(&[
+            ("ZAFE_RELAY_MAX_INBOX", "50"),
+            ("ZAFE_RELAY_MAX_DELIVERY_MB", "0"),
+            ("ZAFE_RELAY_MAX_LOG_MB", "2"),
+        ]));
+        assert_eq!(q.envelopes_per_recipient, Some(50));
+        assert_eq!(q.delivery_bytes, None);
+        assert_eq!(q.log_bytes, Some(2 * 1024 * 1024));
+        let q = quotas_from_env(env(&[("ZAFE_RELAY_MAX_INBOX", "lots")]));
+        assert_eq!(q, Quotas::hosted(), "unparsable values keep the default");
+    }
 
     #[test]
     fn limits_from_the_environment() {
-        let env = |pairs: &'static [(&'static str, &'static str)]| {
-            move |name: &str| {
-                pairs
-                    .iter()
-                    .find(|(k, _)| *k == name)
-                    .map(|(_, v)| v.to_string())
-            }
-        };
         assert_eq!(limits_from_env(env(&[])), Limits::hosted());
         assert_eq!(
             limits_from_env(env(&[("ZAFE_RELAY_LIMITS", "OFF")])),

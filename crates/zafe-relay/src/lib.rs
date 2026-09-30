@@ -11,6 +11,9 @@
 //! Versions: request bodies are tagged (`zafe_proto::version`); a body in a version this
 //! relay doesn't speak gets HTTP 426 with `zafe-supported-version`. The database schema
 //! version is `PRAGMA user_version` ([`version::RELAY_DB`]); a newer database is refused.
+//!
+//! Limits: request rates per key and IP ([`limits`]) and storage per mailbox ([`quota`]),
+//! both off in [`Relay::new`] and on in the `zafe-relay` binary.
 
 use std::{
     path::Path,
@@ -30,8 +33,10 @@ use axum::{
 use rusqlite::{params, Connection, OptionalExtension};
 pub mod fcm;
 pub mod limits;
+pub mod quota;
 
 use limits::{Buckets, Limits};
+use quota::{Quota, Quotas, Usage};
 
 use zafe_proto::{
     log::GENESIS_PREV_HASH,
@@ -79,6 +84,7 @@ pub struct Relay {
     per_key: Option<Arc<Buckets<[u8; 32]>>>,
     per_ip: Option<Arc<Buckets<std::net::IpAddr>>>,
     client_ip_header: Option<String>,
+    quotas: Quotas,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -102,6 +108,10 @@ pub enum RelayError {
     /// Too many requests from one key or address; retry after this many seconds.
     #[error("too many requests; retry in {0} s")]
     RateLimited(u64),
+    /// The write would take the mailbox over a storage quota (HTTP 507 Insufficient
+    /// Storage; see [`quota`]). Nothing was stored.
+    #[error("storage quota exceeded: {0}")]
+    QuotaExceeded(Quota),
     /// A request in a version this relay doesn't speak (HTTP 426), or a database written
     /// by a newer relay.
     #[error(transparent)]
@@ -151,6 +161,7 @@ impl IntoResponse for RelayError {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
             RelayError::RateLimited(_) => StatusCode::TOO_MANY_REQUESTS,
+            RelayError::QuotaExceeded(_) => StatusCode::INSUFFICIENT_STORAGE,
         };
         (status, self.to_string()).into_response()
     }
@@ -158,6 +169,10 @@ impl IntoResponse for RelayError {
 
 type RelayResult = Result<Vec<u8>, RelayError>;
 
+// `mailboxes.delivery_bytes` / `log_bytes`: running totals for the storage quotas (bytes of
+// this mailbox's `deliveries.envelope` / `log_entries.entry`), kept in step by every insert
+// and by pruning (see `quota`). No SQL comments inside the schema: SQLite keeps the CREATE
+// text and re-parses it on ALTER TABLE.
 const SCHEMA: &str = "
 CREATE TABLE IF NOT EXISTS mailboxes (
     id BLOB PRIMARY KEY,
@@ -166,7 +181,9 @@ CREATE TABLE IF NOT EXISTS mailboxes (
     max_members INTEGER NOT NULL,
     sealed INTEGER NOT NULL DEFAULT 0,
     next_cursor INTEGER NOT NULL DEFAULT 1,
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    delivery_bytes INTEGER NOT NULL DEFAULT 0,
+    log_bytes INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS members (
     mailbox BLOB NOT NULL,
@@ -253,8 +270,10 @@ impl Relay {
             |r| r.get(0),
         )?;
         // Version 0 with tables: written before versioning (unversioned envelopes and log
-        // entries), refused; delete it. Future schema bumps migrate from `found` here.
-        if found != 0 || has_tables {
+        // entries), refused; delete it. Older schemas migrate from `found` here.
+        if found == 1 {
+            migrate_from_v1(&conn)?;
+        } else if found != 0 || has_tables {
             version::check(version::Format::RelayDb, found)?;
         }
         conn.execute_batch(SCHEMA)?;
@@ -266,6 +285,36 @@ impl Relay {
             per_key: None,
             per_ip: None,
             client_ip_header: None,
+            quotas: Quotas::none(),
+        })
+    }
+
+    /// Sets storage quotas (none by default; `zafe-relay` uses [`Quotas::hosted`]).
+    pub fn with_quotas(mut self, quotas: Quotas) -> Self {
+        self.quotas = quotas;
+        self
+    }
+
+    /// What `mailbox` stores now.
+    pub fn usage(&self, mailbox: &MailboxId) -> Result<Usage, RelayError> {
+        let db = self.db.lock().expect("lock");
+        let (delivery_bytes, log_bytes) = db
+            .query_row(
+                "SELECT delivery_bytes, log_bytes FROM mailboxes WHERE id = ?1",
+                params![&mailbox[..]],
+                |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?)),
+            )
+            .optional()?
+            .ok_or(RelayError::NotFound)?;
+        let deliveries: i64 = db.query_row(
+            "SELECT COUNT(*) FROM deliveries WHERE mailbox = ?1",
+            params![&mailbox[..]],
+            |r| r.get(0),
+        )?;
+        Ok(Usage {
+            deliveries: deliveries as u64,
+            delivery_bytes: delivery_bytes as u64,
+            log_bytes: log_bytes as u64,
         })
     }
 
@@ -325,12 +374,24 @@ impl Relay {
         if let Some(b) = &self.per_ip {
             b.prune(self.now());
         }
-        let cutoff = self.now().saturating_sub(DELIVERY_RETENTION_SECS);
-        let db = self.db.lock().expect("lock");
-        Ok(db.execute(
+        let cutoff = self.now().saturating_sub(DELIVERY_RETENTION_SECS) as i64;
+        let mut db = self.db.lock().expect("lock");
+        let tx = db.transaction()?;
+        // Give the expired bytes back to each mailbox's counter, then delete. This scans
+        // the expired rows once an hour, never on a request.
+        tx.execute(
+            "UPDATE mailboxes SET delivery_bytes = MAX(0, delivery_bytes - (
+                 SELECT COALESCE(SUM(length(envelope)), 0) FROM deliveries
+                 WHERE mailbox = mailboxes.id AND created_at < ?1))
+             WHERE id IN (SELECT DISTINCT mailbox FROM deliveries WHERE created_at < ?1)",
+            params![cutoff],
+        )?;
+        let deleted = tx.execute(
             "DELETE FROM deliveries WHERE created_at < ?1",
-            params![cutoff as i64],
-        )?)
+            params![cutoff],
+        )?;
+        tx.commit()?;
+        Ok(deleted)
     }
 
     fn now(&self) -> u64 {
@@ -346,6 +407,62 @@ impl Relay {
 }
 
 // --- Storage helpers ---------------------------------------------------------------------
+
+/// Schema 1 → 2: adds the quota counters to `mailboxes` and fills them from the stored
+/// rows (one scan, at startup).
+fn migrate_from_v1(conn: &Connection) -> Result<(), RelayError> {
+    conn.execute_batch(
+        "BEGIN;
+         ALTER TABLE mailboxes ADD COLUMN delivery_bytes INTEGER NOT NULL DEFAULT 0;
+         ALTER TABLE mailboxes ADD COLUMN log_bytes INTEGER NOT NULL DEFAULT 0;
+         UPDATE mailboxes SET
+             delivery_bytes = (SELECT COALESCE(SUM(length(envelope)), 0) FROM deliveries
+                               WHERE mailbox = mailboxes.id),
+             log_bytes = (SELECT COALESCE(SUM(length(entry)), 0) FROM log_entries
+                          WHERE mailbox = mailboxes.id);
+         PRAGMA user_version = 2;
+         COMMIT;",
+    )?;
+    tracing::info!("relay database migrated from schema 1 to 2 (storage counters)");
+    Ok(())
+}
+
+/// Refuses a delivery of `len` bytes to each of `recipients` that would go over a quota.
+fn check_delivery_quotas(
+    tx: &Connection,
+    quotas: &Quotas,
+    mailbox: &MailboxId,
+    recipients: &[[u8; 32]],
+    len: usize,
+) -> Result<(), RelayError> {
+    if let Some(cap) = quotas.delivery_bytes {
+        let used: i64 = tx.query_row(
+            "SELECT delivery_bytes FROM mailboxes WHERE id = ?1",
+            params![&mailbox[..]],
+            |r| r.get(0),
+        )?;
+        let adding = (len as u64).saturating_mul(recipients.len() as u64);
+        if (used as u64).saturating_add(adding) > cap {
+            return Err(RelayError::QuotaExceeded(Quota::Deliveries));
+        }
+    }
+    if let Some(cap) = quotas.envelopes_per_recipient {
+        // Walks at most `cap` entries of the (mailbox, recipient, cursor) index.
+        let mut stmt = tx.prepare_cached(
+            "SELECT COUNT(*) FROM (SELECT 1 FROM deliveries
+             WHERE mailbox = ?1 AND recipient = ?2 LIMIT ?3)",
+        )?;
+        let limit = i64::try_from(cap).unwrap_or(i64::MAX);
+        for recipient in recipients {
+            let n: i64 =
+                stmt.query_row(params![&mailbox[..], &recipient[..], limit], |r| r.get(0))?;
+            if n as u64 >= cap {
+                return Err(RelayError::QuotaExceeded(Quota::Inbox));
+            }
+        }
+    }
+    Ok(())
+}
 
 struct MailboxRow {
     creator: [u8; 32],
@@ -615,6 +732,7 @@ async fn post_envelope(State(relay): State<Relay>, body: Bytes) -> RelayResult {
         params![&h.mailbox[..], &h.from[..], seq],
     )?;
 
+    check_delivery_quotas(&tx, &relay.quotas, &h.mailbox, &recipients, body.len())?;
     let now = relay.now() as i64;
     for recipient in &recipients {
         let cursor: i64 = tx.query_row(
@@ -627,8 +745,9 @@ async fn post_envelope(State(relay): State<Relay>, body: Bytes) -> RelayResult {
             params![&h.mailbox[..], cursor, &recipient[..], &body[..], now],
         )?;
         tx.execute(
-            "UPDATE mailboxes SET next_cursor = next_cursor + 1 WHERE id = ?1",
-            params![&h.mailbox[..]],
+            "UPDATE mailboxes SET next_cursor = next_cursor + 1,
+                 delivery_bytes = delivery_bytes + ?2 WHERE id = ?1",
+            params![&h.mailbox[..], body.len() as i64],
         )?;
     }
 
@@ -733,9 +852,23 @@ async fn log_append(State(relay): State<Relay>, body: Bytes) -> RelayResult {
         .map_err(|_| RelayError::Unauthenticated)?;
     relay.limit_key(&author.sig_pk)?;
     let hash = entry.hash().map_err(|_| RelayError::BadRequest)?;
+    if let Some(cap) = relay.quotas.log_bytes {
+        let used: i64 = tx.query_row(
+            "SELECT log_bytes FROM mailboxes WHERE id = ?1",
+            params![&h.mailbox[..]],
+            |r| r.get(0),
+        )?;
+        if (used as u64).saturating_add(body.len() as u64) > cap {
+            return Err(RelayError::QuotaExceeded(Quota::Log));
+        }
+    }
     tx.execute(
         "INSERT INTO log_entries (mailbox, idx, entry, hash) VALUES (?1, ?2, ?3, ?4)",
         params![&h.mailbox[..], len, &body[..], &hash[..]],
+    )?;
+    tx.execute(
+        "UPDATE mailboxes SET log_bytes = log_bytes + ?2 WHERE id = ?1",
+        params![&h.mailbox[..], body.len() as i64],
     )?;
     // Every other member learns there is vault activity (a proposal, a vote, a send...);
     // the push carries nothing else, the app reads the encrypted log itself.
