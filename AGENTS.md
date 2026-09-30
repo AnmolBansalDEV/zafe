@@ -226,7 +226,7 @@ that Zafe **not look like a copy**. Zafe's visual identity, keep it when resynci
   proposal page and send review); signers as `SignerRow`s with key-derived rounded-square
   `SignerTile`s (hue + mirrored 5x5 pattern from the key; "You" outlined in jade) and
   `ApprovalDots` for votes; pushed pages use a boxed back button with a left-aligned 24 px
-  title. Icon: the vault dial with a Z (`scripts/brand/`).
+  title. Icon: the lime tile with a charcoal Z (`scripts/brand/`).
 - **No Vizor references in code comments** (the user asked); attribution stays in `NOTICE`
   and the licenses page.
 - `ZAFE_FORM_FACTOR` defaults to `mobile` (the phone app previously used desktop tokens
