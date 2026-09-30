@@ -6,7 +6,7 @@ finished ones, tick them and add the commit. Spec references are to `spec.md`.
 
 Legend: `[ ]` open · `[x]` done · **(you)** needs the user · *(idea)* not yet decided
 
-Last updated: 2026-10-01 (Verdigris + Seam brand implemented; note reservation; versioned formats; relay TLS + packaging; wallet DB encryption; incoming payments; pending receipts from the mempool; https invite links + landing site)
+Last updated: 2026-10-01 (Verdigris + Seam brand implemented; note reservation; versioned formats; relay TLS + packaging; wallet DB encryption; incoming payments; pending receipts from the mempool; https invite links + landing site; Astro landing page)
 
 ---
 
@@ -155,6 +155,10 @@ Open
       `build.sh` writes `assetlinks.json` + AASA); release workflow variable. Tested: Dart
       unit tests, merged manifest (host set / unset / malformed), page rendered in a
       browser (light, dark, no invite, reload)
+  - [x] Landing page (2026-10-01): `infra/site` moved to Astro; `/` explains Zafe (hero
+        with the app's Home screen, on-chain comparison with Safe, how it works, security
+        features, honest caveats: testnet, no audit yet, members see everything, keep
+        backups); no JS on it. Checked in a browser at 1280/390 px, light and dark
   - [ ] **(you)** Pick and own the domain, deploy `infra/site` there with the release
         certificate fingerprint, set the `ZAFE_LINK_HOST` repository variable
   - [ ] Check on a device: `pm get-app-links` shows the host verified; a link opens Join

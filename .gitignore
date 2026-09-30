@@ -6,6 +6,8 @@
 *.db
 /scratch
 /infra/site/dist
+/infra/site/node_modules
+/infra/site/.astro
 __pycache__/
 *.pyc
 
