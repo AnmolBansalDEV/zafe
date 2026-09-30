@@ -147,7 +147,15 @@ Open
       not in notifications yet. Checked on the emulator
 - [ ] Member names follow-ups: include names in backups (format bump), use them in
       notifications and the CSV `contact`/proposer columns, or share them via the log
-- [ ] Endpoint settings editable (today: compile-time dart-defines, read-only)
+- [x] Endpoint settings editable (done 2026-09-30): Settings → Relay / Zcash server opens
+      a sheet (format check: https except localhost/127.0.0.1/10.0.2.2 on regtest; then a
+      live test: relay `GET /health`, lightwalletd `GetLightdInfo` incl. network) and
+      "Reset to default". Saved in prefs per network (`zafe_relay_url_<net>`), read in the
+      bootstrap and by background checks; a relay change re-registers the push token.
+      The network stays compile-time. Needs an on-device check
+- [ ] Endpoint settings before the first vault: Settings is only reachable from Home, so
+      a testnet build still pointing at the placeholder relay can't create or join a
+      vault without `ZAFE_RELAY_URL`; offer "Server settings" on the welcome screen
 - [ ] iOS: build and run at all (only Android has been exercised)
 - [ ] iOS: exclude the nonce directory from backups (`isExcludedFromBackup`)
 - [x] Biometric/passcode gate before approving and signing (spec §14; done 2026-09-30,
@@ -316,10 +324,12 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 - [ ] Proposal `created_at` is the proposer's clock (display only, untrusted)
 - [ ] Wallet DB access is serialized with one global lock in the bridge; fine for one
       vault, revisit for multiple vaults
-- [ ] Sync error copy: only "can't reach the network" vs "sync failed, retrying"; no
-      details screen. Upstream typed kinds to copy: `lib/src/providers/sync_failure.dart`
-      (`SyncFailureKind` incl. `torUnavailable`) + `core/formatting/sync_status_label.dart`
-      ("Sync paused" states); Vizor has no details screen either
+- [x] Sync error copy (done 2026-09-30): Home's status names the cause (offline, Zcash
+      server / relay unreachable, TLS, timeout, server behind, wrong network, wallet
+      storage, update needed) from typed bridge errors (`ZafeError.endpoint` +
+      new kinds, classified from error types in `zafe_core::net`); tapping it opens a sheet
+      with the reason, server, last sync, relay last reached, raw detail, "Try again" and
+      "Server settings". Follow-up: a Tor-unavailable kind once Tor lands
 - [x] Copied Vizor `lib/src/core` resynced to `chainapsis/vizor-wallet` @ `4bff2e7`
       (was `ff02152`), keeping Zafe's button semantics; `docs/vizor-reference.md` §11.
       Also adopted: transaction progress screen (`/proposal/:id/send`), activity screen

@@ -20,6 +20,7 @@ import '../vaults/vault_switcher_sheet.dart';
 import '../../providers/privacy_mode_provider.dart';
 import '../../providers/member_names_provider.dart';
 import 'rename_signer_sheet.dart';
+import 'sync_status_sheet.dart';
 import '../../providers/proposals_provider.dart';
 import '../../providers/received_provider.dart';
 import '../../core/privacy/privacy_mask.dart';
@@ -85,13 +86,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final summary = vault.summary;
     if (summary == null) return const SizedBox.shrink();
 
+    // A failure stays on screen while the next attempt runs, so the status doesn't
+    // flicker between "Syncing..." and the error on every poll.
+    final failure = currentSyncFailure(ref);
     final String syncLabel;
-    if (vault.syncing) {
+    if (failure != null) {
+      syncLabel = failure.statusLabel;
+    } else if (vault.syncing) {
       syncLabel = 'Syncing...';
-    } else if (vault.syncError != null) {
-      syncLabel = vault.syncOffline
-          ? 'Can\'t reach the network'
-          : 'Sync failed, retrying';
     } else if (vault.balance != null) {
       syncLabel = 'Synced at ${vault.balance!.height}';
     } else {
@@ -108,10 +110,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               MobileTopNav.account(
                 accountName: summary.name,
                 syncLabel: syncLabel,
-                syncLabelColor: vault.syncError != null
+                syncLabelColor: failure != null
                     ? colors.sync.textError
                     : colors.sync.text,
-                syncAnimated: vault.syncing,
+                syncAnimated: vault.syncing && failure == null,
+                onSyncTap: () => showSyncStatusSheet(context, retry: _refresh),
                 onAccountTap: () => showVaultSwitcher(context),
                 avatar: _VaultAvatar(
                   threshold: summary.threshold,

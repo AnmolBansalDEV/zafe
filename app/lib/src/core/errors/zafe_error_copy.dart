@@ -10,7 +10,10 @@ String zafeErrorMessage(
   if (error is! ZafeError) return fallback;
   return switch (error.kind) {
     ZafeErrorKind.network =>
-      'Network error. Check your connection and try again.',
+      error.endpoint == ZafeEndpoint.none
+          ? 'Network error. Check your connection and try again.'
+          : 'Can\'t reach the ${_server(error.endpoint)}. Check your connection '
+                'and try again.',
     ZafeErrorKind.notReady => _sentence(error.message),
     ZafeErrorKind.timeout =>
       'Other signers haven\'t answered yet. Ask them to open Zafe, then try again.',
@@ -27,9 +30,27 @@ String zafeErrorMessage(
     ZafeErrorKind.relayOutdated =>
       'The relay server runs an older version of Zafe than this app. '
           'Ask whoever runs it to update it.',
+    ZafeErrorKind.tls =>
+      'Couldn\'t connect securely to the ${_server(error.endpoint)}. '
+          'Check its address in Settings.',
+    ZafeErrorKind.networkTimeout =>
+      'The ${_server(error.endpoint)} didn\'t answer in time. Try again.',
+    ZafeErrorKind.serverBehind =>
+      'The Zcash server is behind this wallet. Wait a moment, or pick another '
+          'server in Settings.',
+    ZafeErrorKind.wrongNetwork =>
+      'The Zcash server is on another network. Pick another server in Settings.',
+    ZafeErrorKind.walletDatabase =>
+      'This phone couldn\'t read the vault\'s wallet data. Try again.',
     ZafeErrorKind.other => fallback,
   };
 }
+
+String _server(ZafeEndpoint endpoint) => switch (endpoint) {
+  ZafeEndpoint.relay => 'relay',
+  ZafeEndpoint.lightwalletd => 'Zcash server',
+  ZafeEndpoint.none => 'server',
+};
 
 String _sentence(String message) {
   final m = message.replaceFirst(RegExp(r'^membership is not ready: '), '');

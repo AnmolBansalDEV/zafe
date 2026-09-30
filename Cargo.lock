@@ -4434,6 +4434,7 @@ dependencies = [
  "reddsa",
  "reqwest",
  "rusqlite",
+ "rustls",
  "serde",
  "serde_json",
  "shardtree",

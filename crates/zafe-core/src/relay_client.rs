@@ -17,8 +17,12 @@ use zafe_proto::{
 pub enum RelayClientError {
     #[error("relay returned {status}: {body}")]
     Status { status: u16, body: String },
-    #[error("transport: {0}")]
-    Transport(String),
+    /// The relay could not be reached (or the connection failed part way).
+    #[error("transport: {message}")]
+    Transport {
+        failure: crate::net::NetFailure,
+        message: String,
+    },
     /// The relay is limiting this key or address (HTTP 429).
     #[error("the relay is busy; try again in {retry_after_secs} s")]
     RateLimited { retry_after_secs: u64 },
@@ -76,15 +80,22 @@ pub struct RelayClient {
 
 /// A transport error with its causes, so "invalid peer certificate: UnknownIssuer" isn't
 /// hidden behind reqwest's "error sending request".
-fn transport(e: impl std::error::Error) -> RelayClientError {
-    let mut message = e.to_string();
-    let mut source = e.source();
-    while let Some(cause) = source {
-        message.push_str(": ");
-        message.push_str(&cause.to_string());
-        source = cause.source();
+fn transport(e: impl std::error::Error + 'static) -> RelayClientError {
+    RelayClientError::Transport {
+        failure: crate::net::NetFailure::of(&e),
+        message: crate::net::error_chain(&e),
     }
-    RelayClientError::Transport(message)
+}
+
+/// Time to establish a connection to the relay.
+pub const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+/// Whole request, response included (relay answers are small and never held open).
+pub const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
+fn http_builder() -> reqwest::ClientBuilder {
+    reqwest::Client::builder()
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(REQUEST_TIMEOUT)
 }
 
 fn now() -> u64 {
@@ -101,7 +112,8 @@ impl RelayClient {
     pub fn new(base: impl Into<String>) -> Self {
         Self {
             base: base.into().trim_end_matches('/').to_owned(),
-            http: reqwest::Client::new(),
+            // Only fails if the TLS backend can't initialise; fall back to the defaults.
+            http: http_builder().build().unwrap_or_default(),
         }
     }
 
@@ -113,7 +125,7 @@ impl RelayClient {
         root_der: &[u8],
     ) -> Result<Self, RelayClientError> {
         let root = reqwest::Certificate::from_der(root_der).map_err(transport)?;
-        let http = reqwest::Client::builder()
+        let http = http_builder()
             .add_root_certificate(root)
             .build()
             .map_err(transport)?;
@@ -121,6 +133,26 @@ impl RelayClient {
             base: base.into().trim_end_matches('/').to_owned(),
             http,
         })
+    }
+
+    /// `GET /health`: whether a Zafe relay answers at this URL (200 `ok`).
+    pub async fn health(&self) -> Result<(), RelayClientError> {
+        let response = self
+            .http
+            .get(format!("{}/health", self.base))
+            .send()
+            .await
+            .map_err(transport)?;
+        let status = response.status();
+        let body = response.bytes().await.map_err(transport)?;
+        if status.is_success() && body.as_ref() == b"ok" {
+            Ok(())
+        } else {
+            Err(RelayClientError::Status {
+                status: status.as_u16(),
+                body: String::from_utf8_lossy(&body).chars().take(200).collect(),
+            })
+        }
     }
 
     async fn post(&self, path: &str, body: Vec<u8>) -> Result<Vec<u8>, RelayClientError> {

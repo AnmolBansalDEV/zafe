@@ -8,7 +8,6 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/layout/mobile/mobile_top_nav.dart';
 import '../../core/layout/mobile/mobile_top_scroll_fade.dart';
-import '../../core/config/network_config.dart';
 import '../../core/errors/zafe_error_copy.dart';
 import '../../core/security/unlock_gate.dart';
 import '../../core/storage/zafe_paths.dart';
@@ -17,6 +16,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/app_toast.dart';
+import '../../providers/endpoints_provider.dart';
 import '../../providers/privacy_mode_provider.dart';
 import '../../providers/proposals_provider.dart';
 import '../../providers/received_provider.dart';
@@ -39,7 +39,7 @@ Future<void> exportHistory(BuildContext context, WidgetRef ref) async {
   try {
     final paths = await ZafePaths.get();
     final csv = await rust_history.exportHistoryCsv(
-      relayUrl: kZafeRelayUrl,
+      relayUrl: ref.read(endpointsProvider).relayUrl,
       dbDir: paths.dbDir,
       dbKey: await ZafeSecureStore.instance.walletKey(vault.activeId!),
       seeds: vault.identity!,

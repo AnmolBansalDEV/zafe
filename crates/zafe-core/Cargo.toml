@@ -34,6 +34,8 @@ zeroize.workspace = true
 zip321.workspace = true
 zcash_address.workspace = true
 tonic.workspace = true
+# Only to recognise TLS failures in transport errors (`net::NetFailure`); no provider.
+rustls = { version = "0.23", default-features = false }
 async-trait.workspace = true
 # SQLCipher for the encrypted wallet database, with OpenSSL built from source (static
 # libcrypto) so every target, Android included, needs no system crypto library.

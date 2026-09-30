@@ -54,8 +54,19 @@ pub type Client = CompactTxStreamerClient<Channel>;
 pub enum WalletError {
     #[error("wallet database: {0}")]
     Db(String),
-    #[error("lightwalletd: {0}")]
-    Remote(String),
+    /// lightwalletd could not be reached or answered with an error.
+    #[error("lightwalletd: {message}")]
+    Remote {
+        failure: crate::net::NetFailure,
+        message: String,
+    },
+    /// lightwalletd serves another network than the vault's.
+    #[error("lightwalletd serves {server}, the vault is on {expected}")]
+    WrongNetwork { server: String, expected: String },
+    /// lightwalletd's chain tip is below blocks this wallet already has (it is still
+    /// catching up, or follows another chain).
+    #[error("lightwalletd is at block {server_tip}, behind this wallet ({wallet_tip})")]
+    ServerBehind { server_tip: u32, wallet_tip: u32 },
     #[error("sync: {0}")]
     Sync(String),
     #[error("proposal: {0}")]
@@ -215,27 +226,75 @@ pub async fn connect(endpoint: &str) -> Result<Client, WalletError> {
 }
 
 /// tonic's errors say only "transport error"; keep the causes (e.g. a certificate error).
-fn remote_error(e: &dyn std::error::Error) -> WalletError {
-    let mut message = e.to_string();
-    let mut source = e.source();
-    while let Some(cause) = source {
-        message.push_str(": ");
-        message.push_str(&cause.to_string());
-        source = cause.source();
+fn remote_error(e: &(dyn std::error::Error + 'static)) -> WalletError {
+    WalletError::Remote {
+        failure: crate::net::NetFailure::of(e),
+        message: crate::net::error_chain(e),
     }
-    WalletError::Remote(message)
 }
+
+/// A gRPC call's error status: the server's own answer, or the transport's failure.
+fn status_error(s: &tonic::Status) -> WalletError {
+    WalletError::Remote {
+        failure: crate::net::NetFailure::of_status(s),
+        message: crate::net::error_chain(s),
+    }
+}
+
+/// lightwalletd answered with something unusable.
+fn server_error(message: impl Into<String>) -> WalletError {
+    WalletError::Remote {
+        failure: crate::net::NetFailure::Server,
+        message: message.into(),
+    }
+}
+
+/// Checks that lightwalletd serves the vault's network and is not behind `known_height`
+/// (the highest block the wallet has). Returns its tip. Names are compared as mainnet or
+/// not: test networks (testnet, regtest) don't report names consistently.
+pub async fn check_server(
+    client: &mut Client,
+    network: &str,
+    known_height: Option<u32>,
+) -> Result<u32, WalletError> {
+    let info = client
+        .get_lightd_info(service::Empty {})
+        .await
+        .map_err(|e| status_error(&e))?
+        .into_inner();
+    let is_main = |n: &str| matches!(n, "main" | "mainnet");
+    if !info.chain_name.is_empty() && is_main(&info.chain_name) != is_main(network) {
+        return Err(WalletError::WrongNetwork {
+            server: info.chain_name,
+            expected: network.to_owned(),
+        });
+    }
+    let tip = u32::try_from(info.block_height).map_err(|_| server_error("height out of range"))?;
+    if let Some(known) = known_height {
+        // A few blocks of slack: a server a moment behind another one is normal.
+        if tip.saturating_add(SERVER_LAG_SLACK) < known {
+            return Err(WalletError::ServerBehind {
+                server_tip: tip,
+                wallet_tip: known,
+            });
+        }
+    }
+    Ok(tip)
+}
+
+/// How far lightwalletd may trail the wallet before `check_server` calls it behind.
+const SERVER_LAG_SLACK: u32 = 3;
 
 /// The chain tip height lightwalletd reports.
 pub async fn latest_height(client: &mut Client) -> Result<u32, WalletError> {
     client
         .get_latest_block(service::ChainSpec::default())
         .await
-        .map_err(|e| WalletError::Remote(e.to_string()))?
+        .map_err(|e| status_error(&e))?
         .into_inner()
         .height
         .try_into()
-        .map_err(|_| WalletError::Remote("height out of range".into()))
+        .map_err(|_| server_error("height out of range"))
 }
 
 /// Txids (protocol byte order) of every transaction in lightwalletd's mempool with
@@ -247,10 +306,10 @@ pub async fn mempool_txids(
     let mut stream = client
         .get_mempool_tx(service::GetMempoolTxRequest::default())
         .await
-        .map_err(|e| remote_error(&e))?
+        .map_err(|e| status_error(&e))?
         .into_inner();
     let mut txids = std::collections::BTreeSet::new();
-    while let Some(tx) = stream.message().await.map_err(|e| remote_error(&e))? {
+    while let Some(tx) = stream.message().await.map_err(|e| status_error(&e))? {
         if let Ok(txid) = <[u8; 32]>::try_from(tx.txid.as_slice()) {
             txids.insert(txid);
         }
@@ -330,17 +389,25 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
         let tip: u32 = client
             .get_latest_block(service::ChainSpec::default())
             .await
-            .map_err(|e| WalletError::Remote(e.to_string()))?
+            .map_err(|e| status_error(&e))?
             .into_inner()
             .height
             .try_into()
-            .map_err(|_| WalletError::Remote("height out of range".into()))?;
+            .map_err(|_| server_error("height out of range"))?;
         // Sync downloads the chain state at (range start - 1), and lightwalletd reads a
         // height of 0 as "unspecified", so a wallet cannot be born at height 1.
         if birthday_height < 2 {
-            return Err(WalletError::Remote(
+            return Err(WalletError::Sync(
                 "birthday height must be at least 2".into(),
             ));
+        }
+        // The creator picks the birthday as its server's tip + 1: a server whose tip is
+        // below that is behind (or on another chain) and has no tree state for it.
+        if birthday_height > tip.saturating_add(1) {
+            return Err(WalletError::ServerBehind {
+                server_tip: tip,
+                wallet_tip: birthday_height - 1,
+            });
         }
         let treestate = client
             .get_tree_state(service::BlockId {
@@ -348,10 +415,10 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
                 ..Default::default()
             })
             .await
-            .map_err(|e| WalletError::Remote(e.to_string()))?
+            .map_err(|e| status_error(&e))?
             .into_inner();
         let birthday = AccountBirthday::from_treestate(treestate, Some(BlockHeight::from_u32(tip)))
-            .map_err(|e| WalletError::Remote(format!("birthday: {e:?}")))?;
+            .map_err(|e| server_error(format!("birthday: {e:?}")))?;
 
         let created = (|| {
             let mut db = open_wallet_db(path, key, params.clone())?;
@@ -417,7 +484,12 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
     pub async fn sync(&mut self, client: &mut Client) -> Result<(), WalletError> {
         sync::run(client, &self.params, &self.cache, &mut self.db, 1000)
             .await
-            .map_err(|e| WalletError::Sync(format!("{e:?}")))
+            .map_err(|e| match e {
+                sync::Error::Server(s) => status_error(&s),
+                sync::Error::MisbehavingServer => server_error("lightwalletd sent invalid data"),
+                sync::Error::Wallet(e) => db_err(e),
+                e => WalletError::Sync(format!("{e:?}")),
+            })
     }
 
     /// The network this wallet is on.

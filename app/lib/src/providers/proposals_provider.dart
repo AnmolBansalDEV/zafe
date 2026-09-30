@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../core/config/network_config.dart';
+import '../core/config/endpoints.dart';
 import '../core/errors/zafe_error_copy.dart';
 import '../core/storage/zafe_paths.dart';
 import '../core/storage/zafe_secure_store.dart';
@@ -13,6 +13,7 @@ import '../notifications/vault_watch.dart' show recordSeen;
 import '../features/proposals/proposal_status.dart' show proposalExpired;
 import '../rust/api/error.dart';
 import '../rust/api/proposals.dart' as rust;
+import 'endpoints_provider.dart';
 import 'vault_provider.dart';
 
 /// A send in progress (or just failed) on this device.
@@ -39,11 +40,17 @@ class ProposalsState {
     this.error,
     this.sends = const {},
     this.newerVersionEntries = 0,
+    this.refreshedAt,
   });
 
   final List<rust.ProposalInfo> items;
   final bool loaded;
+
+  /// Why the last refresh failed (usually the relay); cleared by the next success.
   final Object? error;
+
+  /// Last successful refresh (this session).
+  final DateTime? refreshedAt;
 
   /// Sends started on this device, by proposal id.
   final Map<String, SendState> sends;
@@ -65,12 +72,14 @@ class ProposalsState {
     bool clearError = false,
     Map<String, SendState>? sends,
     int? newerVersionEntries,
+    DateTime? refreshedAt,
   }) => ProposalsState(
     items: items ?? this.items,
     loaded: loaded ?? this.loaded,
     error: clearError ? null : (error ?? this.error),
     sends: sends ?? this.sends,
     newerVersionEntries: newerVersionEntries ?? this.newerVersionEntries,
+    refreshedAt: refreshedAt ?? this.refreshedAt,
   );
 }
 
@@ -101,6 +110,8 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
 
   VaultState get _vault => ref.read(vaultProvider);
 
+  ZafeEndpoints get _endpoints => ref.read(endpointsProvider);
+
   /// Synced chain tip of the active vault (null before the first sync).
   int? get _height => _vault.balance?.height;
 
@@ -111,7 +122,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
     try {
       final paths = await ZafePaths.get();
       final list = await rust.listProposals(
-        relayUrl: kZafeRelayUrl,
+        relayUrl: _endpoints.relayUrl,
         stateDir: await paths.stateDir(vault.activeId!),
         seeds: vault.identity!,
         material: vault.material!,
@@ -123,6 +134,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
         loaded: true,
         clearError: true,
         newerVersionEntries: list.newerVersionEntries,
+        refreshedAt: DateTime.now(),
       );
       // Seen on screen: never announced from the background. Only while the app is in
       // the foreground; a refresh running in the background must not swallow news.
@@ -183,8 +195,8 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
     final vault = _vault;
     try {
       await rust.answerSigningRequests(
-        relayUrl: kZafeRelayUrl,
-        lightwalletdUrl: kZafeLightwalletdUrl,
+        relayUrl: _endpoints.relayUrl,
+        lightwalletdUrl: _endpoints.lightwalletdUrl,
         dbDir: paths.dbDir,
         dbKey: await ZafeSecureStore.instance.walletKey(vault.activeId!),
         stateDir: await paths.stateDir(vault.activeId!),
@@ -204,8 +216,8 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
     final vault = _vault;
     final paths = await ZafePaths.get();
     final id = await rust.proposePayment(
-      relayUrl: kZafeRelayUrl,
-      lightwalletdUrl: kZafeLightwalletdUrl,
+      relayUrl: _endpoints.relayUrl,
+      lightwalletdUrl: _endpoints.lightwalletdUrl,
       dbDir: paths.dbDir,
       dbKey: await ZafeSecureStore.instance.walletKey(vault.activeId!),
       seeds: vault.identity!,
@@ -221,8 +233,8 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
     final vault = _vault;
     final paths = await ZafePaths.get();
     return rust.reviewProposal(
-      relayUrl: kZafeRelayUrl,
-      lightwalletdUrl: kZafeLightwalletdUrl,
+      relayUrl: _endpoints.relayUrl,
+      lightwalletdUrl: _endpoints.lightwalletdUrl,
       dbDir: paths.dbDir,
       dbKey: await ZafeSecureStore.instance.walletKey(vault.activeId!),
       seeds: vault.identity!,
@@ -237,8 +249,8 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
     final vault = _vault;
     final paths = await ZafePaths.get();
     final result = await rust.approveProposal(
-      relayUrl: kZafeRelayUrl,
-      lightwalletdUrl: kZafeLightwalletdUrl,
+      relayUrl: _endpoints.relayUrl,
+      lightwalletdUrl: _endpoints.lightwalletdUrl,
       dbDir: paths.dbDir,
       dbKey: await ZafeSecureStore.instance.walletKey(vault.activeId!),
       stateDir: await paths.stateDir(vault.activeId!),
@@ -257,7 +269,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
   Future<void> reject(String id) async {
     final vault = _vault;
     await rust.rejectProposal(
-      relayUrl: kZafeRelayUrl,
+      relayUrl: _endpoints.relayUrl,
       seeds: vault.identity!,
       material: vault.material!,
       proposalId: id,
@@ -269,7 +281,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
   Future<void> cancel(String id) async {
     final vault = _vault;
     await rust.cancelProposal(
-      relayUrl: kZafeRelayUrl,
+      relayUrl: _endpoints.relayUrl,
       seeds: vault.identity!,
       material: vault.material!,
       proposalId: id,
@@ -300,8 +312,8 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
     await _subscriptions.remove(id)?.cancel();
     _subscriptions[id] = rust
         .sendProposal(
-          relayUrl: kZafeRelayUrl,
-          lightwalletdUrl: kZafeLightwalletdUrl,
+          relayUrl: _endpoints.relayUrl,
+          lightwalletdUrl: _endpoints.lightwalletdUrl,
           dbDir: paths.dbDir,
           dbKey: await ZafeSecureStore.instance.walletKey(vault.activeId!),
           stateDir: await paths.stateDir(vault.activeId!),
