@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- background.window (light); the dark value is in values-night. -->
+    <color name="zafe_window">#F3F5F9</color>
+</resources>

@@ -161,6 +161,26 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   preview_test.dart` hardcodes the window colours too: update all three together.
 - Art is also used outside onboarding: backup/export/restore banners, the sending screen's
   full-page background (`IllustrationBackground`), the Activity empty state.
+- **App icon and splash** are generated the same way: `scripts/brand/brand.py` (vault dial:
+  ticks, gold index, jade bezel, geometric Z) writes `app/tool/brand/svg/`, and
+  `scripts/brand/icons.sh` renders them with flutter_svg (`app/tool/brand/render_test.dart`)
+  into `mipmap-*/ic_launcher{,_foreground,_background,_monochrome}.png`,
+  `drawable{,-night}-*/splash_{icon,mark}.png`, iOS `AppIcon.appiconset` (alpha stripped
+  with ImageMagick) and `LaunchImage.imageset` (light + dark). Preview:
+  `app/build/brand_preview/brand_sheet.png`. The splash colour is `@color/zafe_window`
+  (`values{,-night}/colors.xml`, also the NormalTheme window background) and the iOS
+  `LaunchBackground` colour set; keep them equal to `background.window`. Android 12+ splash
+  attributes sit in the base `styles.xml` with `tools:targetApi="31"` (no `values-v31`).
+  Check resources without a Gradle build: `aapt2 compile --dir res` + `aapt2 link` against
+  `platforms/android-36/android.jar`.
+- **Screen previews without a device**: `flutter test tool/screens/proposal_render_test.dart`
+  (from `app/`) pumps the proposal body, payment card and signer rows with fake data (fonts
+  loaded with `FontLoader`, `proposalReviewProvider` overridden) and writes
+  `app/build/screen_preview/*_{dark,light}.png`. Widgets that call Rust (`vault.summary`,
+  `myKeyHex`) can't be pumped, so keep screen bodies in public widgets that take plain data
+  (`features/proposals/proposal_parts.dart`).
+- In a fresh worktree `flutter analyze` reports errors in `rust_builder/cargokit/build_tool`
+  until `dart pub get` is run in that directory.
 
 ## Regtest (infra/regtest)
 
@@ -192,7 +212,11 @@ that Zafe **not look like a copy**. Zafe's visual identity, keep it when resynci
 - **Shapes**: rounded-rectangle buttons (`zafeButtonRadius`: 14 / 10 / 8), card radius 20,
   rounded-square icon tiles and avatars instead of circles.
 - **Signature pieces**: home "vault card" (safe-dial rings + jade glow, signer-dot threshold
-  strip); pushed pages use a boxed back button with a left-aligned 24 px title.
+  strip); the same dark card for payments (`PaymentCard` in `core/widgets/mobile/zafe_detail.dart`,
+  proposal page and send review); signers as `SignerRow`s with key-derived rounded-square
+  `SignerTile`s (hue + mirrored 5x5 pattern from the key; "You" outlined in jade) and
+  `ApprovalDots` for votes; pushed pages use a boxed back button with a left-aligned 24 px
+  title. Icon: the vault dial with a Z (`scripts/brand/`).
 - **No Vizor references in code comments** (the user asked); attribution stays in `NOTICE`
   and the licenses page.
 - `ZAFE_FORM_FACTOR` defaults to `mobile` (the phone app previously used desktop tokens
