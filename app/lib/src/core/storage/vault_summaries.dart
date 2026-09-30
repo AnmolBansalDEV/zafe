@@ -11,12 +11,16 @@ class VaultSummaryInfo {
     this.balanceZat,
     this.actionable = 0,
     this.backedUp = false,
+    this.syncedAt,
   });
   final BigInt? balanceZat;
   final int actionable;
 
   /// A backup of this device's copy exists (exported here, or restored from one).
   final bool backedUp;
+
+  /// Last successful wallet sync (by the app or a background check).
+  final DateTime? syncedAt;
 }
 
 class VaultSummaries {
@@ -32,6 +36,9 @@ class VaultSummaries {
             : BigInt.parse(j['balance'] as String),
         actionable: (j['actionable'] as int?) ?? 0,
         backedUp: (j['backedUp'] as bool?) ?? false,
+        syncedAt: j['syncedAt'] is int
+            ? DateTime.fromMillisecondsSinceEpoch(j['syncedAt'] as int)
+            : null,
       );
     } catch (_) {
       return const VaultSummaryInfo();
@@ -47,6 +54,7 @@ class VaultSummaries {
     BigInt? balanceZat,
     int? actionable,
     bool? backedUp,
+    DateTime? syncedAt,
   }) {
     final next = _queue.then((_) async {
       try {
@@ -62,6 +70,7 @@ class VaultSummaries {
             'balance': (balanceZat ?? old.balanceZat)?.toString(),
             'actionable': actionable ?? old.actionable,
             'backedUp': backedUp ?? old.backedUp,
+            'syncedAt': (syncedAt ?? old.syncedAt)?.millisecondsSinceEpoch,
           }),
         );
         await tmp.rename(f.path);

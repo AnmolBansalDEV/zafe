@@ -35,6 +35,7 @@ class MobileTopNav extends StatelessWidget {
     this.syncHighlightColor,
     this.avatar,
     this.onAccountTap,
+    this.onSyncTap,
     super.key,
   }) : _variant = _MobileTopNavVariant.account,
        title = '',
@@ -63,6 +64,7 @@ class MobileTopNav extends StatelessWidget {
        syncHighlightColor = null,
        avatar = null,
        onAccountTap = null,
+       onSyncTap = null,
        title = '',
        titleStyle = null,
        titleMaxLines = 1,
@@ -91,6 +93,7 @@ class MobileTopNav extends StatelessWidget {
        syncHighlightColor = null,
        avatar = null,
        onAccountTap = null,
+       onSyncTap = null,
        progress = 0,
        showBackButton = true;
 
@@ -119,6 +122,9 @@ class MobileTopNav extends StatelessWidget {
   /// surface circle until real profile pictures are wired in.
   final Widget? avatar;
   final VoidCallback? onAccountTap;
+
+  /// Account variant: tapping the sync status (e.g. to explain a failure).
+  final VoidCallback? onSyncTap;
 
   /// Steps variant: progress through the flow, 0.0–1.0.
   final double progress;
@@ -211,18 +217,35 @@ class MobileTopNav extends StatelessWidget {
           child: Align(alignment: Alignment.centerLeft, child: account),
         ),
         if (syncLabel != null)
-          _SyncStatus(
-            label: syncLabel!,
-            baseColor: syncLabelColor ?? colors.sync.text,
-            highlightColor:
-                syncHighlightColor ?? syncLabelColor ?? colors.sync.text,
-            indicatorColor: syncIndicatorColor ?? colors.sync.glow,
-            indicatorSize: _syncIndicatorSize,
-            animated: syncAnimated,
+          _tappableSync(
+            _SyncStatus(
+              label: syncLabel!,
+              baseColor: syncLabelColor ?? colors.sync.text,
+              highlightColor:
+                  syncHighlightColor ?? syncLabelColor ?? colors.sync.text,
+              indicatorColor: syncIndicatorColor ?? colors.sync.glow,
+              indicatorSize: _syncIndicatorSize,
+              animated: syncAnimated,
+            ),
           )
         else
           const SizedBox(width: AppSpacing.sm),
       ],
+    );
+  }
+
+  Widget _tappableSync(Widget status) {
+    final onTap = onSyncTap;
+    if (onTap == null) return status;
+    return Semantics(
+      button: true,
+      onTap: onTap,
+      child: GestureDetector(
+        key: const ValueKey('mobile_top_nav_sync'),
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: status,
+      ),
     );
   }
 

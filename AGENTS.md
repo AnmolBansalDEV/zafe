@@ -436,12 +436,25 @@ Learned while studying it:
   `lib/src/{providers,features}`, `lib/src/app.dart` (GoRouter + redirect on vault state),
   `lib/main.dart` (RustLib.init → `VaultBootstrap.load()` → ProviderScope override).
   Secrets (identity, invite, key material) live in `flutter_secure_storage` via
-  `core/storage/zafe_secure_store.dart`. Network/relay/lightwalletd come from dart-defines
-  (`ZAFE_NETWORK`, default regtest) in `core/config/network_config.dart`: presets per
-  network (`regtest` local http; `test`/`testnet`: zec.rocks TLS lightwalletd + a
-  placeholder relay `https://relay.zafe.invalid` until one is deployed, shown as "Not
-  configured" in Settings), overridden by `ZAFE_RELAY_URL` / `ZAFE_LIGHTWALLETD_URL`.
-  Dart const expressions can't read fields of const objects, hence the parallel consts.
+  `core/storage/zafe_secure_store.dart`. The **network** is compile-time (`ZAFE_NETWORK`,
+  default regtest, `core/config/network_config.dart`). Relay/lightwalletd **defaults**
+  come from the build: presets per network (`regtest` local http; `test`/`testnet`:
+  zec.rocks TLS lightwalletd + a placeholder relay `https://relay.zafe.invalid` until one
+  is deployed, shown as "Not configured" in Settings), overridden by the dart-defines
+  `ZAFE_RELAY_URL` / `ZAFE_LIGHTWALLETD_URL`. Dart const expressions can't read fields of
+  const objects, hence the parallel consts. **At runtime** the user can override either
+  URL in Settings (`features/settings/endpoint_sheet.dart`): `core/config/endpoints.dart`
+  (`ZafeEndpoints`, `checkEndpointUrl`: https required except localhost/127.0.0.1/
+  10.0.2.2 on regtest; path/query refused; typed ports kept, since Dart's `Uri` drops a
+  default `:443`) stores them in prefs keyed per network (`zafe_relay_url_<net>`,
+  `zafe_lightwalletd_url_<net>`; saving the default removes the key). The sheet tests
+  the URL first (bridge `api/endpoints.rs`: `check_relay` = `GET /health` must answer
+  `ok`; `check_lightwalletd` = `GetLightdInfo`, network must match). **Never use
+  `kZafeRelayUrl`/`kZafeLightwalletdUrl` directly**: UI code reads
+  `ref.read(endpointsProvider)` (from the bootstrap), background checks use
+  `ZafeEndpoints.fromPrefs(prefs)` after `prefs.reload()` (prefs cache per isolate). A
+  relay change re-registers the push token (`reregisterPush`). All members of a vault
+  must use the same relay.
 - **Bridge errors are typed**: API functions return `Result<T, ZafeError>` (`api/error.rs`,
   `kind` + `message`); Dart maps `ZafeErrorKind` to copy in `core/errors/zafe_error_copy.dart`.
   FRB treats a `type Result<T> = ...` alias as **anyhow** — always write
@@ -504,8 +517,26 @@ Learned while studying it:
   `xyz.zafe/haptics` and `window_appearance` have none yet (Dart swallows
   `MissingPluginException`). Check with `adb shell dumpsys window windows | grep SECURE`.
 - Settings (`/settings`, opened from the vault name on home): vault info, signer key,
-  hide amounts, theme (`themeModeProvider`, persisted), endpoints (read-only; compile-time
-  dart-defines), open-source licenses (fonts + NOTICE registered in `main.dart`).
+  hide amounts, theme (`themeModeProvider`, persisted), endpoints (editable, see above),
+  open-source licenses (fonts + NOTICE registered in `main.dart`).
+- **Sync failures** (`core/errors/sync_failure.dart`, pure, `test/sync_failure_test.dart`):
+  `homeSyncFailure(syncError:, relayError:)` combines the last wallet sync error
+  (`VaultState.syncError`, kept while the next attempt runs so the label doesn't flicker)
+  and the last vault refresh error (`ProposalsState.error`) into a `SyncFailureKind`
+  (both unreachable = offline). Home's top-nav status shows `statusLabel`; tapping it
+  (`MobileTopNav.onSyncTap`) opens `features/home/sync_status_sheet.dart`. Last sync time
+  is `VaultState.syncedAt` / `summary.json` `syncedAt` (also written by background
+  checks). Classification is typed end to end: `zafe_core::net::NetFailure` reads error
+  **types** (rustls error inside `io::Error::get_ref`, `io::ErrorKind::TimedOut`,
+  `tonic::TimeoutExpired`/`Cancelled`, reqwest `is_timeout`, non-transport gRPC codes =
+  `Server`) into `WalletError::Remote { failure }` / `RelayClientError::Transport
+  { failure }`; `wallet::check_server` (run by `sync_vault`) turns `GetLightdInfo` into
+  `WrongNetwork` (mainnet vs not only: test networks report names inconsistently) or
+  `ServerBehind` (tip + 3 < wallet's known chain tip); `VaultWallet::create` reports a
+  birthday above the server tip + 1 as `ServerBehind`. The bridge maps them to
+  `ZafeErrorKind::{Network, Tls, NetworkTimeout, ServerBehind, WrongNetwork,
+  WalletDatabase}` plus `ZafeError.endpoint` (`Relay`/`Lightwalletd`/`None`). The relay
+  client now has a 10 s connect / 60 s request timeout (it had none).
 - **Unlock gate** (spec §14; `core/security/device_auth.dart` pure logic behind a
   `DeviceAuthenticator`, `core/security/unlock_gate.dart` `confirmUnlock(context, ref,
   reason:)`, `providers/device_lock_provider.dart`): approving, Send now / Collect

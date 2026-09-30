@@ -5,14 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/config/endpoints.dart';
 import '../core/config/network_config.dart';
 import '../core/errors/zafe_error_copy.dart';
 import '../core/storage/vault_summaries.dart';
 import '../core/storage/zafe_paths.dart';
 import '../core/storage/zafe_secure_store.dart';
-import '../rust/api/error.dart';
 import '../rust/api/vault.dart' as rust;
 import 'device_lock_provider.dart' show kRequireUnlockKey;
+import 'endpoints_provider.dart';
 import 'privacy_mode_provider.dart' show kPrivacyModeKey;
 import 'theme_mode_provider.dart' show kThemeModeKey, themeModeFromName;
 
@@ -27,12 +28,14 @@ class VaultBootstrap {
     this.privacyMode = false,
     this.themeMode = ThemeMode.system,
     this.requireUnlock = true,
+    this.endpoints = ZafeEndpoints.defaults,
   });
   final List<StoredVault> vaults;
   final String? activeId;
   final bool privacyMode;
   final ThemeMode themeMode;
   final bool requireUnlock;
+  final ZafeEndpoints endpoints;
 
   /// Needs Rust initialized (parses the legacy invite when migrating).
   static Future<VaultBootstrap> load() async {
@@ -56,6 +59,7 @@ class VaultBootstrap {
       privacyMode: prefs.getBool(kPrivacyModeKey) ?? false,
       themeMode: themeModeFromName(prefs.getString(kThemeModeKey)),
       requireUnlock: prefs.getBool(kRequireUnlockKey) ?? true,
+      endpoints: ZafeEndpoints.fromPrefs(prefs),
     );
   }
 }
@@ -73,6 +77,7 @@ class VaultState {
     this.balances = const {},
     this.syncing = false,
     this.syncError,
+    this.syncedAt = const {},
   });
 
   /// Every vault on this device, in the order added (ready and still setting up).
@@ -93,6 +98,10 @@ class VaultState {
   /// Last sync failure (a `ZafeError` from Rust), cleared by the next successful sync.
   final Object? syncError;
 
+  /// When each vault last synced successfully in this session (older ones: the vault's
+  /// `summary.json`).
+  final Map<String, DateTime> syncedAt;
+
   StoredVault? get active {
     for (final v in vaults) {
       if (v.id == activeId) return v;
@@ -104,10 +113,6 @@ class VaultState {
   String? get invite => active?.invite;
   Uint8List? get material => active?.material;
   rust.Balance? get balance => activeId == null ? null : balances[activeId];
-
-  bool get syncOffline =>
-      syncError is ZafeError &&
-      (syncError as ZafeError).kind == ZafeErrorKind.network;
 
   bool get hasVault => material != null;
   bool get isSettingUp => !hasVault && invite != null;
@@ -132,6 +137,7 @@ class VaultState {
     bool? syncing,
     Object? syncError,
     bool clearSyncError = false,
+    Map<String, DateTime>? syncedAt,
   }) => VaultState(
     vaults: vaults ?? this.vaults,
     activeId: clearActive ? null : (activeId ?? this.activeId),
@@ -140,6 +146,7 @@ class VaultState {
     balances: balances ?? this.balances,
     syncing: syncing ?? this.syncing,
     syncError: clearSyncError ? null : (syncError ?? this.syncError),
+    syncedAt: syncedAt ?? this.syncedAt,
   );
 }
 
@@ -150,6 +157,8 @@ const _syncTimeout = Duration(minutes: 6);
 
 class VaultNotifier extends Notifier<VaultState> {
   final _store = ZafeSecureStore.instance;
+
+  ZafeEndpoints get _endpoints => ref.read(endpointsProvider);
 
   @override
   VaultState build() {
@@ -209,7 +218,7 @@ class VaultNotifier extends Notifier<VaultState> {
     // A fresh member identity per vault, so the relay can't link memberships.
     final id = rust.generateIdentity();
     final invite = await rust.createVault(
-      relayUrl: kZafeRelayUrl,
+      relayUrl: _endpoints.relayUrl,
       seeds: id.seeds,
       name: name,
       threshold: threshold,
@@ -235,7 +244,7 @@ class VaultNotifier extends Notifier<VaultState> {
     }
     final id = rust.generateIdentity();
     await rust.joinVault(
-      relayUrl: kZafeRelayUrl,
+      relayUrl: _endpoints.relayUrl,
       seeds: id.seeds,
       invite: trimmed,
     );
@@ -264,7 +273,7 @@ class VaultNotifier extends Notifier<VaultState> {
 
   Future<rust.MembershipInfo> refreshMembership() async {
     final membership = await rust.vaultMembership(
-      relayUrl: kZafeRelayUrl,
+      relayUrl: _endpoints.relayUrl,
       seeds: state.identity!,
       invite: state.invite!,
     );
@@ -274,7 +283,7 @@ class VaultNotifier extends Notifier<VaultState> {
 
   Future<void> seal() async {
     await rust.sealVault(
-      relayUrl: kZafeRelayUrl,
+      relayUrl: _endpoints.relayUrl,
       seeds: state.identity!,
       invite: state.invite!,
     );
@@ -286,8 +295,8 @@ class VaultNotifier extends Notifier<VaultState> {
   Future<void> createKeys(String safetyNumber) async {
     final vaultId = state.activeId!;
     final material = await rust.runKeygen(
-      relayUrl: kZafeRelayUrl,
-      lightwalletdUrl: kZafeLightwalletdUrl,
+      relayUrl: _endpoints.relayUrl,
+      lightwalletdUrl: _endpoints.lightwalletdUrl,
       networkName: kZafeNetwork,
       seeds: state.identity!,
       invite: state.invite!,
@@ -327,26 +336,37 @@ class VaultNotifier extends Notifier<VaultState> {
     if (material == null || seeds == null || vaultId == null || state.syncing) {
       return;
     }
-    state = state.copyWith(syncing: true, clearSyncError: true);
+    // Keep the last error on screen while retrying, so the status doesn't flicker
+    // between "Syncing..." and the failure every poll.
+    state = state.copyWith(syncing: true);
     try {
       final balance = await () async {
         final paths = await ZafePaths.get();
         return rust.syncVault(
           dbDir: paths.dbDir,
           dbKey: await ZafeSecureStore.instance.walletKey(vaultId),
-          lightwalletdUrl: kZafeLightwalletdUrl,
-          relayUrl: kZafeRelayUrl,
+          lightwalletdUrl: _endpoints.lightwalletdUrl,
+          relayUrl: _endpoints.relayUrl,
           seeds: seeds,
           material: material,
         );
         // A pass is capped at 5 minutes in Rust; this guard frees `syncing` if anything
         // else never answers (seen once on the first sync after keygen, 2026-09-30).
       }().timeout(_syncTimeout);
+      final now = DateTime.now();
       state = state.copyWith(
         balances: {...state.balances, vaultId: balance},
         syncing: false,
+        clearSyncError: true,
+        syncedAt: {...state.syncedAt, vaultId: now},
       );
-      unawaited(VaultSummaries.write(vaultId, balanceZat: balance.totalZat));
+      unawaited(
+        VaultSummaries.write(
+          vaultId,
+          balanceZat: balance.totalZat,
+          syncedAt: now,
+        ),
+      );
     } catch (e) {
       debugPrint('sync failed: ${describeError(e)}');
       state = state.copyWith(syncing: false, syncError: e);

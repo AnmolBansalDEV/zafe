@@ -11,11 +11,11 @@ use rand::rngs::OsRng;
 use zafe_core::{
     node::{self, Invite, VaultMaterial},
     relay_client::RelayClient,
-    wallet::{connect, latest_height, VaultWallet, WalletKey, ZafeNetwork},
+    wallet::{check_server, connect, latest_height, VaultWallet, WalletKey, ZafeNetwork},
 };
 use zafe_proto::{Identity, IdentitySeeds, ProtoError};
 
-use super::error::{ZafeError, ZafeErrorKind};
+use super::error::{ZafeEndpoint, ZafeError, ZafeErrorKind};
 
 type Result<T, E = ZafeError> = std::result::Result<T, E>;
 
@@ -340,15 +340,19 @@ pub fn sync_vault(
     runtime().block_on(async {
         let mut wallet = open_wallet(&db_dir, &db_key, &lightwalletd_url, &m).await?;
         let mut client = connect(&lightwalletd_url).await?;
+        // A server on another network or behind this wallet would fail the sync with an
+        // obscure error (or none): say so instead.
+        check_server(&mut client, &m.descriptor.network, wallet.chain_height()?).await?;
         // One pass is capped so a stalled stream can't hold the wallet lock forever; sync is
         // incremental, so the next pass continues where this one stopped.
         tokio::time::timeout(SYNC_PASS_TIMEOUT, wallet.sync(&mut client))
             .await
             .map_err(|_| {
                 ZafeError::new(
-                    ZafeErrorKind::Network,
+                    ZafeErrorKind::NetworkTimeout,
                     "sync took too long; it will continue on the next try",
                 )
+                .at(ZafeEndpoint::Lightwalletd)
             })??;
         if wallet.chain_height()?.is_some() {
             // Locks persist in the wallet database, so a failure keeps the last holds.

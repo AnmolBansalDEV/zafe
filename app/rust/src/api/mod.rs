@@ -1,5 +1,6 @@
 pub mod app;
 pub mod backup;
+pub mod endpoints;
 pub mod error;
 pub mod history;
 pub mod names;

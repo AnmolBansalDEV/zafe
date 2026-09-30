@@ -7,6 +7,7 @@
 // ignore_for_file: argument_type_not_assignable
 
 import 'api/backup.dart';
+import 'api/endpoints.dart';
 import 'api/error.dart';
 import 'api/history.dart';
 import 'api/names.dart';
@@ -176,6 +177,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   VaultSummary dco_decode_vault_summary(dynamic raw);
 
   @protected
+  ZafeEndpoint dco_decode_zafe_endpoint(dynamic raw);
+
+  @protected
   ZafeError dco_decode_zafe_error(dynamic raw);
 
   @protected
@@ -339,6 +343,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   VaultSummary sse_decode_vault_summary(SseDeserializer deserializer);
+
+  @protected
+  ZafeEndpoint sse_decode_zafe_endpoint(SseDeserializer deserializer);
 
   @protected
   ZafeError sse_decode_zafe_error(SseDeserializer deserializer);
@@ -540,6 +547,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_vault_summary(VaultSummary self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_zafe_endpoint(ZafeEndpoint self, SseSerializer serializer);
 
   @protected
   void sse_encode_zafe_error(ZafeError self, SseSerializer serializer);

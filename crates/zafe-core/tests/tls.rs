@@ -120,6 +120,16 @@ async fn relay_client_rejects_an_untrusted_certificate() {
         err.to_string().to_lowercase().contains("certificate"),
         "{err}"
     );
+    assert!(
+        matches!(
+            err,
+            zafe_core::relay_client::RelayClientError::Transport {
+                failure: zafe_core::net::NetFailure::Tls,
+                ..
+            }
+        ),
+        "{err:?}"
+    );
     // The client did start a TLS handshake, and aborted it.
     assert!(matches!(server.handshakes.recv().await, Some(Err(_))));
 }
@@ -138,6 +148,16 @@ async fn relay_client_checks_the_hostname() {
         err.to_string().to_lowercase().contains("certificate"),
         "{err}"
     );
+    assert!(
+        matches!(
+            err,
+            zafe_core::relay_client::RelayClientError::Transport {
+                failure: zafe_core::net::NetFailure::Tls,
+                ..
+            }
+        ),
+        "{err:?}"
+    );
     assert!(matches!(server.handshakes.recv().await, Some(Err(_))));
 }
 
@@ -152,6 +172,16 @@ async fn lightwalletd_client_uses_tls_for_https() {
     assert!(
         err.to_string().to_lowercase().contains("certificate"),
         "{err}"
+    );
+    assert!(
+        matches!(
+            err,
+            wallet::WalletError::Remote {
+                failure: zafe_core::net::NetFailure::Tls,
+                ..
+            }
+        ),
+        "{err:?}"
     );
     assert!(matches!(server.handshakes.recv().await, Some(Err(_))));
 }

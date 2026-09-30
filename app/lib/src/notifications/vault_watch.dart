@@ -9,7 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
-import '../core/config/network_config.dart';
+import '../core/config/endpoints.dart';
 import '../core/errors/zafe_error_copy.dart';
 import '../core/storage/member_names.dart';
 import '../core/storage/vault_summaries.dart';
@@ -120,27 +120,40 @@ Future<void> _registerPush() async {
   final messaging = FirebaseMessaging.instance;
   FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
   await messaging.requestPermission();
-  // Every vault on this device, each with its own member identity.
-  Future<void> register(String token) async {
-    for (final v in await ZafeSecureStore.instance.readAll()) {
-      if (!v.ready) continue;
-      try {
-        await rust_vault.registerPush(
-          relayUrl: kZafeRelayUrl,
-          seeds: v.identity!,
-          material: v.material!,
-          platform: Platform.isIOS ? 'apns' : 'fcm',
-          token: token,
-        );
-      } catch (e) {
-        debugPrint('push: register failed for ${v.id}: ${describeError(e)}');
-      }
+  final token = await messaging.getToken();
+  if (token != null) await _registerToken(token);
+  messaging.onTokenRefresh.listen(_registerToken);
+}
+
+/// Registers the push token for every vault on this device (each with its own member
+/// identity) with the relay currently configured.
+Future<void> _registerToken(String token) async {
+  final relayUrl = (await ZafeEndpoints.load(reload: true)).relayUrl;
+  for (final v in await ZafeSecureStore.instance.readAll()) {
+    if (!v.ready) continue;
+    try {
+      await rust_vault.registerPush(
+        relayUrl: relayUrl,
+        seeds: v.identity!,
+        material: v.material!,
+        platform: Platform.isIOS ? 'apns' : 'fcm',
+        token: token,
+      );
+    } catch (e) {
+      debugPrint('push: register failed for ${v.id}: ${describeError(e)}');
     }
   }
+}
 
-  final token = await messaging.getToken();
-  if (token != null) await register(token);
-  messaging.onTokenRefresh.listen(register);
+/// After the relay URL changed: register the push token with the new relay.
+Future<void> reregisterPush() async {
+  try {
+    if (Firebase.apps.isEmpty) return;
+    final token = await FirebaseMessaging.instance.getToken();
+    if (token != null) await _registerToken(token);
+  } catch (e) {
+    debugPrint('push: re-register failed: ${describeError(e)}');
+  }
 }
 
 Future<File> _seenFile(String vaultId) async =>
@@ -241,14 +254,20 @@ Future<void> _check() async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.reload();
   final hideAmounts = prefs.getBool(kPrivacyModeKey) ?? false;
+  // The URLs the user set in Settings (read after the reload: prefs cache per isolate).
+  final endpoints = ZafeEndpoints.fromPrefs(prefs);
   for (final v in vaults) {
-    if (v.ready) await _checkVault(v, hideAmounts);
+    if (v.ready) await _checkVault(v, hideAmounts, endpoints);
   }
 }
 
 /// One vault: sync, read the log, answer interactive signing requests, finish an auto-send
 /// this member owes, update the switcher summary, and notify about changes.
-Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
+Future<void> _checkVault(
+  StoredVault v,
+  bool hideAmounts,
+  ZafeEndpoints endpoints,
+) async {
   try {
     final seeds = v.identity!;
     final material = v.material!;
@@ -263,13 +282,17 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
       final balance = await rust_vault.syncVault(
         dbDir: paths.dbDir,
         dbKey: dbKey,
-        lightwalletdUrl: kZafeLightwalletdUrl,
-        relayUrl: kZafeRelayUrl,
+        lightwalletdUrl: endpoints.lightwalletdUrl,
+        relayUrl: endpoints.relayUrl,
         seeds: seeds,
         material: material,
       );
       height = balance.height;
-      await VaultSummaries.write(v.id, balanceZat: balance.totalZat);
+      await VaultSummaries.write(
+        v.id,
+        balanceZat: balance.totalZat,
+        syncedAt: DateTime.now(),
+      );
     } catch (_) {}
     List<rust_received.ReceivedInfo>? received;
     try {
@@ -280,7 +303,7 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
       );
     } catch (_) {}
     var proposals = (await rust.listProposals(
-      relayUrl: kZafeRelayUrl,
+      relayUrl: endpoints.relayUrl,
       stateDir: stateDir,
       seeds: seeds,
       material: material,
@@ -288,8 +311,8 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
     )).items;
     try {
       await rust.answerSigningRequests(
-        relayUrl: kZafeRelayUrl,
-        lightwalletdUrl: kZafeLightwalletdUrl,
+        relayUrl: endpoints.relayUrl,
+        lightwalletdUrl: endpoints.lightwalletdUrl,
         dbDir: paths.dbDir,
         dbKey: dbKey,
         stateDir: stateDir,
@@ -309,8 +332,8 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
         try {
           await rust
               .sendProposal(
-                relayUrl: kZafeRelayUrl,
-                lightwalletdUrl: kZafeLightwalletdUrl,
+                relayUrl: endpoints.relayUrl,
+                lightwalletdUrl: endpoints.lightwalletdUrl,
                 dbDir: paths.dbDir,
                 dbKey: dbKey,
                 stateDir: stateDir,
@@ -323,7 +346,7 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
       }
     }
     proposals = (await rust.listProposals(
-      relayUrl: kZafeRelayUrl,
+      relayUrl: endpoints.relayUrl,
       stateDir: stateDir,
       seeds: seeds,
       material: material,

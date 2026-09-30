@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/config/network_config.dart';
+import '../../core/config/endpoints.dart';
 import '../../core/formatting/member_label.dart';
 import '../../core/layout/mobile/app_mobile_sheet.dart';
 import '../../core/layout/mobile/mobile_top_nav.dart';
@@ -15,9 +15,11 @@ import '../../core/widgets/mobile/mobile_list_row.dart';
 import '../../core/widgets/mobile/mobile_surface_card.dart';
 import '../../core/security/unlock_gate.dart';
 import '../../providers/device_lock_provider.dart';
+import '../../providers/endpoints_provider.dart';
 import '../../providers/privacy_mode_provider.dart';
 import '../../providers/theme_mode_provider.dart';
 import '../../providers/vault_provider.dart';
+import 'endpoint_sheet.dart';
 
 const _rowHeight = 44.0;
 const _appVersion = '0.1.0';
@@ -36,6 +38,7 @@ class SettingsScreen extends ConsumerWidget {
     final requireUnlock = ref.watch(requireUnlockProvider);
     final hasScreenLock = ref.watch(hasScreenLockProvider).value;
     final me = vault.myKeyHex;
+    final endpoints = ref.watch(endpointsProvider);
     if (summary == null) return const SizedBox.shrink();
 
     final rowStyle = AppTypography.labelLarge.copyWith(
@@ -165,14 +168,26 @@ class SettingsScreen extends ConsumerWidget {
                         row(
                           icon: AppIcons.endpoint,
                           label: 'Relay',
-                          value: kZafeRelayIsPlaceholder
+                          value: endpoints.relayIsPlaceholder
                               ? 'Not configured'
-                              : _host(kZafeRelayUrl),
+                              : _host(endpoints.relayUrl),
+                          chevron: true,
+                          onTap: () => showEndpointSheet(
+                            context,
+                            ref,
+                            EndpointKind.relay,
+                          ),
                         ),
                         row(
                           icon: AppIcons.endpoint,
-                          label: 'Lightwalletd',
-                          value: _host(kZafeLightwalletdUrl),
+                          label: 'Zcash server',
+                          value: _host(endpoints.lightwalletdUrl),
+                          chevron: true,
+                          onTap: () => showEndpointSheet(
+                            context,
+                            ref,
+                            EndpointKind.lightwalletd,
+                          ),
                         ),
                         row(
                           icon: AppIcons.book,

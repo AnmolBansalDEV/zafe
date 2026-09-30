@@ -6,17 +6,25 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `invalid`, `new`, `version_kind`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `clone`, `clone`, `eq`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`
+// These functions are ignored because they are not marked as `pub`: `at`, `invalid`, `net_kind`, `new`, `version_kind`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`
+
+/// Which server an error came from, when it came from one.
+enum ZafeEndpoint { none, relay, lightwalletd }
 
 class ZafeError implements FrbException {
   final ZafeErrorKind kind;
   final String message;
+  final ZafeEndpoint endpoint;
 
-  const ZafeError({required this.kind, required this.message});
+  const ZafeError({
+    required this.kind,
+    required this.message,
+    required this.endpoint,
+  });
 
   @override
-  int get hashCode => kind.hashCode ^ message.hashCode;
+  int get hashCode => kind.hashCode ^ message.hashCode ^ endpoint.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -24,11 +32,12 @@ class ZafeError implements FrbException {
       other is ZafeError &&
           runtimeType == other.runtimeType &&
           kind == other.kind &&
-          message == other.message;
+          message == other.message &&
+          endpoint == other.endpoint;
 }
 
 enum ZafeErrorKind {
-  /// The relay or lightwalletd could not be reached.
+  /// The relay or lightwalletd could not be reached (`endpoint` says which).
   network,
 
   /// Waiting on other members or on sync; try again later.
@@ -58,5 +67,21 @@ enum ZafeErrorKind {
   /// The relay's storage quota for this vault is full; it frees up as old messages
   /// expire (30 days), or whoever runs the relay raises it.
   relayStorageFull,
+
+  /// The TLS handshake with `endpoint` failed (certificate untrusted, expired or for
+  /// another host, or a server that doesn't speak TLS).
+  tls,
+
+  /// `endpoint` accepted the connection but didn't answer in time.
+  networkTimeout,
+
+  /// lightwalletd's chain is behind blocks this wallet already has.
+  serverBehind,
+
+  /// lightwalletd serves another network than the vault's.
+  wrongNetwork,
+
+  /// This device's wallet database failed (it is a cache: it resyncs if deleted).
+  walletDatabase,
   other,
 }

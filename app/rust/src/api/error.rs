@@ -1,12 +1,14 @@
 //! Typed errors for the Dart side (no substring matching): Dart switches on
 //! `kind` for copy and recovery actions, and shows `message` only as detail.
 
-use zafe_core::{node::NodeError, relay_client::RelayClientError, wallet::WalletError};
+use zafe_core::{
+    net::NetFailure, node::NodeError, relay_client::RelayClientError, wallet::WalletError,
+};
 use zafe_proto::UnsupportedVersion;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ZafeErrorKind {
-    /// The relay or lightwalletd could not be reached.
+    /// The relay or lightwalletd could not be reached (`endpoint` says which).
     Network,
     /// Waiting on other members or on sync; try again later.
     NotReady,
@@ -27,13 +29,33 @@ pub enum ZafeErrorKind {
     /// The relay's storage quota for this vault is full; it frees up as old messages
     /// expire (30 days), or whoever runs the relay raises it.
     RelayStorageFull,
+    /// The TLS handshake with `endpoint` failed (certificate untrusted, expired or for
+    /// another host, or a server that doesn't speak TLS).
+    Tls,
+    /// `endpoint` accepted the connection but didn't answer in time.
+    NetworkTimeout,
+    /// lightwalletd's chain is behind blocks this wallet already has.
+    ServerBehind,
+    /// lightwalletd serves another network than the vault's.
+    WrongNetwork,
+    /// This device's wallet database failed (it is a cache: it resyncs if deleted).
+    WalletDatabase,
     Other,
+}
+
+/// Which server an error came from, when it came from one.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ZafeEndpoint {
+    None,
+    Relay,
+    Lightwalletd,
 }
 
 #[derive(Clone, Debug)]
 pub struct ZafeError {
     pub kind: ZafeErrorKind,
     pub message: String,
+    pub endpoint: ZafeEndpoint,
 }
 
 impl ZafeError {
@@ -41,7 +63,13 @@ impl ZafeError {
         Self {
             kind,
             message: message.into(),
+            endpoint: ZafeEndpoint::None,
         }
+    }
+
+    pub(crate) fn at(mut self, endpoint: ZafeEndpoint) -> Self {
+        self.endpoint = endpoint;
+        self
     }
 
     pub(crate) fn invalid(message: impl Into<String>) -> Self {
@@ -56,6 +84,15 @@ impl std::fmt::Display for ZafeError {
 }
 
 impl std::error::Error for ZafeError {}
+
+fn net_kind(failure: NetFailure) -> ZafeErrorKind {
+    match failure {
+        NetFailure::Unreachable => ZafeErrorKind::Network,
+        NetFailure::Tls => ZafeErrorKind::Tls,
+        NetFailure::Timeout => ZafeErrorKind::NetworkTimeout,
+        NetFailure::Server => ZafeErrorKind::Other,
+    }
+}
 
 /// Newer data means "update the app"; older data this build no longer reads is `Other`
 /// (pre-release formats have no migrations: reset or restore).
@@ -78,6 +115,10 @@ impl From<NodeError> for ZafeError {
         if let NodeError::Wallet(w) = e {
             return w.into();
         }
+        let endpoint = match &e {
+            NodeError::Relay(_) => ZafeEndpoint::Relay,
+            _ => ZafeEndpoint::None,
+        };
         let kind = match &e {
             NodeError::UnsupportedVersion(v)
             | NodeError::Relay(RelayClientError::UnsupportedVersion(v)) => version_kind(v),
@@ -88,7 +129,7 @@ impl From<NodeError> for ZafeError {
                     ZafeErrorKind::RelayOutdated
                 }
             }
-            NodeError::Relay(RelayClientError::Transport(_)) => ZafeErrorKind::Network,
+            NodeError::Relay(RelayClientError::Transport { failure, .. }) => net_kind(*failure),
             NodeError::Relay(RelayClientError::RateLimited { .. }) => ZafeErrorKind::NotReady,
             NodeError::Relay(RelayClientError::StorageFull { .. }) => {
                 ZafeErrorKind::RelayStorageFull
@@ -101,7 +142,7 @@ impl From<NodeError> for ZafeError {
             NodeError::BadInvite => ZafeErrorKind::InvalidInput,
             _ => ZafeErrorKind::Other,
         };
-        Self::new(kind, e.to_string())
+        Self::new(kind, e.to_string()).at(endpoint)
     }
 }
 
@@ -113,8 +154,17 @@ impl From<RelayClientError> for ZafeError {
 
 impl From<WalletError> for ZafeError {
     fn from(e: WalletError) -> Self {
+        let endpoint = match &e {
+            WalletError::Remote { .. }
+            | WalletError::WrongNetwork { .. }
+            | WalletError::ServerBehind { .. } => ZafeEndpoint::Lightwalletd,
+            _ => ZafeEndpoint::None,
+        };
         let kind = match &e {
-            WalletError::Remote(_) | WalletError::Sync(_) => ZafeErrorKind::Network,
+            WalletError::Remote { failure, .. } => net_kind(*failure),
+            WalletError::WrongNetwork { .. } => ZafeErrorKind::WrongNetwork,
+            WalletError::ServerBehind { .. } => ZafeErrorKind::ServerBehind,
+            WalletError::Db(_) | WalletError::WrongKey => ZafeErrorKind::WalletDatabase,
             WalletError::Payment(_) => ZafeErrorKind::InvalidInput,
             WalletError::FundsReserved => ZafeErrorKind::FundsReserved,
             // zcash_client_backend's error is only available as text here.
@@ -123,7 +173,7 @@ impl From<WalletError> for ZafeError {
             }
             _ => ZafeErrorKind::Other,
         };
-        Self::new(kind, e.to_string())
+        Self::new(kind, e.to_string()).at(endpoint)
     }
 }
 
