@@ -99,8 +99,11 @@ Open
       about N days" on open/approved proposals; once the synced tip reaches it, rows, chip
       and page say "Expired", it stops counting as needing action and isn't auto-sent;
       "Propose again" opens Send on the review step prefilled (`SendPrefill`, single
-      payment). Dart tests in `test/proposal_expiry_test.dart`. Emulator: the "Expires in
-      about 7 days" line shows on open/approved proposals
+      payment). Dart tests in `test/proposal_expiry_test.dart`. Emulator (2026-09-30): the
+      "Expires in about 7 days" line; after mining past expiry the row, chip, title and
+      page read "Expired" (amount struck through), and "Propose again" opened the review
+      step prefilled and logged a new proposal. The CLI's `proposals` still prints an
+      expired one as `Open` (no tip there)
 - [ ] Expiry window configurable at vault creation (D2): every member builds and signs the
       descriptor, so the choice has to travel in the invite (invite format bump) or the
       seal; today it's `DEFAULT_PROPOSAL_EXPIRY_BLOCKS` (7 days)
