@@ -13,6 +13,8 @@ import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/app_toast.dart';
 import '../../core/widgets/mobile/mobile_list_row.dart';
 import '../../core/widgets/mobile/mobile_surface_card.dart';
+import '../../core/security/unlock_gate.dart';
+import '../../providers/device_lock_provider.dart';
 import '../../providers/privacy_mode_provider.dart';
 import '../../providers/theme_mode_provider.dart';
 import '../../providers/vault_provider.dart';
@@ -31,6 +33,8 @@ class SettingsScreen extends ConsumerWidget {
     final summary = vault.summary;
     final hideAmounts = ref.watch(privacyModeProvider);
     final themeMode = ref.watch(themeModeProvider);
+    final requireUnlock = ref.watch(requireUnlockProvider);
+    final hasScreenLock = ref.watch(hasScreenLockProvider).value;
     final me = vault.myKeyHex;
     if (summary == null) return const SizedBox.shrink();
 
@@ -131,6 +135,14 @@ class SettingsScreen extends ConsumerWidget {
                           onTap: () =>
                               ref.read(privacyModeProvider.notifier).toggle(),
                         ),
+                        row(
+                          icon: requireUnlock ? AppIcons.lock : AppIcons.unlock,
+                          label: 'Require unlock to approve',
+                          value: requireUnlock ? 'On' : 'Off',
+                          onTap: () =>
+                              _toggleRequireUnlock(context, ref, requireUnlock),
+                        ),
+                        if (hasScreenLock == false) const _NoScreenLockNote(),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.md),
@@ -249,6 +261,14 @@ class SettingsScreen extends ConsumerWidget {
       },
     );
     if (remove != true || !context.mounted) return;
+    if (!await confirmUnlock(
+      context,
+      ref,
+      reason: 'Unlock to remove this vault',
+    )) {
+      return;
+    }
+    if (!context.mounted) return;
     final vaultId = ref.read(vaultProvider).activeId!;
     await ref.read(vaultProvider.notifier).removeVault(vaultId);
     if (!context.mounted) return;
@@ -260,6 +280,25 @@ class SettingsScreen extends ConsumerWidget {
           ? '/setup'
           : '/welcome',
     );
+  }
+
+  /// Turning the gate off needs an unlock (whatever the setting); turning it on
+  /// doesn't.
+  Future<void> _toggleRequireUnlock(
+    BuildContext context,
+    WidgetRef ref,
+    bool current,
+  ) async {
+    if (current &&
+        !await confirmUnlock(
+          context,
+          ref,
+          reason: 'Unlock to stop asking before approvals',
+          always: true,
+        )) {
+      return;
+    }
+    await ref.read(requireUnlockProvider.notifier).set(!current);
   }
 
   Future<void> _pickTheme(
@@ -290,6 +329,41 @@ String _themeLabel(ThemeMode mode) => switch (mode) {
 };
 
 String _host(String url) => Uri.tryParse(url)?.authority ?? url;
+
+/// Shown under the Security rows when the phone has no screen lock, so approvals
+/// go through without a prompt.
+class _NoScreenLockNote extends StatelessWidget {
+  const _NoScreenLockNote();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.xxs,
+        AppSpacing.xs,
+        AppSpacing.xxs,
+        AppSpacing.xxs,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppIcon(AppIcons.warning, size: 16, color: colors.icon.warning),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(
+            child: Text(
+              'Set a screen lock on this phone to protect approvals. '
+              'Until then, Zafe can\'t ask for it.',
+              style: AppTypography.bodySmall.copyWith(
+                color: colors.text.warning,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _Group extends StatelessWidget {
   const _Group({required this.title, required this.rows});

@@ -1,5 +1,6 @@
 package xyz.zafe.zafe
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : FlutterActivity()
+// A FragmentActivity so local_auth can show the biometric / screen-lock prompt.
+class MainActivity : FlutterFragmentActivity()

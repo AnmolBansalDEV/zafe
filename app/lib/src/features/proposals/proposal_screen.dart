@@ -22,6 +22,7 @@ import '../../core/widgets/mobile/zafe_detail.dart';
 import '../../providers/privacy_mode_provider.dart';
 import '../../providers/proposals_provider.dart';
 import '../../core/privacy/amount_display.dart';
+import '../../core/security/unlock_gate.dart';
 import '../../providers/vault_provider.dart';
 import '../../rust/api/proposals.dart' as rust;
 import 'proposal_status.dart';
@@ -59,6 +60,14 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
   }
 
   Future<void> _vote(bool approve) async {
+    if (approve &&
+        !await confirmUnlock(
+          context,
+          ref,
+          reason: 'Unlock to approve and sign this payment',
+        )) {
+      return;
+    }
     setState(() => _voting = true);
     final notifier = ref.read(proposalsProvider.notifier);
     try {
@@ -96,7 +105,16 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
     }
   }
 
-  void _startSend() => context.push('/proposal/${widget.id}/send');
+  Future<void> _startSend() async {
+    if (!await confirmUnlock(
+      context,
+      ref,
+      reason: 'Unlock to send this payment',
+    )) {
+      return;
+    }
+    if (mounted) context.push('/proposal/${widget.id}/send');
+  }
 
   @override
   Widget build(BuildContext context) {

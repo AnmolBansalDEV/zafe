@@ -24,6 +24,7 @@ import '../../core/widgets/mobile_text_field.dart';
 import '../../providers/privacy_mode_provider.dart';
 import '../../providers/proposals_provider.dart';
 import '../../core/privacy/amount_display.dart';
+import '../../core/security/unlock_gate.dart';
 import '../../providers/vault_provider.dart';
 import '../../rust/api/proposals.dart' as rust;
 
@@ -98,6 +99,13 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   }
 
   Future<void> _propose() async {
+    if (!await confirmUnlock(
+      context,
+      ref,
+      reason: 'Unlock to propose this payment',
+    )) {
+      return;
+    }
     setState(() => _busy = true);
     try {
       final id = await ref
