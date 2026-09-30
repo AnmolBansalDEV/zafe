@@ -90,4 +90,90 @@ void main() {
       expect(extractInvite('zafe-backup-v1:abcd'), isNull);
     });
   });
+
+  group('https links (ZAFE_LINK_HOST set)', () {
+    const host = 'zafe.example';
+    String link(String i) => inviteLink(i, linkHost: host);
+    String? from(String s) => inviteFromLink(Uri.parse(s), linkHost: host);
+
+    test('puts the invite in the fragment on the join path', () {
+      expect(link(invite), 'https://zafe.example/join#$invite');
+      expect(link('  $invite\n'), 'https://zafe.example/join#$invite');
+      expect(inviteLink(invite, linkHost: 'Zafe.Example'), link(invite));
+    });
+
+    test('round-trips, also when the invite needs encoding', () {
+      expect(from(link(invite)), invite);
+      const odd = 'zafe-invite-v2:a b#c?d/e+f%';
+      final encoded = link(odd);
+      expect(Uri.parse(encoded).hasQuery, isFalse);
+      expect(from(encoded), odd);
+    });
+
+    test('accepts a trailing slash, upper-case host and an encoded colon', () {
+      expect(from('https://zafe.example/join/#$invite'), invite);
+      expect(from('HTTPS://ZAFE.EXAMPLE/join#$invite'), invite);
+      expect(from('https://zafe.example:443/join#$invite'), invite);
+      expect(
+        from('https://zafe.example/join#${invite.replaceFirst(':', '%3A')}'),
+        invite,
+      );
+    });
+
+    test('rejects other hosts, schemes, ports and user info', () {
+      expect(from('https://evil.example/join#$invite'), isNull);
+      expect(from('https://zafe.example.evil.example/join#$invite'), isNull);
+      expect(from('https://sub.zafe.example/join#$invite'), isNull);
+      expect(from('http://zafe.example/join#$invite'), isNull);
+      expect(from('https://zafe.example:8443/join#$invite'), isNull);
+      expect(from('https://user@zafe.example/join#$invite'), isNull);
+    });
+
+    test('rejects other paths, a query, and missing or foreign fragments', () {
+      expect(from('https://zafe.example/#$invite'), isNull);
+      expect(from('https://zafe.example/join/x#$invite'), isNull);
+      expect(from('https://zafe.example/joinx#$invite'), isNull);
+      expect(from('https://zafe.example/join?invite=$invite'), isNull);
+      expect(from('https://zafe.example/join?x=1#$invite'), isNull);
+      expect(from('https://zafe.example/join'), isNull);
+      expect(from('https://zafe.example/join#'), isNull);
+      expect(from('https://zafe.example/join#hello'), isNull);
+      expect(from('https://zafe.example/join#zafe-backup-v1:abcd'), isNull);
+      expect(from('https://zafe.example/join#%zz'), isNull);
+    });
+
+    test('scheme links keep working', () {
+      expect(from('zafe://join?invite=$invite'), invite);
+    });
+
+    test('isInviteLink recognises both forms, valid or not', () {
+      bool isLink(String s) => isInviteLink(Uri.parse(s), linkHost: host);
+      expect(isLink('https://zafe.example/join#hello'), isTrue);
+      expect(isLink('zafe://join'), isTrue);
+      expect(isLink('https://evil.example/join#$invite'), isFalse);
+      expect(
+        isInviteLink(Uri.parse('https://zafe.example/join#$invite')),
+        isFalse,
+      );
+    });
+
+    test('extractInvite finds an https link in a message', () {
+      expect(
+        extractInvite('Join on Zafe: ${link(invite)} thanks', linkHost: host),
+        invite,
+      );
+      expect(
+        extractInvite('https://evil.example/join#$invite', linkHost: host),
+        isNull,
+      );
+    });
+  });
+
+  test('without a link host, https links are never invites', () {
+    expect(
+      inviteFromLink(Uri.parse('https://zafe.example/join#$invite')),
+      isNull,
+    );
+    expect(extractInvite('https://zafe.example/join#$invite'), isNull);
+  });
 }

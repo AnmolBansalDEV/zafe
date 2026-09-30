@@ -6,6 +6,8 @@ name: Release (Android)
 #
 # Needs (Settings > Secrets and variables > Actions), see docs/releasing.md:
 #   variable ZAFE_RELAY_URL            the deployed testnet relay, e.g. https://relay.example.com
+#   variable ZAFE_LINK_HOST            optional: host of the invite landing site (infra/site/),
+#                                      e.g. zafe.example; without it invites are zafe:// links
 #   secret   ANDROID_KEYSTORE_BASE64   base64 of the upload keystore (.jks)
 #   secret   ANDROID_KEYSTORE_PASSWORD
 #   secret   ANDROID_KEY_ALIAS
@@ -38,6 +40,7 @@ jobs:
     timeout-minutes: 120
     env:
       ZAFE_RELAY_URL: ${{ vars.ZAFE_RELAY_URL }}
+      ZAFE_LINK_HOST: ${{ vars.ZAFE_LINK_HOST }}
     steps:
       - uses: actions/checkout@v5
 
@@ -65,6 +68,10 @@ jobs:
           missing=0
           [ -n "$ZAFE_RELAY_URL" ] || { echo "::error::Set the repository variable ZAFE_RELAY_URL"; missing=1; }
           case "$ZAFE_RELAY_URL" in https://*|'') ;; *) echo "::error::ZAFE_RELAY_URL must be https://"; missing=1;; esac
+          case "$ZAFE_LINK_HOST" in
+            '') echo "::warning::No ZAFE_LINK_HOST: invites are zafe:// links, which need Zafe installed" ;;
+            *[!a-z0-9.-]*|.*|*.|*..*) echo "::error::ZAFE_LINK_HOST must be a bare lower-case host like zafe.example"; missing=1 ;;
+          esac
           for name in KEYSTORE STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
             [ -n "${!name}" ] || { echo "::error::Signing secret for $name is missing (docs/releasing.md)"; missing=1; }
           done
@@ -124,6 +131,7 @@ jobs:
           flutter build apk --release --split-per-abi --target-platform android-arm64 \
             --dart-define=ZAFE_NETWORK=test \
             --dart-define=ZAFE_RELAY_URL="$ZAFE_RELAY_URL" \
+            --dart-define=ZAFE_LINK_HOST="$ZAFE_LINK_HOST" \
             --build-name='${{ steps.version.outputs.name }}' \
             --build-number='${{ github.run_number }}'
 

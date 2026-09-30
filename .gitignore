@@ -5,6 +5,7 @@
 *.sqlite
 *.db
 /scratch
+/infra/site/dist
 __pycache__/
 *.pyc
 

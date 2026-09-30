@@ -16,7 +16,10 @@ Releases are testnet APKs on GitHub Releases, built and signed by
    base64 -w0 zafe-upload.jks > zafe-upload.jks.b64
    ```
 3. **GitHub settings** of the repo (Settings > Secrets and variables > Actions):
-   - Variables: `ZAFE_RELAY_URL` = the relay URL.
+   - Variables: `ZAFE_RELAY_URL` = the relay URL. Optional `ZAFE_LINK_HOST` = the host
+     of the invite landing site (`infra/site/README.md`; deploy the site first, with
+     this key's certificate fingerprint in its `assetlinks.json`). Without it, invites
+     are `zafe://` links, which only work where Zafe is installed.
    - Secrets: `ANDROID_KEYSTORE_BASE64` (contents of `zafe-upload.jks.b64`),
      `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (`zafe`), `ANDROID_KEY_PASSWORD`.
    - Optional secret `GOOGLE_SERVICES_JSON`: the contents of
@@ -44,5 +47,6 @@ builds use the debug key (fine for testing, but such an APK can't update a real 
 
 ```bash
 cd app && flutter build apk --release --split-per-abi --target-platform android-arm64 \
-  --dart-define=ZAFE_NETWORK=test --dart-define=ZAFE_RELAY_URL=https://<relay>
+  --dart-define=ZAFE_NETWORK=test --dart-define=ZAFE_RELAY_URL=https://<relay> \
+  --dart-define=ZAFE_LINK_HOST=<site host>   # optional
 ```

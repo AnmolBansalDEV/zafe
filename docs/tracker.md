@@ -6,7 +6,7 @@ finished ones, tick them and add the commit. Spec references are to `spec.md`.
 
 Legend: `[ ]` open · `[x]` done · **(you)** needs the user · *(idea)* not yet decided
 
-Last updated: 2026-10-01 (Verdigris + Seam brand implemented; note reservation; versioned formats; relay TLS + packaging; wallet DB encryption; incoming payments; pending receipts from the mempool)
+Last updated: 2026-10-01 (Verdigris + Seam brand implemented; note reservation; versioned formats; relay TLS + packaging; wallet DB encryption; incoming payments; pending receipts from the mempool; https invite links + landing site)
 
 ---
 
@@ -147,9 +147,20 @@ Open
       (`FcmNotifier::on_unregistered` → `Relay::forget_push_token`); storage quotas (see
       below)
 - [x] Invite by link: `zafe://join?invite=...` custom scheme (see Next up 5)
-- [ ] Universal/App Links (`https://…/join#invite`) so a link works for people without
-      Zafe installed (landing page + `assetlinks.json` / AASA). Put the invite in the URL
-      fragment so the web server never sees the join token
+- [x] Universal/App Links (`https://…/join#invite`) so a link works for people without
+      Zafe installed (2026-10-01): build-time `ZAFE_LINK_HOST` (unset → invites stay
+      `zafe://`); invite in the fragment; Android `autoVerify` filter with the host from
+      the dart-define (Gradle placeholder); landing site `infra/site/` (`/join` page, CSP,
+      no third-party loads, invite moved to `sessionStorage` and out of the address bar;
+      `build.sh` writes `assetlinks.json` + AASA); release workflow variable. Tested: Dart
+      unit tests, merged manifest (host set / unset / malformed), page rendered in a
+      browser (light, dark, no invite, reload)
+  - [ ] **(you)** Pick and own the domain, deploy `infra/site` there with the release
+        certificate fingerprint, set the `ZAFE_LINK_HOST` repository variable
+  - [ ] Check on a device: `pm get-app-links` shows the host verified; a link opens Join
+        cold and warm; with Zafe uninstalled it opens the page
+  - [ ] iOS: Associated Domains entitlement (`applinks:<host>`) and the team's app ID in
+        the AASA, once iOS builds
 - [ ] iOS: `permission_handler` needs `PERMISSION_CAMERA=1` in the Podfile
       `GCC_PREPROCESSOR_DEFINITIONS` if we ever request through it (today only
       `openAppSettings` is used; `mobile_scanner` asks for the camera itself)

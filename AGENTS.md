@@ -783,7 +783,11 @@ Learned while studying it:
   relay logs `push: sent` at debug level (`RUST_LOG=zafe_relay=debug`).
 - **Invites** (`features/onboarding/invite_link.dart`, pure and unit-tested): raw form
   `zafe-invite-v1:<hex postcard>` (~250 chars; URL-safe, asserted in `node::tests`), link
-  form `zafe://join?invite=<raw>`. The setup QR and "Share link" carry the link; Join
+  form `zafe://join?invite=<raw>`, or `https://<ZAFE_LINK_HOST>/join#<raw>` when the build
+  has the dart-define (invite in the **fragment**, so the landing site's server never sees
+  it; only that exact host, port 443, no query). Both forms are always accepted; the https
+  one only for the configured host. **Never default `ZAFE_LINK_HOST` to a domain we don't
+  control**: that site's page script could read every invite. The setup QR and "Share link" carry the link; Join
   accepts either (typed, pasted inside a message, or scanned on `/scan-invite`). **An
   invite is a bearer credential until membership is locked**: its `join_token` lets anyone
   take an empty seat (it can't spend or see funds; the creator's member list and the
@@ -792,7 +796,15 @@ Learned while studying it:
   safety number flow follows.
 - **Deep links**: `app_links` 7.0.0 (7.1+ needs Flutter 3.44), with Flutter's own deep
   linking **off** (`flutter_deeplinking_enabled` meta-data / `FlutterDeepLinkingEnabled`),
-  otherwise go_router receives `zafe://join` itself. `services/invite_links.dart` feeds
+  otherwise go_router receives `zafe://join` itself. **App Links**: a second, `autoVerify`
+  intent filter for `https://<host>/join`; Gradle decodes Flutter's `dart-defines` project
+  property to put `ZAFE_LINK_HOST` in the `zafeLinkHost` manifest placeholder (unset →
+  `links.zafe.invalid`, which matches nothing; a malformed host fails the build). Check the
+  merge without a full build: `flutter build apk --config-only`, then
+  `JAVA_HOME=~/android/jdk-17 android/gradlew -p android :app:processDebugMainManifest
+  -Pdart-defines=<base64 of NAME=value>`. Landing site + `assetlinks.json`/AASA:
+  `infra/site/` (README). iOS Associated Domains not added yet (iOS has never been built;
+  the entitlement breaks signing without a team). `services/invite_links.dart` feeds
   `inviteLinks` (its stream also delivers the launch link); `app.dart` opens
   `/welcome` + push `/join?invite=` (calling `beginAddVault` when a vault is active) and
   defers while keys are being made or on `/backup-prompt`. Test on a device with

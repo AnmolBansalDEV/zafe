@@ -1,3 +1,4 @@
+import java.util.Base64
 import java.util.Properties
 
 plugins {
@@ -14,6 +15,26 @@ plugins {
 val keyProperties = Properties().apply {
     val file = rootProject.file("key.properties")
     if (file.exists()) file.inputStream().use { load(it) }
+}
+
+// Invite App Links: the host comes from `--dart-define=ZAFE_LINK_HOST=<host>` (Flutter
+// passes dart-defines to Gradle base64-encoded, comma-separated). Without one the https
+// intent filter points at a reserved `.invalid` host, so it can never match a real link.
+val dartDefines: Map<String, String> =
+    (project.findProperty("dart-defines") as String?)
+        ?.split(",")
+        ?.mapNotNull { encoded ->
+            runCatching { String(Base64.getDecoder().decode(encoded)) }.getOrNull()
+        }
+        ?.mapNotNull { define ->
+            define.split("=", limit = 2).takeIf { it.size == 2 }?.let { it[0] to it[1] }
+        }
+        ?.toMap()
+        ?: emptyMap()
+val zafeLinkHost: String = dartDefines["ZAFE_LINK_HOST"].orEmpty().lowercase().also { host ->
+    if (host.isNotEmpty() && !Regex("^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$").matches(host)) {
+        throw GradleException("ZAFE_LINK_HOST must be a bare host name like zafe.example, got '$host'")
+    }
 }
 
 android {
@@ -41,6 +62,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["zafeLinkHost"] = zafeLinkHost.ifEmpty { "links.zafe.invalid" }
     }
 
     signingConfigs {
