@@ -5,9 +5,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{de::DeserializeOwned, Serialize};
 use zafe_proto::{
     relay::{
-        decode_body, join_token_hash, AppendResult, CreateMailbox, InboxRead, InboxResponse, Join,
-        LogRead, LogResponse, MembersRead, MembersResponse, PushPlatform, RegisterPush, Remove,
-        Seal, Signed, WaitRequest, WaitResponse, MAX_WAIT_SECS, UNSUPPORTED_VERSION_HEADER,
+        decode_body, join_token_hash, AppendResult, CreateMailbox, InboxAck, InboxAckResponse,
+        InboxRead, InboxResponse, Join, LogRead, LogResponse, MembersRead, MembersResponse,
+        PushPlatform, RegisterPush, Remove, Seal, Signed, WaitRequest, WaitResponse,
+        MAX_ACK_CURSORS, MAX_WAIT_SECS, UNSUPPORTED_VERSION_HEADER,
     },
     version::{Format, UnsupportedVersion},
     Envelope, Identity, LogEntry, MailboxId, ProtoError,
@@ -352,6 +353,39 @@ impl RelayClient {
             )
             .await?;
         Ok(response.decoded())
+    }
+
+    /// Deletes envelopes `who` has handled, by delivery cursor. Returns how many the relay
+    /// deleted; a relay without the endpoint (404) deletes none (they expire there).
+    pub async fn ack_inbox(
+        &self,
+        who: &Identity,
+        mailbox: MailboxId,
+        cursors: &[u64],
+    ) -> Result<u64, RelayClientError> {
+        let mut deleted = 0;
+        for chunk in cursors.chunks(MAX_ACK_CURSORS) {
+            let body = Signed::new(
+                who,
+                InboxAck {
+                    mailbox,
+                    cursors: chunk.to_vec(),
+                    timestamp: now(),
+                },
+            )
+            .and_then(|s| s.to_bytes())
+            .map_err(|_| RelayClientError::Encoding)?;
+            match self.post("/v1/inbox/ack", body).await {
+                Ok(bytes) => {
+                    deleted += decode_body::<InboxAckResponse>(&bytes)
+                        .map_err(decoding)?
+                        .deleted;
+                }
+                Err(RelayClientError::Status { status: 404, .. }) => return Ok(deleted),
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(deleted)
     }
 
     pub async fn append_log(&self, entry: &LogEntry) -> Result<AppendResult, RelayClientError> {

@@ -321,6 +321,16 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   run by Home in the foreground; events call `ProposalsNotifier.refreshSoon()` (queues one
   more refresh if one is running); while live the Home poll relaxes from 15 s to 60 s but
   keeps running. Background stays on FCM + WorkManager.
+- **Inbox acknowledgement** (`POST /v1/inbox/ack`, `InboxAck { cursors }`, at most
+  `MAX_ACK_CURSORS` = 256 per request): deletes the signer's own deliveries by cursor
+  (never by range: one inbox mixes a member's signing requests with the shares it
+  collects as leader) and lowers `delivery_bytes` in the same transaction. Clients read
+  inboxes from cursor 0 every time, so the relay can't infer "picked up" from a read.
+  `node::respond` (every poll and background check) acknowledges keygen messages (the
+  vault exists), signing requests answered or unanswerable (no nonces), undecodable
+  envelopes, and shares for closed/expired proposals; a request that failed for a
+  passing reason stays. Best effort: a relay without the route (404) or an error
+  leaves them to the 30-day retention. No `RELAY_API` bump (new route only).
 - **Relay deploy**: `GET /health`; `PORT` → `0.0.0.0:$PORT` unless `ZAFE_RELAY_LISTEN`;
   FCM key from `ZAFE_FCM_SERVICE_ACCOUNT` (file) or `ZAFE_FCM_SERVICE_ACCOUNT_JSON`
   (inline, for Fly secrets). The image's entrypoint chowns `/data` then drops to uid
@@ -502,6 +512,14 @@ Learned while studying it:
   top-level, so `push` covers the tab bar. Tab screens keep ~112 px bottom padding for
   the floating bar and use `MobileTopNav.back` without `onBack`. Home stays mounted
   while another tab shows (indexed stack), so its 15 s poll keeps running.
+- **Vault emblem** (`features/vaults/vault_emblem.dart`): Home's avatar and the
+  switcher show one of 8 drawn motifs (dial, keyhole, peaks, waves, coins, gem, sun,
+  orbit) on a dark tile, motif and palette from an FNV-1a hash of the vault id, so every
+  member sees the same picture. Preview: `flutter test tool/screens/emblem_render_test.dart`
+  → `app/build/screen_preview/vault_emblems.png`.
+- **Cached balance** for the switcher lives in secure storage (`ZafeSecureStore.balance`,
+  `zafe_vault_<id>_balance`, removed with the vault), not in `summary.json`; writing the
+  summary drops the plain-text balance older builds stored there.
 - **Vault name** is the creator's (signed in the descriptor); a member can rename it
   on this device only (`core/storage/vault_name.dart`, `<vaultDir>/vault_name.txt`,
   `vaultNamesProvider`, `activeVaultNameProvider`). Show `activeVaultNameProvider`,

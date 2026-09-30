@@ -19,6 +19,7 @@ import '../../notifications/vault_watch.dart';
 import '../../providers/endpoints_provider.dart';
 import '../../services/live_vault_watch.dart';
 import '../backup/backup_prompt_screen.dart' show backupStatusProvider;
+import '../vaults/vault_emblem.dart';
 import '../vaults/vault_switcher_sheet.dart';
 import '../../providers/privacy_mode_provider.dart';
 import '../../providers/vault_names_provider.dart';
@@ -144,7 +145,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     } else if (vault.syncing) {
       syncLabel = 'Syncing...';
     } else if (vault.balance != null) {
-      syncLabel = 'Zafe is synced';
+      syncLabel = 'Synced';
     } else {
       syncLabel = 'Connecting...';
     }
@@ -165,10 +166,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 syncAnimated: vault.syncing && failure == null,
                 onSyncTap: () => showSyncStatusSheet(context, retry: _refresh),
                 onAccountTap: () => showVaultSwitcher(context),
-                avatar: _VaultAvatar(
-                  threshold: summary.threshold,
-                  members: summary.members.length,
-                ),
+                avatar: VaultEmblem(vaultId: vault.activeId!),
               ),
               Expanded(
                 child: MobileTopScrollFade(
@@ -270,35 +268,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _VaultAvatar extends StatelessWidget {
-  const _VaultAvatar({required this.threshold, required this.members});
-  final int threshold;
-  final int members;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: colors.background.brandAlpha,
-        borderRadius: BorderRadius.circular(AppRadii.small),
-        border: Border.all(color: colors.border.brandStrong, width: 1.5),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        '$threshold/$members',
-        style: AppTypography.labelMedium.copyWith(
-          fontFamily: 'Space Grotesk',
-          color: colors.text.primary,
-          fontWeight: FontWeight.w600,
         ),
       ),
     );

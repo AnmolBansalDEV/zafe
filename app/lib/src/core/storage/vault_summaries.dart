@@ -2,10 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'zafe_paths.dart';
+import 'zafe_secure_store.dart';
 
 /// What the vault switcher shows for each vault (including ones not on screen): last known
 /// balance and how many payments wait for this member. A small file per vault, written by
 /// the app and by background checks (files are shared across isolates, prefs caches aren't).
+/// The balance itself lives in secure storage ([ZafeSecureStore.balance]), not in the
+/// file; writing the file drops the plain-text balance older versions kept there.
 class VaultSummaryInfo {
   const VaultSummaryInfo({
     this.balanceZat,
@@ -28,12 +31,28 @@ class VaultSummaries {
       File('${(await ZafePaths.get()).vaultDir(vaultId)}/summary.json');
 
   static Future<VaultSummaryInfo> read(String vaultId) async {
+    final file = await _readFile(vaultId);
+    return VaultSummaryInfo(
+      balanceZat: await _balance(vaultId),
+      actionable: file.actionable,
+      backedUp: file.backedUp,
+      syncedAt: file.syncedAt,
+    );
+  }
+
+  static Future<BigInt?> _balance(String vaultId) async {
+    try {
+      return await ZafeSecureStore.instance.balance(vaultId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// The file's fields only (no secure storage read).
+  static Future<VaultSummaryInfo> _readFile(String vaultId) async {
     try {
       final j = jsonDecode(await (await _file(vaultId)).readAsString()) as Map;
       return VaultSummaryInfo(
-        balanceZat: j['balance'] == null
-            ? null
-            : BigInt.parse(j['balance'] as String),
         actionable: (j['actionable'] as int?) ?? 0,
         backedUp: (j['backedUp'] as bool?) ?? false,
         syncedAt: j['syncedAt'] is int
@@ -58,7 +77,10 @@ class VaultSummaries {
   }) {
     final next = _queue.then((_) async {
       try {
-        final old = await read(vaultId);
+        if (balanceZat != null && balanceZat != await _balance(vaultId)) {
+          await ZafeSecureStore.instance.writeBalance(vaultId, balanceZat);
+        }
+        final old = await _readFile(vaultId);
         final f = await _file(vaultId);
         await f.parent.create(recursive: true);
         // A unique temp name: background checks in another isolate may write too.
@@ -67,7 +89,6 @@ class VaultSummaries {
         );
         await tmp.writeAsString(
           jsonEncode({
-            'balance': (balanceZat ?? old.balanceZat)?.toString(),
             'actionable': actionable ?? old.actionable,
             'backedUp': backedUp ?? old.backedUp,
             'syncedAt': (syncedAt ?? old.syncedAt)?.millisecondsSinceEpoch,

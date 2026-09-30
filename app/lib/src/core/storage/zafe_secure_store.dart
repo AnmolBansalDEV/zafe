@@ -119,9 +119,25 @@ class ZafeSecureStore {
     return await _readBytes(_key(id, 'walletKey')) ?? key;
   }
 
+  /// Last known balance in zatoshis, for the vault switcher (kept here rather than in
+  /// the summary file so it isn't readable outside the keystore-backed storage).
+  Future<BigInt?> balance(String id) async {
+    final raw = await _storage.read(key: _key(id, 'balance'));
+    return raw == null ? null : BigInt.tryParse(raw);
+  }
+
+  Future<void> writeBalance(String id, BigInt zat) =>
+      _storage.write(key: _key(id, 'balance'), value: zat.toString());
+
   /// Removes a vault's secrets from this device (it stays a member on the relay).
   Future<void> remove(String id) async {
-    for (final field in ['identity', 'invite', 'material', 'walletKey']) {
+    for (final field in [
+      'identity',
+      'invite',
+      'material',
+      'walletKey',
+      'balance',
+    ]) {
       await _storage.delete(key: _key(id, field));
     }
     await _writeIds([

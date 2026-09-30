@@ -14,7 +14,10 @@ use http_body_util::BodyExt;
 use rand::{rngs::StdRng, SeedableRng};
 use tower::ServiceExt;
 use zafe_proto::{
-    relay::{decode_body, join_token_hash, AppendResult, CreateMailbox, Join, Seal, Signed},
+    relay::{
+        decode_body, join_token_hash, AppendResult, CreateMailbox, InboxAck, InboxAckResponse,
+        InboxRead, InboxResponse, Join, Seal, Signed, MAX_ACK_CURSORS,
+    },
     Envelope, Identity, Kind, LogEntry, LogKey,
 };
 use zafe_relay::{
@@ -318,4 +321,94 @@ async fn a_schema_1_database_is_migrated() {
         .unwrap();
     assert_eq!(version, zafe_proto::version::RELAY_DB);
     std::fs::remove_dir_all(&dir).ok();
+}
+
+async fn inbox_cursors(app: &Router, who: &Identity) -> Vec<u64> {
+    let read = InboxRead {
+        mailbox: MAILBOX,
+        after: 0,
+        timestamp: T0,
+    };
+    let (status, body) = call(
+        app,
+        "/v1/inbox",
+        Signed::new(who, read).unwrap().to_bytes().unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let inbox: InboxResponse = decode_body(&body).unwrap();
+    inbox.envelopes.iter().map(|(c, _)| *c).collect()
+}
+
+async fn ack(app: &Router, who: &Identity, cursors: Vec<u64>) -> (StatusCode, u64) {
+    let body = InboxAck {
+        mailbox: MAILBOX,
+        cursors,
+        timestamp: T0,
+    };
+    let (status, bytes) = call(
+        app,
+        "/v1/inbox/ack",
+        Signed::new(who, body).unwrap().to_bytes().unwrap(),
+    )
+    .await;
+    let deleted = if status == StatusCode::OK {
+        decode_body::<InboxAckResponse>(&bytes).unwrap().deleted
+    } else {
+        0
+    };
+    (status, deleted)
+}
+
+#[tokio::test]
+async fn acknowledged_deliveries_are_deleted_and_free_their_bytes() {
+    let now = Arc::new(AtomicU64::new(T0));
+    let relay = Relay::with_clock(clock(&now)).with_quotas(Quotas::hosted());
+    let app = relay.clone().router();
+    let mut rng = StdRng::seed_from_u64(3);
+    let ids: Vec<Identity> = (0..3).map(|_| Identity::generate(&mut rng)).collect();
+    mailbox(&app, &ids).await;
+    for seq in 1..=3 {
+        let env = to_one(&ids[0], &ids[1], seq, &mut rng);
+        assert_eq!(post(&app, env).await.0, StatusCode::OK);
+    }
+    let env = to_one(&ids[0], &ids[2], 4, &mut rng);
+    assert_eq!(post(&app, env).await.0, StatusCode::OK);
+    let before = relay.usage(&MAILBOX).unwrap();
+    assert_eq!(before.deliveries, 4);
+
+    let mine = inbox_cursors(&app, &ids[1]).await;
+    let theirs = inbox_cursors(&app, &ids[2]).await;
+    assert_eq!((mine.len(), theirs.len()), (3, 1));
+
+    // Another member can't delete deliveries that aren't theirs; unknown cursors are ignored.
+    assert_eq!(
+        ack(&app, &ids[2], vec![mine[0], 999]).await,
+        (StatusCode::OK, 0)
+    );
+    // The recipient deletes exactly the ones it names.
+    assert_eq!(
+        ack(&app, &ids[1], vec![mine[0], mine[2]]).await,
+        (StatusCode::OK, 2)
+    );
+    assert_eq!(inbox_cursors(&app, &ids[1]).await, vec![mine[1]]);
+    assert_eq!(inbox_cursors(&app, &ids[2]).await, theirs);
+    let after = relay.usage(&MAILBOX).unwrap();
+    assert_eq!(after.deliveries, 2);
+    assert_eq!(
+        after.delivery_bytes,
+        before.delivery_bytes / 4 * 2,
+        "the byte counter drops with the deleted envelopes (same size here)"
+    );
+
+    // Outsiders are refused; too many cursors in one request is a bad request.
+    let outsider = Identity::generate(&mut rng);
+    assert_eq!(
+        ack(&app, &outsider, vec![mine[1]]).await.0,
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(
+        ack(&app, &ids[1], vec![1; MAX_ACK_CURSORS + 1]).await.0,
+        StatusCode::BAD_REQUEST
+    );
 }

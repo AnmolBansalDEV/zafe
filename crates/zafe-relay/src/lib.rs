@@ -44,10 +44,10 @@ use wait::Waiters;
 use zafe_proto::{
     log::GENESIS_PREV_HASH,
     relay::{
-        encode_body, join_token_hash, AppendResult, CreateMailbox, InboxRead, InboxResponse, Join,
-        LogRead, LogResponse, MembersRead, MembersResponse, PushPlatform, RegisterPush, Remove,
-        Seal, Signed, WaitRequest, WaitResponse, MAX_REQUEST_SKEW_SECS, MAX_WAIT_SECS,
-        UNSUPPORTED_VERSION_HEADER,
+        encode_body, join_token_hash, AppendResult, CreateMailbox, InboxAck, InboxAckResponse,
+        InboxRead, InboxResponse, Join, LogRead, LogResponse, MembersRead, MembersResponse,
+        PushPlatform, RegisterPush, Remove, Seal, Signed, WaitRequest, WaitResponse,
+        MAX_ACK_CURSORS, MAX_REQUEST_SKEW_SECS, MAX_WAIT_SECS, UNSUPPORTED_VERSION_HEADER,
     },
     version::{self, UnsupportedVersion},
     Envelope, IdentityPublic, LogEntry, MailboxId, ProtoError, Recipient,
@@ -374,6 +374,7 @@ impl Relay {
             .route("/v1/push/register", post(register_push))
             .route("/v1/envelope", post(post_envelope))
             .route("/v1/inbox", post(inbox))
+            .route("/v1/inbox/ack", post(inbox_ack))
             .route("/v1/log/append", post(log_append))
             .route("/v1/log/read", post(log_read))
             .route("/v1/wait", post(wait))
@@ -833,6 +834,48 @@ async fn inbox(State(relay): State<Relay>, body: Bytes) -> RelayResult {
         .map(|row| row.map(|(cursor, bytes)| (cursor as u64, bytes)))
         .collect::<Result<Vec<_>, _>>()?;
     ok(&InboxResponse { envelopes })
+}
+
+/// Deletes the signer's handled deliveries, keeping the quota counter in step.
+async fn inbox_ack(State(relay): State<Relay>, body: Bytes) -> RelayResult {
+    let req = verified::<InboxAck>(&relay, &body)?;
+    relay.check_fresh(req.payload.timestamp)?;
+    if req.payload.cursors.len() > MAX_ACK_CURSORS {
+        return Err(RelayError::BadRequest);
+    }
+    let mut db = relay.db.lock().expect("lock");
+    let tx = db.transaction()?;
+    mailbox(&tx, &req.payload.mailbox)?;
+    if member(&tx, &req.payload.mailbox, &req.signer.sig_pk)?.is_none() {
+        return Err(RelayError::Forbidden);
+    }
+    let mut deleted = 0u64;
+    let mut bytes = 0i64;
+    for &cursor in &req.payload.cursors {
+        let Ok(cursor) = i64::try_from(cursor) else {
+            continue;
+        };
+        let size: Option<i64> = tx
+            .query_row(
+                "DELETE FROM deliveries WHERE mailbox = ?1 AND recipient = ?2 AND cursor = ?3
+                 RETURNING length(envelope)",
+                params![&req.payload.mailbox[..], &req.signer.sig_pk[..], cursor],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if let Some(size) = size {
+            deleted += 1;
+            bytes += size;
+        }
+    }
+    if bytes > 0 {
+        tx.execute(
+            "UPDATE mailboxes SET delivery_bytes = MAX(0, delivery_bytes - ?2) WHERE id = ?1",
+            params![&req.payload.mailbox[..], bytes],
+        )?;
+    }
+    tx.commit()?;
+    ok(&InboxAckResponse { deleted })
 }
 
 async fn log_append(State(relay): State<Relay>, body: Bytes) -> RelayResult {

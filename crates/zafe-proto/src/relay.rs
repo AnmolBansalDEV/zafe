@@ -107,6 +107,28 @@ pub struct InboxRead {
     pub timestamp: u64,
 }
 
+/// Most cursors one [`InboxAck`] may name.
+pub const MAX_ACK_CURSORS: usize = 256;
+
+/// Deletes envelopes the signer has handled (`POST /v1/inbox/ack`), by delivery cursor.
+/// Only the signer's own deliveries are touched; unknown cursors are ignored. Ranges are
+/// deliberately not supported: one inbox holds messages for different flows (a member's
+/// signing requests and, as leader, the shares it collects), and each flow acknowledges
+/// only what it finished. A relay without this endpoint answers 404; its deliveries
+/// expire after the retention period instead.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InboxAck {
+    pub mailbox: MailboxId,
+    pub cursors: Vec<u64>,
+    pub timestamp: u64,
+}
+
+/// How many deliveries an [`InboxAck`] deleted.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InboxAckResponse {
+    pub deleted: u64,
+}
+
 /// Reads log entries from index `from`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LogRead {

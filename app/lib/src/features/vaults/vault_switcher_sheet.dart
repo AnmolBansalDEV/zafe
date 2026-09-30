@@ -14,6 +14,7 @@ import '../../providers/privacy_mode_provider.dart';
 import '../../providers/vault_names_provider.dart';
 import '../../providers/vault_provider.dart';
 import '../../rust/api/vault.dart' as rust;
+import 'vault_emblem.dart';
 
 /// Vault switcher: every vault on this device with its rule, balance and
 /// payments waiting for you, plus "Add vault" and the current vault's settings.
@@ -115,22 +116,7 @@ class _VaultRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
         child: Row(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: colors.background.homeCard,
-                shape: BoxShape.circle,
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                '$threshold/$members',
-                style: AppTypography.labelMedium.copyWith(
-                  color: colors.text.homeCard,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
+            VaultEmblem(vaultId: vault.id),
             const SizedBox(width: AppSpacing.s),
             Expanded(
               child: FutureBuilder<VaultSummaryInfo>(

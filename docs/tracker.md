@@ -251,6 +251,13 @@ Open
 - [x] Rename a vault (2026-09-30): local to this device (like signer names), from
       Settings → Name. Open: carry it in backups; a vault-wide rename would need a new
       signed log event (`VAULT_EVENT` bump, gated on every member updating) *(idea)*
+- [x] Relay forgets handled deliveries (2026-10-01): `/v1/inbox/ack`, sent by
+      `node::respond` (see AGENTS.md "Inbox acknowledgement"); tested in the relay's
+      `quotas` tests and `node_keygen` (keygen messages gone after the first respond).
+      Not yet: the log is never pruned (old commitment batches could be compacted);
+      entry headers still show the author key to the relay *(idea)*
+- [x] Cached switcher balance moved from `summary.json` to secure storage (2026-10-01)
+- [x] Vault emblem instead of "2/3" on Home and in the switcher (2026-10-01)
 - [ ] App shows under "Other" in the Nothing launcher: Android's `appCategory` has no
       finance value; expect it to follow the Play Store category once listed *(check)*
 

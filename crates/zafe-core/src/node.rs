@@ -1842,10 +1842,18 @@ pub struct RespondReport {
     pub answered: Vec<ProposalId>,
     /// Requests that were not answered, with the reason (stale, expired, forged, ...).
     pub skipped: Vec<(ProposalId, String)>,
+    /// Handled envelopes the relay deleted (0 on a relay without `/v1/inbox/ack`).
+    pub acknowledged: u64,
 }
 
 /// Member: answers every pending signing request addressed to this member. Each request is
 /// re-verified from the log; a bad or stale request is skipped and reported, never fatal.
+///
+/// Also asks the relay to delete what this member is done with (best effort): keygen
+/// messages (the vault exists, so its material is saved), signing requests that were
+/// answered or can never be (no nonces), and, as a leader, shares for proposals that are
+/// closed (sent, rejected, cancelled or expired at `tip_height`). A request that failed for
+/// a reason that may pass (e.g. a stale tip) stays for the next attempt.
 #[allow(clippy::too_many_arguments)]
 pub async fn respond<P: Parameters, R: RngCore + CryptoRng>(
     relay: &RelayClient,
@@ -1867,20 +1875,53 @@ pub async fn respond<P: Parameters, R: RngCore + CryptoRng>(
     };
     let mut seq = SeqCounter::default();
     let mut report = RespondReport::default();
+    let mut done = Vec::new();
+    let closed = |proposal: &ProposalId| {
+        state.proposals.get(proposal).is_none_or(|p| {
+            !matches!(p.status, ProposalStatus::Open | ProposalStatus::Approved)
+                || (p.expiry_height > 0 && tip_height >= p.expiry_height)
+        })
+    };
 
-    for (_, leader, env) in read_inbox(relay, me, material.descriptor.vault_id, &members, 0).await?
+    for (cursor, leader, env) in
+        read_inbox(relay, me, material.descriptor.vault_id, &members, 0).await?
     {
-        if env.header.kind != Kind::SigningRequest {
-            continue;
+        match env.header.kind {
+            Kind::Join
+            | Kind::DkgRound1
+            | Kind::DkgEcho
+            | Kind::DkgRound2
+            | Kind::SkContribution
+            | Kind::DescriptorSignature
+            | Kind::LogKey => {
+                done.push(cursor);
+                continue;
+            }
+            Kind::SignatureShares => {
+                let finished = env
+                    .open(me, &leader)
+                    .ok()
+                    .and_then(|b| version::decode::<SharesMsg>(Format::SignatureShares, &b).ok())
+                    .is_none_or(|msg| closed(&msg.proposal));
+                if finished {
+                    done.push(cursor);
+                }
+                continue;
+            }
+            Kind::SigningRequest => {}
+            _ => continue,
         }
         let Ok(bytes) = env.open(me, &leader) else {
+            done.push(cursor);
             continue;
         };
         let Ok(msg) = version::decode::<SigningRequestMsg>(Format::SigningRequest, &bytes) else {
+            done.push(cursor);
             continue;
         };
         if !store.contains(&msg.proposal, &msg.pczt_hash) {
-            continue; // already answered, or never approved
+            done.push(cursor); // already answered, or never approved: never answerable
+            continue;
         }
         let result: Result<Vec<u8>, NodeError> = (|| {
             let (pczt, payments) = proposal_pczt(&state, &msg.proposal)?;
@@ -1919,9 +1960,17 @@ pub async fn respond<P: Parameters, R: RngCore + CryptoRng>(
                 .map_err(proto)?;
                 relay.send(&env).await?;
                 report.answered.push(msg.proposal);
+                done.push(cursor);
             }
             Err(e) => report.skipped.push((msg.proposal, e.to_string())),
         }
+    }
+    if !done.is_empty() {
+        // Best effort: whatever stays expires on the relay after its retention period.
+        report.acknowledged = relay
+            .ack_inbox(me, material.descriptor.vault_id, &done)
+            .await
+            .unwrap_or(0);
     }
     Ok(report)
 }
