@@ -156,20 +156,27 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   `scripts/illustrations/device-shots.sh`.
 - flutter_svg ignores/breaks `<pattern>`, `<polyline>`, `<line>`, filters: the toolkit bakes
   texture fills into geometry; always check renders with `preview.sh`, not a browser.
-- The art palette in `zafe_art.py` mirrors `core/theme` (slate neutrals, jade = members/brand,
-  gold = keys/funds); `sky1` must equal `background.window`, and `app/tool/illustrations/
+- The art palette in `zafe_art.py` mirrors `core/theme` ("Signal": charcoal neutrals,
+  lime = members/brand, `#4F7A08` family in light mode; gold = keys/funds); `sky1` must
+  equal `background.window` (#0A0A0A / #F4F4F3), and `app/tool/illustrations/
   preview_test.dart` hardcodes the window colours too: update all three together.
 - Art is also used outside onboarding: backup/export/restore banners, the sending screen's
   full-page background (`IllustrationBackground`), the Activity empty state.
-- **App icon and splash** are generated the same way: `scripts/brand/brand.py` (vault dial:
-  ticks, gold index, jade bezel, geometric Z) writes `app/tool/brand/svg/`, and
-  `scripts/brand/icons.sh` renders them with flutter_svg (`app/tool/brand/render_test.dart`)
-  into `mipmap-*/ic_launcher{,_foreground,_background,_monochrome}.png`,
-  `drawable{,-night}-*/splash_{icon,mark}.png`, iOS `AppIcon.appiconset` (alpha stripped
-  with ImageMagick) and `LaunchImage.imageset` (light + dark). Preview:
+- **App icon and splash** are generated the same way: `scripts/brand/brand.py` ("lime
+  tile": flat lime #C9EE6E tile, bold charcoal #141414 geometric Z with slightly rounded
+  corners; flat colours only, so iOS Tinted/Clear and Android themed icons repaint it
+  cleanly) writes `app/tool/brand/svg/`, and `scripts/brand/icons.sh` renders them with
+  flutter_svg (`app/tool/brand/render_test.dart`) into
+  `mipmap-*/ic_launcher{,_foreground,_monochrome}.png` (the adaptive background is the
+  colour `@color/zafe_icon_tile`, no bitmap), `drawable{,-night}-*/splash_{icon,mark}.png`
+  (the lime tile, 144 dp, same in both themes), iOS `AppIcon.appiconset` (full-bleed,
+  alpha stripped with ImageMagick) and `LaunchImage.imageset` (light + dark). The Z's
+  100-unit box maps to the adaptive icon's visible 72 dp, keeping it well inside the
+  66 dp safe circle. Preview (small sizes down to 24 px, themed icon, both splashes):
   `app/build/brand_preview/brand_sheet.png`. The splash colour is `@color/zafe_window`
   (`values{,-night}/colors.xml`, also the NormalTheme window background) and the iOS
-  `LaunchBackground` colour set; keep them equal to `background.window`. Android 12+ splash
+  `LaunchBackground` colour set (+ the storyboard fallback); keep them equal to
+  `background.window` (#0A0A0A / #F4F4F3). Android 12+ splash
   attributes sit in the base `styles.xml` with `tools:targetApi="31"` (no `values-v31`).
   Check resources without a Gradle build: `aapt2 compile --dir res` + `aapt2 link` against
   `platforms/android-36/android.jar`.

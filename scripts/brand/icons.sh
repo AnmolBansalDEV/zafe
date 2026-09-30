@@ -13,7 +13,7 @@ flutter test tool/brand/render_test.dart --reporter compact
 # The App Store rejects icons with an alpha channel.
 if command -v convert >/dev/null; then
   for f in ios/Runner/Assets.xcassets/AppIcon.appiconset/*.png; do
-    convert "$f" -background '#080A0F' -alpha remove -alpha off "$f"
+    convert "$f" -background '#C9EE6E' -alpha remove -alpha off "$f"
   done
 else
   echo "warning: ImageMagick not found; iOS icons keep an (opaque) alpha channel" >&2

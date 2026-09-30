@@ -19,8 +19,8 @@ import 'package:flutter/painting.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-const _windowDark = Color(0xFF080A0F);
-const _windowLight = Color(0xFFF3F5F9);
+const _windowDark = Color(0xFF0A0A0A);
+const _windowLight = Color(0xFFF4F4F3);
 const _width = 1080.0;
 const _phone = Size(1080, 2400);
 
@@ -90,7 +90,10 @@ void main() {
           c.drawCircle(
             _phone.center(Offset.zero),
             84,
-            Paint()..color = const Color(0xFF0F8C76),
+            Paint()
+              ..color = dark
+                  ? const Color(0xFFC9EE6E)
+                  : const Color(0xFF4F7A08),
           );
         });
         await _writePng(bg, '${out.path}/${name}_screen.png');
