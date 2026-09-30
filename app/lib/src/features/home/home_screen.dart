@@ -206,8 +206,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         },
                       ),
                       const SizedBox(height: AppSpacing.s),
-                      if ((vault.balance?.totalZat ?? BigInt.zero) ==
-                          BigInt.zero)
+                      // Only once the balance is known: while it loads, a vault with
+                      // history would flash the first-deposit prompt.
+                      if (vault.balance?.totalZat == BigInt.zero)
                         AppButton(
                           expand: true,
                           onPressed: () => context.push('/receive'),
