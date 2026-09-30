@@ -448,6 +448,7 @@ fn payment_flow_through_bridge() {
             members[2].state_dir.clone(),
             members[2].seeds.clone(),
             members[2].material.clone(),
+            None,
         )
         .unwrap();
         if answered >= 1 || leader.is_finished() {
@@ -685,6 +686,7 @@ fn payment_flow_through_bridge() {
             a.state_dir.clone(),
             a.seeds.clone(),
             a.material.clone(),
+            None,
         );
         thread::sleep(Duration::from_millis(500));
     }
@@ -877,6 +879,7 @@ fn payment_flow_through_bridge() {
             a.state_dir.clone(),
             a.seeds.clone(),
             a.material.clone(),
+            None,
         );
         thread::sleep(Duration::from_millis(500));
     }

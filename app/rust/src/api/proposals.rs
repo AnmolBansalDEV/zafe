@@ -665,8 +665,11 @@ pub fn prewarm_prover() {
     node::verifying_key();
 }
 
-/// Answers signing requests for proposals this member approved (each is re-verified first).
-/// Called on every poll. Returns how many were answered.
+/// Answers signing requests for proposals this member approved (each is re-verified first)
+/// and lets the relay delete what this member has handled. Called on every poll.
+/// `tip_height` is the synced tip when the caller knows it (saves opening the wallet).
+/// Returns how many were answered.
+#[allow(clippy::too_many_arguments)]
 pub fn answer_signing_requests(
     relay_url: String,
     lightwalletd_url: String,
@@ -675,20 +678,18 @@ pub fn answer_signing_requests(
     state_dir: String,
     seeds: Vec<u8>,
     material: Vec<u8>,
+    tip_height: Option<u32>,
 ) -> Result<u32, ZafeError> {
     let me = identity(&seeds)?;
     let m = self::material(&material)?;
     let net = network(&m.descriptor.network)?;
     let mut store = nonce_store(&state_dir);
-    // Nothing to answer without stored nonces: skip the relay and wallet round trips.
-    if !PathBuf::from(&state_dir)
-        .join("nonces")
-        .read_dir()
-        .is_ok_and(|mut d| d.next().is_some())
-    {
-        return Ok(0);
-    }
-    let tip = local_tip(&db_dir, &db_key, &lightwalletd_url, &m)?;
+    // Runs even without stored nonces (one-tap members rarely hold any): the inbox still
+    // has keygen messages, finished requests and old shares for the relay to delete.
+    let tip = match tip_height {
+        Some(tip) => tip,
+        None => local_tip(&db_dir, &db_key, &lightwalletd_url, &m)?,
+    };
     let report = runtime().block_on(node::respond(
         &RelayClient::new(relay_url),
         &me,

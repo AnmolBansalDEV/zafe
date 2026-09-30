@@ -319,6 +319,7 @@ Future<void> _checkVault(
         stateDir: stateDir,
         seeds: seeds,
         material: material,
+        tipHeight: height,
       );
     } catch (_) {}
 

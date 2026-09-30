@@ -178,8 +178,10 @@ void restartSigning({required String stateDir, required String proposalId}) =>
 Future<void> prewarmProver() =>
     RustLib.instance.api.crateApiProposalsPrewarmProver();
 
-/// Answers signing requests for proposals this member approved (each is re-verified first).
-/// Called on every poll. Returns how many were answered.
+/// Answers signing requests for proposals this member approved (each is re-verified first)
+/// and lets the relay delete what this member has handled. Called on every poll.
+/// `tip_height` is the synced tip when the caller knows it (saves opening the wallet).
+/// Returns how many were answered.
 Future<int> answerSigningRequests({
   required String relayUrl,
   required String lightwalletdUrl,
@@ -188,6 +190,7 @@ Future<int> answerSigningRequests({
   required String stateDir,
   required List<int> seeds,
   required List<int> material,
+  int? tipHeight,
 }) => RustLib.instance.api.crateApiProposalsAnswerSigningRequests(
   relayUrl: relayUrl,
   lightwalletdUrl: lightwalletdUrl,
@@ -196,6 +199,7 @@ Future<int> answerSigningRequests({
   stateDir: stateDir,
   seeds: seeds,
   material: material,
+  tipHeight: tipHeight,
 );
 
 /// Leader: asks the approvers for signatures (once per proposal on this device), signs its

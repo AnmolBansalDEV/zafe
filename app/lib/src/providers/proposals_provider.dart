@@ -228,6 +228,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
         stateDir: await paths.stateDir(vault.activeId!),
         seeds: vault.identity!,
         material: vault.material!,
+        tipHeight: _height,
       );
     } catch (_) {
       // Not synced yet or offline: the next poll retries.

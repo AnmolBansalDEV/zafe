@@ -326,7 +326,8 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   (never by range: one inbox mixes a member's signing requests with the shares it
   collects as leader) and lowers `delivery_bytes` in the same transaction. Clients read
   inboxes from cursor 0 every time, so the relay can't infer "picked up" from a read.
-  `node::respond` (every poll and background check) acknowledges keygen messages (the
+  `node::respond` (every poll and background check; the bridge no longer skips it when
+  the member holds no nonces, and takes the caller's synced `tip_height`) acknowledges keygen messages (the
   vault exists), signing requests answered or unanswerable (no nonces), undecodable
   envelopes, and shares for closed/expired proposals; a request that failed for a
   passing reason stays. Best effort: a relay without the route (404) or an error
