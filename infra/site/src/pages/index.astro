@@ -1,10 +1,10 @@
 ---
-// Landing page, laid out after vizor.cash (centred hero, a scroll story of one payment
-// between two members' phones, a dark feature panel with live UI cards, FAQ, closing card, dark footer) with
+// Landing page, laid out after vizor.cash (centred hero, a 3D scroll story of one payment
+// between two members' phones (src/scripts/story-scene.js), a dark feature panel with live UI cards, FAQ, closing card, dark footer) with
 // Zafe's brand, art and copy. Copy: short, and "Zcash" only where it's needed. Every
 // claim must be something the app does today (docs/tracker.md); the chain card is the
-// real testnet payment from the 2026-09-30 dry run. No JavaScript: the intro is CSS and
-// the FAQ is <details>.
+// real testnet payment from the 2026-09-30 dry run. The intro is CSS and the FAQ is <details>; the only script is the story's
+// (bundled, same-origin).
 import Base from '../layouts/Base.astro';
 import Icon from '../components/Icon.astro';
 import Mark from '../components/Mark.astro';
@@ -57,63 +57,27 @@ const faq = [
       <a class="pill" href={downloadUrl} rel="noopener noreferrer">Get Zafe</a>
     </section>
 
-    <!-- The story (scroll-driven, CSS only): a pinned scene split into Bob's phone (dark)
-         and yours (light). Scrolling plays one payment: Bob proposes, a notification
-         swirls across to you, Bob approves (1 of 2), you approve (2 of 2) and the vault
-         between them opens and sends. Without scroll timelines, or with reduced motion,
-         it's a still of the end. -->
-    <section class="story" aria-label="How a shared payment works: Bob proposes and approves, you approve, and it's sent">
+    <!-- The story: one payment between two members, in 3D, scrubbed by scrolling
+         (src/scripts/story-scene.js). Without WebGL or with reduced motion, the still
+         below (Bob approved, your payment sent) and the last caption. -->
+    <section class="story" data-beat="5" aria-label="How a shared payment works: Bob proposes and approves, you approve, and it's sent">
       <div class="story-pin">
-        <div class="story-half dark">
-          <p class="who">Bob</p>
-          <div class="sphone a">
-            <div class="sscreen">
-              <img class="scr bob-home" src="/assets/screens/story_bob_home_dark.webp" width="780" height="1688" alt="" />
-              <img class="scr bob-propose" src="/assets/screens/story_bob_propose_dark.webp" width="780" height="1688" alt="" />
-              <img class="scr bob-approve" src="/assets/screens/story_bob_approve_dark.webp" width="780" height="2400" alt="" />
-              <img class="scr bob-approved" src="/assets/screens/story_bob_approved_dark.webp" width="780" height="1688" alt="" />
-              <i class="tap t1"></i>
-              <i class="tap t2"></i>
-              <i class="tap t3"></i>
-            </div>
+        <div class="story-static" aria-hidden="true">
+          <div class="static-half dark">
+            <img src="/assets/screens/story_bob_approved_dark.webp" width="780" height="1688" alt="" loading="lazy" />
+          </div>
+          <div class="static-half light">
+            <img src="/assets/screens/story_me_done_light.webp" width="780" height="1688" alt="" loading="lazy" />
           </div>
         </div>
-        <div class="story-half light">
-          <p class="who">You</p>
-          <div class="sphone b">
-            <div class="sscreen">
-              <img class="scr me-home" src="/assets/screens/story_me_home_light.webp" width="780" height="1688" alt="" />
-              <div class="snotif">
-                <p class="snotif-app"><Mark class="snotif-mark" /><span>Zafe</span><time>now</time></p>
-                <p class="snotif-title">Ops fund: payment needs your approval</p>
-                <p class="snotif-body">Bob proposed 12.50 TAZ.</p>
-              </div>
-              <img class="scr me-review" src="/assets/screens/story_me_review_light.webp" width="780" height="2400" alt="" />
-              <img class="scr me-sent" src="/assets/screens/story_me_sent_light.webp" width="780" height="1688" alt="" />
-              <i class="tap t4"></i>
-              <i class="tap t5"></i>
-            </div>
-          </div>
-        </div>
-
-        <svg class="swirl" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-          <path class="swirl-path desk" pathLength="100" d="M 36 34 C 44 4, 58 2, 54 22 C 51 36, 41 30, 49 17 C 56 5, 64 9, 70 19" />
-          <path class="swirl-path mob" pathLength="100" d="M 62 40 C 88 42, 90 58, 72 55 C 58 52, 62 42, 76 48 C 86 53, 74 62, 60 62" />
-        </svg>
-        <i class="flyer"><Mark class="flyer-mark" /></i>
-
-        <div class="vault" aria-hidden="true">
-          <span class="vault-lock"><Icon name="lock" class="icon locked" /><Icon name="unlock" class="icon open" /></span>
-          <span class="vault-dots"><i class="v1"></i><i class="v2"></i><b></b><i></i></span>
-          <span class="vault-label">2 of 3</span>
-        </div>
-        <i class="coin" aria-hidden="true">12.50 TAZ</i>
-
-        <div class="story-captions">
-          <p class="cap k1">Bob proposes a payment.</p>
-          <p class="cap k2">Everyone in the vault is notified.</p>
-          <p class="cap k3">Bob approves. 1 of 2.</p>
-          <p class="cap k4">You approve. That&rsquo;s 2.</p>
+        <canvas class="story-bg" aria-hidden="true"></canvas>
+        <canvas class="story-gl" aria-hidden="true"></canvas>
+        <div class="story-captions" aria-live="polite">
+          <p class="cap k0">Bob proposes a payment.</p>
+          <p class="cap k1">Everyone in the vault is notified.</p>
+          <p class="cap k2">Bob approves. 1 of 2.</p>
+          <p class="cap k3">You approve. That&rsquo;s 2.</p>
+          <p class="cap k4">The vault opens. Sending&hellip;</p>
           <p class="cap k5">Sent. On-chain, it looks like any payment.</p>
         </div>
       </div>
@@ -256,4 +220,5 @@ const faq = [
     </div>
     <p class="ghost" aria-hidden="true">zafe</p>
   </footer>
+  <script src="../scripts/story.js"></script>
 </Base>

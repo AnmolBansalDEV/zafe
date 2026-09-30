@@ -36,6 +36,9 @@ CROPS = [
     ("story_me_home", "screen_preview/home", PHONE, "light"),
     ("story_me_review", "screen_preview/proposal_review", TALL, "light"),
     ("story_me_sent", "screen_preview/story_me_sent", PHONE, "light"),
+    # The sending screen (sending_render_test): the story's finale.
+    ("story_me_sending", "screen_preview/sending_progress", PHONE, "light"),
+    ("story_me_done", "screen_preview/sending_sent", PHONE, "light"),
     # The vault door with its keys, behind the closing call to action (a dark card, so
     # the dark render).
     ("art_vault", "illustration_preview/welcome_vault", (0, 120, 1080, 1240), "dark"),
