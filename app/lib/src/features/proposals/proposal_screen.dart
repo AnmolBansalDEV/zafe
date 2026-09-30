@@ -13,6 +13,7 @@ import '../../core/widgets/app_loading_icon.dart';
 import '../../core/widgets/app_toast.dart';
 import '../../core/layout/mobile/app_mobile_sheet.dart';
 import '../../core/widgets/mobile/mobile_surface_card.dart';
+import '../../providers/member_names_provider.dart';
 import '../../providers/proposals_provider.dart';
 import '../../core/security/unlock_gate.dart';
 import '../../providers/vault_provider.dart';
@@ -252,6 +253,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
             me: me,
             send: send,
             height: height,
+            names: ref.watch(memberNamesProvider),
           ),
           const SizedBox(height: AppSpacing.lg),
           ..._actions(p, sent: sent, send: send, height: height),

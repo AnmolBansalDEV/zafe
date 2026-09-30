@@ -30,11 +30,15 @@ class ProposalBody extends ConsumerWidget {
     required this.me,
     this.send,
     this.height,
+    this.names = const {},
   });
   final rust.ProposalInfo proposal;
   final List<String> members;
   final String? me;
   final SendState? send;
+
+  /// Local names of the signers (key hex → name).
+  final Map<String, String> names;
 
   /// Synced chain tip, to show expiry.
   final int? height;
@@ -77,6 +81,7 @@ class ProposalBody extends ConsumerWidget {
           me: me,
           sending: sending,
           height: height,
+          names: names,
         ),
         const SizedBox(height: AppSpacing.md),
         MobileSurfaceCard(
@@ -89,7 +94,7 @@ class ProposalBody extends ConsumerWidget {
             children: [
               DetailRow(
                 label: 'Proposed by',
-                value: memberLabel(p.author, me: me),
+                value: memberLabel(p.author, me: me, names: names),
               ),
               if (p.createdAt > BigInt.zero) ...[
                 const DetailDivider(),
@@ -126,12 +131,14 @@ class ProposalApprovalsCard extends StatefulWidget {
     required this.me,
     this.sending = false,
     this.height,
+    this.names = const {},
   });
   final rust.ProposalInfo proposal;
   final List<String> members;
   final String? me;
   final bool sending;
   final int? height;
+  final Map<String, String> names;
 
   @override
   State<ProposalApprovalsCard> createState() => _ProposalApprovalsCardState();
@@ -246,6 +253,7 @@ class _ProposalApprovalsCardState extends State<ProposalApprovalsCard> {
                         SignerRow(
                           keyHex: m,
                           me: me,
+                          name: widget.names[m],
                           trailing: _VoteTag(
                             approved: p.approvals.contains(m),
                             rejected: p.rejections.contains(m),

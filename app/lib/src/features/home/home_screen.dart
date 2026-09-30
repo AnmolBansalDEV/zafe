@@ -18,6 +18,8 @@ import '../../notifications/vault_watch.dart';
 import '../backup/backup_prompt_screen.dart' show backupStatusProvider;
 import '../vaults/vault_switcher_sheet.dart';
 import '../../providers/privacy_mode_provider.dart';
+import '../../providers/member_names_provider.dart';
+import 'rename_signer_sheet.dart';
 import '../../providers/proposals_provider.dart';
 import '../../providers/received_provider.dart';
 import '../../core/privacy/privacy_mask.dart';
@@ -468,7 +470,7 @@ class _VaultDialPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-class _SignersCard extends StatelessWidget {
+class _SignersCard extends ConsumerWidget {
   const _SignersCard({
     required this.threshold,
     required this.members,
@@ -479,8 +481,9 @@ class _SignersCard extends StatelessWidget {
   final String? me;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
+    final names = ref.watch(memberNamesProvider);
     return MobileSurfaceCard(
       cornerRadius: AppRadii.large,
       child: Column(
@@ -506,7 +509,20 @@ class _SignersCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.xs),
-          for (final m in members) SignerRow(keyHex: m, me: me),
+          for (final m in members)
+            SignerRow(
+              keyHex: m,
+              me: me,
+              name: names[m],
+              onTap: m == me
+                  ? null
+                  : () => showRenameSignerSheet(context, ref, m),
+            ),
+          const SizedBox(height: AppSpacing.xxs),
+          Text(
+            'Tap a signer to name them on this phone.',
+            style: AppTypography.bodySmall.copyWith(color: colors.text.muted),
+          ),
         ],
       ),
     );

@@ -141,7 +141,12 @@ Open
 - [ ] Rebroadcast a dropped transaction instead of only releasing its notes (the
       broadcaster doesn't keep the raw tx today; one-tap proposals could be rebuilt by
       any member from the log)
-- [ ] Member names instead of hex keys (local labels, or part of the address book)
+- [x] Member names (local labels, 2026-09-30): tap a signer on Home to name them; the
+      name (`<vaultDir>/names.json`, `memberNamesProvider`) shows in signer rows (short
+      key below) and as "Proposed by". Local to this device: not synced, not in backups,
+      not in notifications yet. Checked on the emulator
+- [ ] Member names follow-ups: include names in backups (format bump), use them in
+      notifications and the CSV `contact`/proposer columns, or share them via the log
 - [ ] Endpoint settings editable (today: compile-time dart-defines, read-only)
 - [ ] iOS: build and run at all (only Android has been exercised)
 - [ ] iOS: exclude the nonce directory from backups (`isExcludedFromBackup`)

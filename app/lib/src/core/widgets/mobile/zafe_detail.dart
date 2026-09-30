@@ -476,26 +476,33 @@ class _SignerPatternPainter extends CustomPainter {
       old.cells != cells || old.color != color;
 }
 
-/// A signer: tile, name ("You" or the short key; yours also shows the key below)
-/// and an optional trailing tag.
+/// A signer: tile, name ("You", the local name, or the short key; with a name the short
+/// key shows below) and an optional trailing tag. Tappable when [onTap] is set.
 class SignerRow extends StatelessWidget {
   const SignerRow({
     super.key,
     required this.keyHex,
     required this.me,
+    this.name,
     this.trailing,
+    this.onTap,
   });
   final String keyHex;
 
   /// This device's key (for "You"), if known.
   final String? me;
+
+  /// The name this device gave the signer, if any.
+  final String? name;
   final Widget? trailing;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final isMe = keyHex == me;
-    return Padding(
+    final named = isMe || (name?.isNotEmpty ?? false);
+    final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
@@ -506,10 +513,10 @@ class SignerRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  memberLabel(keyHex, me: me),
+                  memberLabel(keyHex, me: me, names: {keyHex: ?name}),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: isMe
+                  style: named
                       ? AppTypography.labelLarge.copyWith(
                           color: colors.text.primary,
                           fontWeight: FontWeight.w600,
@@ -519,9 +526,9 @@ class SignerRow extends StatelessWidget {
                           color: colors.text.primary,
                         ),
                 ),
-                if (isMe)
+                if (named)
                   Text(
-                    memberLabel(keyHex),
+                    shortKey(keyHex),
                     style: AppTypography.labelSmall.copyWith(
                       fontFamily: 'JetBrains Mono',
                       color: colors.text.muted,
@@ -536,6 +543,14 @@ class SignerRow extends StatelessWidget {
           ],
         ],
       ),
+    );
+    if (onTap == null) return row;
+    return AppTappable(
+      onTap: onTap,
+      semanticsLabel: (name?.isNotEmpty ?? false)
+          ? 'Rename $name'
+          : 'Name ${memberLabel(keyHex, me: me)}',
+      child: row,
     );
   }
 }
