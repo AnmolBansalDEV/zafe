@@ -444,16 +444,17 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
                   : (p.oneTap ? 'Approve and sign' : 'Approve'),
             ),
           ),
-          if (p.oneTap) ...[
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              'Approving signs the payment on this device. It can\'t be withdrawn afterwards.',
-              textAlign: TextAlign.center,
-              style: AppTypography.bodySmall.copyWith(
-                color: colors.text.secondary,
-              ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            p.oneTap
+                ? 'Approving signs the payment on this device. It can\'t be withdrawn afterwards.'
+                : 'One-tap signing isn\'t available for this payment (not every signer had '
+                      'signing data ready), so approvers sign again when it\'s sent.',
+            textAlign: TextAlign.center,
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.text.secondary,
             ),
-          ],
+          ),
           const SizedBox(height: AppSpacing.s),
           AppButton(
             expand: true,

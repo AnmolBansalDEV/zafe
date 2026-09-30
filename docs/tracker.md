@@ -240,8 +240,10 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       synced tip (bridge `list_proposals(tip_height)`, passed by the app and background
       check); tested in `tests/vault.rs`. Interactive nonces (`FileNonceStore`) of closed
       or expired proposals are still never deleted
-- [ ] Surface "one-tap unavailable" when a proposal fell back to interactive (short pools,
-      or C(n, t) > 64), and pre-warm pools right after keygen
+- [x] Surface "one-tap unavailable" (2026-09-30): the Approve step explains that approvers
+      sign again when it's sent. Pools: the app tops up on every proposals refresh (first
+      Home refresh after keygen); the CLI only with `zafe pool`, so harness vaults are
+      interactive unless each CLI member runs it
 - [ ] A member whose device lost its pool nonces approves interactively (fallback works);
       show that their approval still needs a signing round
 - [ ] Push notifications now matter less (approvals are final at tap), but still needed
