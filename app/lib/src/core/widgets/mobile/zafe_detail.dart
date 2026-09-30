@@ -45,8 +45,8 @@ class PaymentCard extends StatelessWidget {
   const PaymentCard({
     super.key,
     required this.amountText,
-    required this.address,
-    required this.onFullAddress,
+    this.address,
+    this.onFullAddress,
     this.label = 'PAYMENT',
     this.recipients = 1,
     this.hidden = false,
@@ -56,9 +56,9 @@ class PaymentCard extends StatelessWidget {
   /// Amount without the ticker ("1.5").
   final String amountText;
 
-  /// First recipient's address.
-  final String address;
-  final VoidCallback onFullAddress;
+  /// First recipient's address; null for money the vault received (no recipient box).
+  final String? address;
+  final VoidCallback? onFullAddress;
   final String label;
   final int recipients;
   final bool hidden;
@@ -143,12 +143,14 @@ class PaymentCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: AppSpacing.md),
-                _Recipient(
-                  address: address,
-                  recipients: recipients,
-                  onFullAddress: onFullAddress,
-                ),
+                if (address != null) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  _Recipient(
+                    address: address!,
+                    recipients: recipients,
+                    onFullAddress: onFullAddress ?? () {},
+                  ),
+                ],
               ],
             ),
           ),

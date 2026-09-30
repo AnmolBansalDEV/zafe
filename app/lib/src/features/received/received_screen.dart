@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/formatting/zec_amount.dart';
 import '../../core/layout/mobile/zafe_screen.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_copy_feedback.dart';
 import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/app_loading_icon.dart';
 import '../../core/widgets/app_tappable.dart';
-import '../../core/widgets/mobile/mobile_review_row.dart';
 import '../../core/widgets/mobile/mobile_surface_card.dart';
 import '../../core/widgets/mobile/zafe_detail.dart';
 import '../../providers/privacy_mode_provider.dart';
@@ -49,10 +49,11 @@ class ReceivedScreen extends ConsumerWidget {
     return ZafeScreen(
       title: 'Received',
       children: [
-        MobileReviewInfoRow(
-          label: r.isCoinbase ? 'Mining reward' : 'Amount',
-          value: receivedAmountText(r, hide: hide, detail: true),
-          leading: const ZecCoin(),
+        PaymentCard(
+          label: r.isCoinbase ? 'MINING REWARD' : 'RECEIVED',
+          amountText:
+              '+${ZecAmount.fromZatoshi(r.amountZat).receipt.amountText}',
+          hidden: hide,
         ),
         const SizedBox(height: AppSpacing.md),
         MobileSurfaceCard(

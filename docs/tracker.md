@@ -41,15 +41,16 @@ Last updated: 2026-09-30 (incoming payments in activity; earlier: Vizor core res
    with proposals by time on Home and `/activity`, open `/received/:txid`, and are
    announced by the background check ("payment received"). Tested: wallet unit test on a
    hand-built DB, `bridge_e2e` (coinbase receipts listed, own spend excluded), Dart tests.
-   Not yet checked on a device/emulator. Notes: a received payment's sender is
+   Checked on the emulator: rows on Home, `/received/:txid` page. Notes: a received payment's sender is
    unknowable (shielded), so there is no "from"; pending (unmined) receipts only appear if the wallet learns of them, which
    `sync::run` doesn't do (no mempool scan).
 5. [x] **Scan invite QR** on Join (camera, `mobile_scanner`; accepts the raw invite or the
    invite link; permission-denied state with "Open settings"). Invite links
    `zafe://join?invite=...` (app_links; cold and warm start; from inside a vault it's
    "Add vault"), "Share link" on the setup screen, and the setup QR now carries the link.
-   **Needs on-device verification** (camera, deep link cold/warm, permission denied);
-   only unit tests and `flutter analyze` ran. iOS untested (URL scheme + camera string added).
+   Verified on the emulator (2026-09-30): warm-start deep link prefills Join with the
+   "Opened from a link" warning, Back → add-vault welcome → ✕ returns to the vault,
+   scanner opens with a live preview. Still unverified: cold start, permission-denied state. iOS untested (URL scheme + camera string added).
 
 ## M1 — app v1 on testnet (spec §16)
 

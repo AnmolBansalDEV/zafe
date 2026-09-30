@@ -7,7 +7,8 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Only superseded pull-request runs are cancelled; every push to main gets a result.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CARGO_TERM_COLOR: always
@@ -18,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -33,7 +34,7 @@ jobs:
     name: ZIP 2005 vectors (independent Python check)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: python3 scripts/check_zip2005_vectors.py
 
   flutter:
@@ -44,13 +45,15 @@ jobs:
       run:
         working-directory: app
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: 3.41.6
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter analyze
+      # Our code only: rust_builder/cargokit/build_tool is vendored tooling with its own
+      # pubspec, which the app's `pub get` doesn't resolve.
+      - run: flutter analyze lib test tool
       # Unit tests only; tool/illustrations/preview_test.dart renders art for review.
       - run: flutter test test
