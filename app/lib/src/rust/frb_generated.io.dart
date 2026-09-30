@@ -7,6 +7,7 @@ import 'api/backup.dart';
 import 'api/endpoints.dart';
 import 'api/error.dart';
 import 'api/history.dart';
+import 'api/mempool.dart';
 import 'api/names.dart';
 import 'api/proposals.dart';
 import 'api/received.dart';
@@ -28,6 +29,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw);
+
+  @protected
+  RustStreamSink<MempoolEvent> dco_decode_StreamSink_mempool_event_Sse(
+    dynamic raw,
+  );
 
   @protected
   RustStreamSink<SendProgress> dco_decode_StreamSink_send_progress_Sse(
@@ -110,6 +116,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MembershipInfo dco_decode_membership_info(dynamic raw);
+
+  @protected
+  MempoolEvent dco_decode_mempool_event(dynamic raw);
+
+  @protected
+  MempoolStatus dco_decode_mempool_status(dynamic raw);
 
   @protected
   MyVote dco_decode_my_vote(dynamic raw);
@@ -202,6 +214,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
 
   @protected
+  RustStreamSink<MempoolEvent> sse_decode_StreamSink_mempool_event_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RustStreamSink<SendProgress> sse_decode_StreamSink_send_progress_Sse(
     SseDeserializer deserializer,
   );
@@ -290,6 +307,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MembershipInfo sse_decode_membership_info(SseDeserializer deserializer);
+
+  @protected
+  MempoolEvent sse_decode_mempool_event(SseDeserializer deserializer);
+
+  @protected
+  MempoolStatus sse_decode_mempool_status(SseDeserializer deserializer);
 
   @protected
   MyVote sse_decode_my_vote(SseDeserializer deserializer);
@@ -385,6 +408,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_AnyhowException(
     AnyhowException self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_mempool_event_Sse(
+    RustStreamSink<MempoolEvent> self,
     SseSerializer serializer,
   );
 
@@ -501,6 +530,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     MembershipInfo self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_mempool_event(MempoolEvent self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_mempool_status(MempoolStatus self, SseSerializer serializer);
 
   @protected
   void sse_encode_my_vote(MyVote self, SseSerializer serializer);

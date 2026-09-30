@@ -22,7 +22,7 @@ use zcash_client_backend::{
         locking::LockError,
         scanning::ScanRange,
         wallet::{
-            create_pczt_from_proposal,
+            create_pczt_from_proposal, decrypt_and_store_transaction,
             input_selection::{
                 GreedyInputSelector, GreedyInputSelectorError, LockedInputPolicy, SpendPolicy,
             },
@@ -237,7 +237,7 @@ fn remote_error(e: &(dyn std::error::Error + 'static)) -> WalletError {
 }
 
 /// A gRPC call's error status: the server's own answer, or the transport's failure.
-fn status_error(s: &tonic::Status) -> WalletError {
+pub(crate) fn status_error(s: &tonic::Status) -> WalletError {
     WalletError::Remote {
         failure: crate::net::NetFailure::of_status(s),
         message: crate::net::error_chain(s),
@@ -493,6 +493,16 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
                 sync::Error::Wallet(e) => db_err(e),
                 e => WalletError::Sync(format!("{e:?}")),
             })
+    }
+
+    /// Records a transaction seen in the mempool (unmined) if it concerns the vault: trial
+    /// decryption with the vault's viewing key; irrelevant transactions store nothing.
+    /// Block sync later sets its mined height (or it expires).
+    pub fn store_mempool_tx(
+        &mut self,
+        tx: &zcash_primitives::transaction::Transaction,
+    ) -> Result<(), WalletError> {
+        decrypt_and_store_transaction(&self.params, &mut self.db, tx, None).map_err(db_err)
     }
 
     /// The network this wallet is on.

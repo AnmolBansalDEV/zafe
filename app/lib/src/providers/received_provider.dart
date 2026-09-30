@@ -24,9 +24,11 @@ class ReceivedState {
 }
 
 /// Money the active vault received, read from its local wallet database. Reloads after
-/// every wallet sync (a new balance or height) and when another vault becomes active.
+/// every wallet sync (a new balance or height), when another vault becomes active, and
+/// when the mempool watch stores a pending transaction.
 class ReceivedNotifier extends Notifier<ReceivedState> {
   bool _loading = false;
+  bool _again = false;
 
   @override
   ReceivedState build() {
@@ -43,7 +45,12 @@ class ReceivedNotifier extends Notifier<ReceivedState> {
     final vault = ref.read(vaultProvider);
     final material = vault.material;
     final vaultId = vault.activeId;
-    if (material == null || vaultId == null || _loading) return;
+    if (material == null || vaultId == null) return;
+    if (_loading) {
+      // Read again once the current read ends: it may predate what triggered this call.
+      _again = true;
+      return;
+    }
     _loading = true;
     try {
       final paths = await ZafePaths.get();
@@ -66,6 +73,10 @@ class ReceivedNotifier extends Notifier<ReceivedState> {
       debugPrint('received payments failed: ${describeError(e)}');
     } finally {
       _loading = false;
+    }
+    if (_again) {
+      _again = false;
+      await refresh();
     }
   }
 }

@@ -6,7 +6,7 @@ finished ones, tick them and add the commit. Spec references are to `spec.md`.
 
 Legend: `[ ]` open · `[x]` done · **(you)** needs the user · *(idea)* not yet decided
 
-Last updated: 2026-09-30 (note reservation; versioned formats; relay TLS + packaging; wallet DB encryption; incoming payments)
+Last updated: 2026-09-30 (note reservation; versioned formats; relay TLS + packaging; wallet DB encryption; incoming payments; pending receipts from the mempool)
 
 ---
 
@@ -42,8 +42,19 @@ Last updated: 2026-09-30 (note reservation; versioned formats; relay TLS + packa
    announced by the background check ("payment received"). Tested: wallet unit test on a
    hand-built DB, `bridge_e2e` (coinbase receipts listed, own spend excluded), Dart tests.
    Checked on the emulator: rows on Home, `/received/:txid` page. Notes: a received payment's sender is
-   unknowable (shielded), so there is no "from"; pending (unmined) receipts only appear if the wallet learns of them, which
-   `sync::run` doesn't do (no mempool scan).
+   unknowable (shielded), so there is no "from". Pending (unmined) receipts: see item 6.
+6. [x] **Pending incoming payments** (2026-09-30): while the app is in the foreground with
+   a synced active vault, a mempool watch (`zafe_core::mempool::watch`, bridge
+   `api/mempool.rs` `watch_mempool`, app `providers/mempool_watch_provider.dart`) streams
+   lightwalletd's whole mempool (`GetMempoolStream`), trial-decrypts each transaction with
+   the vault UFVK and stores the vault's own unmined (`decrypt_and_store_transaction`), so
+   an incoming payment is listed as pending before it is mined. Stops when backgrounded or
+   on a vault/lightwalletd switch. Tested: Rust unit tests (backoff, cancel), Dart
+   `mempool_watch_policy_test.dart`; `bridge_e2e` gained a section (a second 2-of-2 vault
+   paid by the first, listed unmined via E's watch, then mined) that **has not been run
+   yet**, and nothing was checked on a device. Open: the Home "pending" row wasn't looked
+   at on the emulator; background checks don't watch the mempool (only foreground);
+   transparent receipts aren't possible (Ironwood-only vaults).
 5. [x] **Scan invite QR** on Join (camera, `mobile_scanner`; accepts the raw invite or the
    invite link; permission-denied state with "Open settings"). Invite links
    `zafe://join?invite=...` (app_links; cold and warm start; from inside a vault it's

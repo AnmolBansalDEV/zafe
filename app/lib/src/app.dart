@@ -28,6 +28,7 @@ import 'features/received/received_screen.dart';
 import 'features/send/send_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/settings/viewing_key_screen.dart';
+import 'providers/mempool_watch_provider.dart';
 import 'providers/theme_mode_provider.dart';
 import 'notifications/vault_updates.dart' show kReceivedPrefix;
 import 'notifications/vault_watch.dart';
@@ -231,6 +232,8 @@ class ZafeApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
+    // Pending incoming payments while the app is open (starts and stops by itself).
+    ref.watch(mempoolWatchProvider);
     return AppThemeHost(
       themeMode: themeMode,
       child: MaterialApp.router(

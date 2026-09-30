@@ -532,6 +532,29 @@ Learned while studying it:
   not announced, so an upgrade doesn't replay history. `recordSeen(id, proposals,
   received:)` merges (a `null` list keeps that kind). Notification payload
   `vaultId:rx:<txid>` opens `/received/<txid>`.
+- **Pending receipts: the mempool watch** (`zafe_core::mempool::watch`, bridge
+  `api/mempool.rs`, app `providers/mempool_watch_{policy,provider}.dart`). Block sync
+  never sees unmined transactions, so while the app is in the foreground the watch reads
+  lightwalletd's `GetMempoolStream` (whole mempool, never a txid lookup), parses each tx
+  at tip + 1, trial-decrypts it with the vault UFVK **without touching the DB**, and only
+  for vault transactions calls `store` on a blocking thread, which takes `wallet_lock()`,
+  opens the wallet with its key (`VaultWallet::open`, encrypted path) and runs
+  `store_mempool_tx` (`decrypt_and_store_transaction`, mined height `None`). The lock is
+  never held while waiting on the stream. lightwalletd closes the stream at every block:
+  reconnect after 1 s; real errors back off 1, 2, 4 ... 30 s (reset once a stream
+  delivers). Handled txids are remembered (bounded) since each reconnect resends the
+  mempool; a failed store is not, so it is retried after the next block. Lifecycle: one
+  watch per process. `begin_mempool_watch()` (sync) returns an id and makes older ids
+  stale; `watch_mempool(id, ...)` spawns on the bridge runtime, returns at once and runs
+  while its id is current (cancel polled every 100 ms, also mid-connect/read/sleep);
+  `stop_mempool_watch()` (sync) bumps the id. The app takes the id **before** its awaits,
+  so a stop during setup can't be lost. Events: `Connected`, `Stored { txid }` (the app
+  reloads `receivedProvider`), `StoreFailed`, `Disconnected { retry_in_secs }`, `Failed`
+  (setup error; the stream then closes). `MempoolWatchController` keeps one watch matching
+  `mempoolWatchTarget(foreground, activeId, synced = balance != null, lightwalletdUrl)`
+  and restarts one that ended by itself after 10 s; `ZafeApp` keeps the provider alive.
+  Foreground = `resumed`/`inactive`/unknown. Background checks don't watch (they sync).
+  `ReceivedNotifier.refresh` now queues one more read if called while loading.
 - `VaultWallet::create` does all network calls **before** creating the DB file; the bridge
   also deletes a DB with no account (`VaultWallet::exists`). Previously the first sync with
   lightwalletd down left an empty DB that failed forever ("expected one account, found 0").
