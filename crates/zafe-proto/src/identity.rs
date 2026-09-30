@@ -7,7 +7,7 @@ use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::ProtoError;
+use crate::{version::Format, ProtoError};
 
 pub(crate) type Kem = X25519HkdfSha256;
 
@@ -51,6 +51,27 @@ impl IdentityPublic {
 pub struct IdentitySeeds {
     pub sig_seed: [u8; 32],
     pub enc_seed: [u8; 32],
+}
+
+impl IdentitySeeds {
+    /// Versioned storage form: `version (u16) || sig_seed || enc_seed`. Secret.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut raw = zeroize::Zeroizing::new([0u8; 64]);
+        raw[..32].copy_from_slice(&self.sig_seed);
+        raw[32..].copy_from_slice(&self.enc_seed);
+        crate::version::frame(Format::IdentitySeeds, raw.as_ref())
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ProtoError> {
+        let raw = crate::version::unframe(Format::IdentitySeeds, bytes)?;
+        if raw.len() != 64 {
+            return Err(ProtoError::Encoding);
+        }
+        Ok(Self {
+            sig_seed: raw[..32].try_into().expect("32 bytes"),
+            enc_seed: raw[32..].try_into().expect("32 bytes"),
+        })
+    }
 }
 
 /// A member's private identity.

@@ -16,6 +16,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 use crate::{
     envelope::{encode, MailboxId},
     identity::{Identity, IdentityPublic},
+    version::{self, Format},
     ProtoError,
 };
 
@@ -48,6 +49,8 @@ impl LogKey {
 /// Everything in an entry except the author's signature.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EntryHeader {
+    /// [`version::LOG_ENTRY`]; signed and part of the AEAD associated data.
+    pub version: u16,
     pub mailbox: MailboxId,
     pub index: u64,
     pub prev_hash: [u8; 32],
@@ -77,6 +80,7 @@ impl LogEntry {
         rng: &mut R,
     ) -> Result<Self, ProtoError> {
         let header = EntryHeader {
+            version: version::LOG_ENTRY,
             mailbox,
             index,
             prev_hash,
@@ -105,7 +109,24 @@ impl LogEntry {
         })
     }
 
+    /// `version (u16) || postcard(entry)`; the tag equals `header.version`. This is what
+    /// the relay stores and serves.
+    pub fn to_bytes(&self) -> Result<Vec<u8>, ProtoError> {
+        Ok(version::frame(Format::LogEntry, &encode(self)?))
+    }
+
+    /// Rejects unknown versions with [`ProtoError::UnsupportedVersion`] before parsing.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ProtoError> {
+        let entry: Self = postcard::from_bytes(version::unframe(Format::LogEntry, bytes)?)
+            .map_err(|_| ProtoError::Encoding)?;
+        if entry.header.version != version::LOG_ENTRY {
+            return Err(ProtoError::Encoding);
+        }
+        Ok(entry)
+    }
+
     pub fn verify_signature(&self, author: &IdentityPublic) -> Result<(), ProtoError> {
+        version::check(Format::LogEntry, self.header.version)?;
         if self.header.author != author.sig_pk {
             return Err(ProtoError::WrongSender);
         }

@@ -12,9 +12,8 @@ use rand::{rngs::StdRng, RngCore, SeedableRng};
 use tower::ServiceExt;
 use zafe_proto::{
     relay::{
-        decode_body, encode_body, join_token_hash, AppendResult, CreateMailbox, InboxRead,
-        InboxResponse, Join, LogRead, LogResponse, MembersRead, MembersResponse, Remove, Seal,
-        Signed,
+        decode_body, join_token_hash, AppendResult, CreateMailbox, InboxRead, InboxResponse, Join,
+        LogRead, LogResponse, MembersRead, MembersResponse, Remove, Seal, Signed,
     },
     Chain, Envelope, Identity, Kind, LogEntry, LogKey,
 };
@@ -130,7 +129,7 @@ impl World {
         )
         .await;
         assert_eq!(status, StatusCode::OK);
-        decode_body::<InboxResponse>(&body).unwrap().envelopes
+        decode_body::<InboxResponse>(&body).unwrap().decoded()
     }
 }
 
@@ -336,7 +335,7 @@ async fn log_appends_must_extend_the_head() {
     .unwrap();
     // No log before membership is sealed.
     assert_eq!(
-        call(&w.app, "/v1/log/append", encode_body(&first).unwrap())
+        call(&w.app, "/v1/log/append", first.to_bytes().unwrap())
             .await
             .0,
         StatusCode::FORBIDDEN
@@ -354,7 +353,7 @@ async fn log_appends_must_extend_the_head() {
     )
     .await;
 
-    let (_, body) = call(&w.app, "/v1/log/append", encode_body(&first).unwrap()).await;
+    let (_, body) = call(&w.app, "/v1/log/append", first.to_bytes().unwrap()).await;
     assert_eq!(
         decode_body::<AppendResult>(&body).unwrap(),
         AppendResult::Appended { index: 0 }
@@ -364,8 +363,8 @@ async fn log_appends_must_extend_the_head() {
     let head = first.hash().unwrap();
     let a = LogEntry::create(&w.ids[1], &key, MAILBOX, 1, head, b"proposal A", &mut w.rng).unwrap();
     let b = LogEntry::create(&w.ids[2], &key, MAILBOX, 1, head, b"proposal B", &mut w.rng).unwrap();
-    let (_, ra) = call(&w.app, "/v1/log/append", encode_body(&a).unwrap()).await;
-    let (_, rb) = call(&w.app, "/v1/log/append", encode_body(&b).unwrap()).await;
+    let (_, ra) = call(&w.app, "/v1/log/append", a.to_bytes().unwrap()).await;
+    let (_, rb) = call(&w.app, "/v1/log/append", b.to_bytes().unwrap()).await;
     assert_eq!(
         decode_body::<AppendResult>(&ra).unwrap(),
         AppendResult::Appended { index: 1 }
@@ -387,7 +386,10 @@ async fn log_appends_must_extend_the_head() {
         },
     )
     .await;
-    let entries = decode_body::<LogResponse>(&body).unwrap().entries;
+    let entries = decode_body::<LogResponse>(&body)
+        .unwrap()
+        .decoded()
+        .unwrap();
     let publics: Vec<_> = w.ids[..3].iter().map(|i| *i.public()).collect();
     let mut chain = Chain::new(MAILBOX);
     for e in entries {
@@ -460,4 +462,77 @@ async fn member_cap_and_creator_removal() {
     )
     .await;
     assert_eq!(joined.0, StatusCode::OK);
+}
+
+/// Bodies in a version the relay doesn't speak get 426 with the supported version, not a
+/// generic "malformed request".
+#[tokio::test]
+async fn too_new_versions_get_upgrade_required() {
+    use zafe_proto::{relay::UNSUPPORTED_VERSION_HEADER, version};
+
+    async fn call_full(app: &Router, path: &str, body: Vec<u8>) -> (StatusCode, Option<String>) {
+        let response = app
+            .clone()
+            .oneshot(Request::post(path).body(Body::from(body)).unwrap())
+            .await
+            .unwrap();
+        let header = response
+            .headers()
+            .get(UNSUPPORTED_VERSION_HEADER)
+            .map(|v| v.to_str().unwrap().to_owned());
+        (response.status(), header)
+    }
+    fn bump(mut bytes: Vec<u8>) -> Vec<u8> {
+        let v = u16::from_le_bytes([bytes[0], bytes[1]]) + 1;
+        bytes[..2].copy_from_slice(&v.to_le_bytes());
+        bytes
+    }
+
+    let mut w = World::new(true).await;
+    let request = Signed::new(
+        &w.ids[1],
+        MembersRead {
+            mailbox: MAILBOX,
+            timestamp: NOW,
+        },
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap();
+    assert_eq!(
+        call_full(&w.app, "/v1/mailbox/members", request.clone()).await,
+        (StatusCode::OK, None)
+    );
+    assert_eq!(
+        call_full(&w.app, "/v1/mailbox/members", bump(request)).await,
+        (
+            StatusCode::UPGRADE_REQUIRED,
+            Some(version::RELAY_API.to_string())
+        )
+    );
+
+    let envelope = Envelope::public(&w.ids[1], MAILBOX, 1, Kind::DkgEcho, b"hi")
+        .unwrap()
+        .to_bytes()
+        .unwrap();
+    assert_eq!(
+        call_full(&w.app, "/v1/envelope", bump(envelope)).await,
+        (
+            StatusCode::UPGRADE_REQUIRED,
+            Some(version::ENVELOPE.to_string())
+        )
+    );
+
+    let key = LogKey::generate(0, &mut w.rng);
+    let entry = LogEntry::create(&w.ids[0], &key, MAILBOX, 0, [0; 32], b"x", &mut w.rng)
+        .unwrap()
+        .to_bytes()
+        .unwrap();
+    assert_eq!(
+        call_full(&w.app, "/v1/log/append", bump(entry)).await,
+        (
+            StatusCode::UPGRADE_REQUIRED,
+            Some(version::LOG_ENTRY.to_string())
+        )
+    );
 }

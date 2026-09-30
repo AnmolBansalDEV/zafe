@@ -6,7 +6,7 @@ finished ones, tick them and add the commit. Spec references are to `spec.md`.
 
 Legend: `[ ]` open · `[x]` done · **(you)** needs the user · *(idea)* not yet decided
 
-Last updated: 2026-09-30 (incoming payments in activity; earlier: Vizor core resynced to `4bff2e7`)
+Last updated: 2026-09-30 (versioned formats; incoming payments in activity; earlier: Vizor core resynced to `4bff2e7`)
 
 ---
 
@@ -234,6 +234,18 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       E2E, `integration_test/payment_uri_prefill_test.dart` driven by
       `scripts/e2e/flutter-ios-regtest-mobile-*.sh`
 - [ ] Relay: rate limiting / abuse controls for the hosted tier; retention is 30 days
+- [x] **Versioned formats** (2026-09-30): every wire and stored format carries a version
+      tag (`zafe_proto::version`; inventory and bump rules in AGENTS.md), signed where a
+      downgrade matters (envelope and log-entry headers, relay requests, descriptor).
+      Unknown versions fail with a typed `UnsupportedVersion`; the relay answers 426 and
+      the app shows "update the app" (`ZafeErrorKind::UpdateRequired` / `RelayOutdated`);
+      replay ignores newer events after `Created`. Unversioned pre-release data is not
+      readable: reset devices, harness and relay DBs
+- [ ] Versioning follow-ups: show "update Zafe to see everything" when
+      `VaultState::newer_version_entries() > 0` (bridge + Home banner); decide a migration
+      policy (which old versions each decoder keeps) before external testers; a
+      `/v1/version` endpoint or response header so the app can warn before the first
+      failing call *(idea)*
 
 ## Ideas (not decided)
 

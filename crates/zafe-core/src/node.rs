@@ -16,8 +16,10 @@ use reddsa::frost::redpallas::{
 };
 use serde::{Deserialize, Serialize};
 use zafe_proto::{
-    relay::AppendResult, safety_number, Chain, Envelope, Identity, IdentityPublic, Kind, LogEntry,
-    LogKey, MailboxId,
+    relay::AppendResult,
+    safety_number,
+    version::{self, DecodeError, Format, UnsupportedVersion},
+    Chain, Envelope, Identity, IdentityPublic, Kind, LogEntry, LogKey, MailboxId, ProtoError,
 };
 use zcash_keys::address::UnifiedAddress;
 use zcash_protocol::consensus::Parameters;
@@ -48,10 +50,41 @@ pub enum NodeError {
     Verification(String),
     #[error("protocol: {0}")]
     Protocol(String),
+    /// Data or a message in a version this build doesn't read (see
+    /// [`UnsupportedVersion::is_newer`]: newer means "update the app").
+    #[error(transparent)]
+    UnsupportedVersion(#[from] UnsupportedVersion),
 }
 
 fn proto(e: impl core::fmt::Debug) -> NodeError {
     NodeError::Protocol(format!("{e:?}"))
+}
+
+impl From<DecodeError> for NodeError {
+    fn from(e: DecodeError) -> Self {
+        match e {
+            DecodeError::Unsupported(v) => NodeError::UnsupportedVersion(v),
+            DecodeError::Malformed(f) => NodeError::Protocol(format!("malformed {f}")),
+        }
+    }
+}
+
+/// Keeps version errors typed; everything else becomes a protocol error.
+fn vault_err(e: crate::vault::VaultError) -> NodeError {
+    match e {
+        crate::vault::VaultError::UnsupportedVersion(v) => NodeError::UnsupportedVersion(v),
+        e => proto(e),
+    }
+}
+
+fn chain_err(e: zafe_proto::ChainError) -> NodeError {
+    match e {
+        zafe_proto::ChainError::Invalid {
+            source: ProtoError::UnsupportedVersion(v),
+            ..
+        } => NodeError::UnsupportedVersion(v),
+        e => proto(e),
+    }
 }
 
 /// Everything a new member needs to join (shared out of band as a string or QR code).
@@ -67,21 +100,28 @@ pub struct Invite {
 }
 
 impl Invite {
-    const PREFIX: &'static str = "zafe-invite-v1:";
+    /// Text form: `zafe-invite-v<version::INVITE>:<hex postcard>`.
+    const PREFIX: &'static str = "zafe-invite-v";
 
     pub fn encode(&self) -> String {
         format!(
-            "{}{}",
+            "{}{}:{}",
             Self::PREFIX,
+            version::INVITE,
             hex::encode(postcard::to_allocvec(self).expect("encodable"))
         )
     }
 
+    /// Parses an invite; one from another version of Zafe fails with
+    /// [`NodeError::UnsupportedVersion`] rather than "invalid invite".
     pub fn decode(s: &str) -> Result<Self, NodeError> {
-        let body = s
+        let rest = s
             .trim()
             .strip_prefix(Self::PREFIX)
             .ok_or(NodeError::BadInvite)?;
+        let (found, body) = rest.split_once(':').ok_or(NodeError::BadInvite)?;
+        let found: u16 = found.parse().map_err(|_| NodeError::BadInvite)?;
+        version::check(Format::Invite, found)?;
         postcard::from_bytes(&hex::decode(body).map_err(|_| NodeError::BadInvite)?)
             .map_err(|_| NodeError::BadInvite)
     }
@@ -125,6 +165,17 @@ impl core::fmt::Debug for VaultMaterial {
 }
 
 impl VaultMaterial {
+    /// Versioned storage form (device secure storage, CLI `vault.bin`, backups). Secret.
+    pub fn to_bytes(&self) -> Result<Vec<u8>, NodeError> {
+        Ok(version::encode(Format::VaultMaterial, self)?)
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, NodeError> {
+        let material: Self = version::decode(Format::VaultMaterial, bytes)?;
+        version::check(Format::Descriptor, material.descriptor.version)?;
+        Ok(material)
+    }
+
     pub fn key_package(&self) -> Result<KeyPackage, NodeError> {
         KeyPackage::deserialize(&self.key_package).map_err(proto)
     }
@@ -365,7 +416,7 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
             None
         },
     };
-    let payload = postcard::to_allocvec(&msg).map_err(proto)?;
+    let payload = version::encode(Format::DkgRound1, &msg)?;
     relay
         .send(
             &Envelope::public(
@@ -389,7 +440,7 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
     };
     let mut received1 = BTreeMap::new();
     for (pk, bytes) in &r1 {
-        let m: Round1Msg = postcard::from_bytes(bytes).map_err(proto)?;
+        let m: Round1Msg = version::decode(Format::DkgRound1, bytes)?;
         if *pk == invite.creator {
             birthday_height = m.birthday_height;
         }
@@ -485,7 +536,7 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
             .encode(network);
     let descriptor = VaultDescriptor {
         vault_id: invite.mailbox,
-        version: 1,
+        version: version::DESCRIPTOR,
         name: invite.name.clone(),
         network: network_name.to_owned(),
         threshold: invite.threshold,
@@ -603,9 +654,9 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
         if !entries.is_empty() {
             let mut chain = Chain::new(invite.mailbox);
             for e in entries {
-                chain.append(e, &members).map_err(proto)?;
+                chain.append(e, &members).map_err(chain_err)?;
             }
-            break VaultState::replay(chain.entries(), &log_key).map_err(proto)?;
+            break VaultState::replay(chain.entries(), &log_key).map_err(vault_err)?;
         }
         if Instant::now() > deadline {
             return Err(NodeError::Timeout("VaultCreated log entry"));
@@ -685,7 +736,7 @@ async fn catch_up(
             return Ok(());
         }
         for entry in batch {
-            chain.append(entry.clone(), &members).map_err(proto)?;
+            chain.append(entry.clone(), &members).map_err(chain_err)?;
             state.apply_entry(&entry, &key);
         }
     }
@@ -702,9 +753,9 @@ pub async fn load_state(
     let mut chain = Chain::new(mailbox);
     // The first page must contain the Created entry.
     for entry in relay.read_log(me, mailbox, 0).await? {
-        chain.append(entry, &members).map_err(proto)?;
+        chain.append(entry, &members).map_err(chain_err)?;
     }
-    let mut state = VaultState::replay(chain.entries(), &material.log_key()).map_err(proto)?;
+    let mut state = VaultState::replay(chain.entries(), &material.log_key()).map_err(vault_err)?;
     catch_up(relay, me, material, &mut chain, &mut state).await?;
     Ok((chain, state))
 }
@@ -1513,7 +1564,7 @@ pub async fn respond<P: Parameters, R: RngCore + CryptoRng>(
         let Ok(bytes) = env.open(me, &leader) else {
             continue;
         };
-        let Ok(msg) = postcard::from_bytes::<SigningRequestMsg>(&bytes) else {
+        let Ok(msg) = version::decode::<SigningRequestMsg>(Format::SigningRequest, &bytes) else {
             continue;
         };
         if !store.contains(&msg.proposal, &msg.pczt_hash) {
@@ -1540,7 +1591,7 @@ pub async fn respond<P: Parameters, R: RngCore + CryptoRng>(
                 request_hash: hash_request_bytes(&bytes),
                 shares: shares.iter().map(|s| s.serialize()).collect(),
             };
-            postcard::to_allocvec(&reply).map_err(proto)
+            Ok(version::encode(Format::SignatureShares, &reply)?)
         })();
         match result {
             Ok(reply) => {
@@ -1603,7 +1654,7 @@ async fn read_shares(
         let Ok(bytes) = env.open(me, &from) else {
             continue;
         };
-        let Ok(msg) = postcard::from_bytes::<SharesMsg>(&bytes) else {
+        let Ok(msg) = version::decode::<SharesMsg>(Format::SignatureShares, &bytes) else {
             continue;
         };
         if msg.proposal != request.proposal || msg.request_hash != wanted {
@@ -1775,7 +1826,7 @@ pub async fn finalize<R: RngCore + CryptoRng>(
     Ok(txid)
 }
 
-/// Serializes a signing request (e.g. for the leader to keep it between steps).
+/// Serializes a signing request (versioned; the leader also keeps it as `<id>.req`).
 pub fn encode_request(request: &SigningRequest) -> Result<Vec<u8>, NodeError> {
     let msg = SigningRequestMsg {
         proposal: request.proposal,
@@ -1787,11 +1838,11 @@ pub fn encode_request(request: &SigningRequest) -> Result<Vec<u8>, NodeError> {
             .map(|p| p.serialize().map_err(proto))
             .collect::<Result<_, _>>()?,
     };
-    postcard::to_allocvec(&msg).map_err(proto)
+    Ok(version::encode(Format::SigningRequest, &msg)?)
 }
 
 pub fn decode_request(bytes: &[u8]) -> Result<SigningRequest, NodeError> {
-    let msg: SigningRequestMsg = postcard::from_bytes(bytes).map_err(proto)?;
+    let msg: SigningRequestMsg = version::decode(Format::SigningRequest, bytes)?;
     Ok(SigningRequest {
         proposal: msg.proposal,
         pczt_hash: msg.pczt_hash,
@@ -1808,9 +1859,29 @@ pub fn decode_request(bytes: &[u8]) -> Result<SigningRequest, NodeError> {
     })
 }
 
+/// The leader's own serialized shares, kept until broadcast (`<id>.own`).
+pub fn encode_own_shares(shares: &[Vec<u8>]) -> Result<Vec<u8>, NodeError> {
+    Ok(version::encode(Format::OwnShares, shares)?)
+}
+
+pub fn decode_own_shares(bytes: &[u8]) -> Result<Vec<Vec<u8>>, NodeError> {
+    Ok(version::decode(Format::OwnShares, bytes)?)
+}
+
+/// The leader's set of commitment sets already put in requests (`used_commitments.bin`).
+pub fn encode_used_commitments(used: &BTreeSet<[u8; 32]>) -> Result<Vec<u8>, NodeError> {
+    Ok(version::encode(Format::UsedCommitments, used)?)
+}
+
+/// Fails on an unreadable file instead of starting empty: forgetting used commitment
+/// sets could put one in a second request.
+pub fn decode_used_commitments(bytes: &[u8]) -> Result<BTreeSet<[u8; 32]>, NodeError> {
+    Ok(version::decode(Format::UsedCommitments, bytes)?)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::Invite;
+    use super::*;
 
     /// The app embeds invites in `zafe://join?invite=...` links and QR codes unescaped,
     /// which relies on this character set; it also bounds the QR size.
@@ -1830,5 +1901,47 @@ mod tests {
             .all(|b| b.is_ascii_alphanumeric() || b"-:._~".contains(&b)));
         assert!(text.len() < 300, "{} chars", text.len());
         assert_eq!(Invite::decode(&text).unwrap(), invite);
+    }
+
+    #[test]
+    fn invites_from_another_version_are_rejected_as_such() {
+        let invite = Invite {
+            mailbox: [7; 16],
+            join_token: [9; 32],
+            creator: [3; 32],
+            threshold: 2,
+            members: 3,
+            name: "Ops".into(),
+        };
+        let text = invite.encode();
+        assert!(text.starts_with("zafe-invite-v1:"));
+        let newer = text.replacen("zafe-invite-v1:", "zafe-invite-v2:", 1);
+        match Invite::decode(&newer) {
+            Err(NodeError::UnsupportedVersion(v)) => {
+                assert_eq!((v.format, v.found, v.supported), (Format::Invite, 2, 1));
+                assert!(v.is_newer());
+            }
+            other => panic!("{other:?}"),
+        }
+        assert!(matches!(
+            Invite::decode("zafe-invite-vx:00"),
+            Err(NodeError::BadInvite)
+        ));
+    }
+
+    #[test]
+    fn leader_state_files_round_trip_and_reject_other_versions() {
+        let own = vec![vec![1u8; 32], vec![2u8; 32]];
+        let bytes = encode_own_shares(&own).unwrap();
+        assert_eq!(decode_own_shares(&bytes).unwrap(), own);
+        let used: BTreeSet<[u8; 32]> = [[1u8; 32], [2u8; 32]].into();
+        let bytes = encode_used_commitments(&used).unwrap();
+        assert_eq!(decode_used_commitments(&bytes).unwrap(), used);
+        let mut newer = bytes.clone();
+        newer[0] = 9;
+        assert!(matches!(
+            decode_used_commitments(&newer),
+            Err(NodeError::UnsupportedVersion(_))
+        ));
     }
 }

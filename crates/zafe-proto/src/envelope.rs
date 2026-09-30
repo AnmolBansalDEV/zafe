@@ -14,10 +14,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     identity::{Identity, IdentityPublic, Kem},
+    version::{self, Format},
     ProtoError,
 };
 
-pub const PROTOCOL_VERSION: u8 = 1;
 const SIGNATURE_DOMAIN: &[u8] = b"Zafe envelope signature v1";
 const HPKE_INFO: &[u8] = b"Zafe HPKE v1";
 
@@ -51,7 +51,8 @@ pub enum Kind {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Header {
-    pub version: u8,
+    /// [`version::ENVELOPE`]; signed, and part of the HPKE associated data.
+    pub version: u16,
     pub mailbox: MailboxId,
     /// Sender's Ed25519 key.
     pub from: [u8; 32],
@@ -80,7 +81,7 @@ impl Envelope {
         payload: &[u8],
     ) -> Result<Self, ProtoError> {
         let header = Header {
-            version: PROTOCOL_VERSION,
+            version: version::ENVELOPE,
             mailbox,
             from: sender.public().sig_pk,
             to: Recipient::All,
@@ -101,7 +102,7 @@ impl Envelope {
         rng: &mut R,
     ) -> Result<Self, ProtoError> {
         let header = Header {
-            version: PROTOCOL_VERSION,
+            version: version::ENVELOPE,
             mailbox,
             from: sender.public().sig_pk,
             to: Recipient::One(recipient.sig_pk),
@@ -146,9 +147,7 @@ impl Envelope {
 
     /// Checks the version and the sender's signature. The relay and recipients both do this.
     pub fn verify(&self, sender: &IdentityPublic) -> Result<(), ProtoError> {
-        if self.header.version != PROTOCOL_VERSION {
-            return Err(ProtoError::UnsupportedVersion(self.header.version));
-        }
+        version::check(Format::Envelope, self.header.version)?;
         if self.header.from != sender.sig_pk {
             return Err(ProtoError::WrongSender);
         }
@@ -181,12 +180,19 @@ impl Envelope {
         }
     }
 
+    /// `version (u16) || postcard(envelope)`; the tag equals `header.version`.
     pub fn to_bytes(&self) -> Result<Vec<u8>, ProtoError> {
-        encode(self)
+        Ok(version::frame(Format::Envelope, &encode(self)?))
     }
 
+    /// Rejects unknown versions with [`ProtoError::UnsupportedVersion`] before parsing.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, ProtoError> {
-        postcard::from_bytes(bytes).map_err(|_| ProtoError::Encoding)
+        let envelope: Self = postcard::from_bytes(version::unframe(Format::Envelope, bytes)?)
+            .map_err(|_| ProtoError::Encoding)?;
+        if envelope.header.version != version::ENVELOPE {
+            return Err(ProtoError::Encoding);
+        }
+        Ok(envelope)
     }
 }
 

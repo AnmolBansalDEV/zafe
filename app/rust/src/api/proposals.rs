@@ -610,21 +610,16 @@ pub fn send_with_progress(
         Err(_) => {
             // Commitment sets already put in a request must never be reused.
             let used_path = leader_dir(&state_dir).join("used_commitments.bin");
-            let mut used: BTreeSet<[u8; 32]> = fs::read(&used_path)
-                .ok()
-                .and_then(|b| postcard::from_bytes(&b).ok())
-                .unwrap_or_default();
+            let mut used: BTreeSet<[u8; 32]> = match fs::read(&used_path) {
+                Ok(bytes) => node::decode_used_commitments(&bytes)?,
+                Err(_) => BTreeSet::new(),
+            };
             let sent = runtime().block_on(node::request_signatures(
                 &relay, &me, &m, &net, tip, id, &used, &mut OsRng,
             ))?;
             used.extend(sent.used_commitments);
             fs::create_dir_all(leader_dir(&state_dir)).map_err(io)?;
-            fs::write(
-                &used_path,
-                postcard::to_allocvec(&used)
-                    .map_err(|e| ZafeError::new(ZafeErrorKind::Other, e.to_string()))?,
-            )
-            .map_err(io)?;
+            fs::write(&used_path, node::encode_used_commitments(&used)?).map_err(io)?;
             fs::write(&req_path, node::encode_request(&sent.request)?).map_err(io)?;
             sent.request
         }
@@ -642,18 +637,13 @@ pub fn send_with_progress(
         // the nonces) and kept until the broadcast, so a retry reuses them.
         let own_path = leader_dir(&state_dir).join(format!("{}.own", hex::encode(id)));
         let own: Option<Vec<Vec<u8>>> = match fs::read(&own_path) {
-            Ok(bytes) => Some(
-                postcard::from_bytes(&bytes)
-                    .map_err(|e| ZafeError::new(ZafeErrorKind::Other, e.to_string()))?,
-            ),
+            Ok(bytes) => Some(node::decode_own_shares(&bytes)?),
             Err(_) => {
                 let mut store = nonce_store(&state_dir);
                 let own =
                     node::sign_own_shares(&relay, &me, &m, &net, tip, &request, &mut store).await?;
                 if let Some(own) = &own {
-                    let bytes = postcard::to_allocvec(own)
-                        .map_err(|e| ZafeError::new(ZafeErrorKind::Other, e.to_string()))?;
-                    fs::write(&own_path, bytes).map_err(io)?;
+                    fs::write(&own_path, node::encode_own_shares(own)?).map_err(io)?;
                 }
                 own
             }

@@ -15,9 +15,9 @@ use rand::{rngs::StdRng, RngCore, SeedableRng};
 use tower::ServiceExt;
 use zafe_proto::{
     relay::{
-        decode_body, encode_body, join_token_hash, AppendResult, CreateMailbox, InboxRead,
-        InboxResponse, Join, LogRead, LogResponse, MembersRead, MembersResponse, PushPlatform,
-        RegisterPush, Seal, Signed,
+        decode_body, join_token_hash, AppendResult, CreateMailbox, InboxRead, InboxResponse, Join,
+        LogRead, LogResponse, MembersRead, MembersResponse, PushPlatform, RegisterPush, Seal,
+        Signed,
     },
     Envelope, Identity, Kind, LogEntry, LogKey,
 };
@@ -128,7 +128,7 @@ async fn populate_with_head(
     );
     let key = LogKey::generate(0, rng);
     let entry = LogEntry::create(&ids[0], &key, MAILBOX, 0, [0; 32], b"created", rng).unwrap();
-    let (_, body) = call(app, "/v1/log/append", encode_body(&entry).unwrap()).await;
+    let (_, body) = call(app, "/v1/log/append", entry.to_bytes().unwrap()).await;
     assert_eq!(
         decode_body::<AppendResult>(&body).unwrap(),
         AppendResult::Appended { index: 0 }
@@ -194,7 +194,10 @@ async fn state_survives_a_restart() {
         },
     )
     .await;
-    let entries = decode_body::<LogResponse>(&body).unwrap().entries;
+    let entries = decode_body::<LogResponse>(&body)
+        .unwrap()
+        .decoded()
+        .unwrap();
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].decrypt(&key).unwrap(), b"created");
 
@@ -217,7 +220,7 @@ async fn state_survives_a_restart() {
     );
     // And the log head: appending at index 0 again conflicts.
     let dup = LogEntry::create(&ids[1], &key, MAILBOX, 0, [0; 32], b"x", &mut rng).unwrap();
-    let (_, body) = call(&app, "/v1/log/append", encode_body(&dup).unwrap()).await;
+    let (_, body) = call(&app, "/v1/log/append", dup.to_bytes().unwrap()).await;
     assert_eq!(
         decode_body::<AppendResult>(&body).unwrap(),
         AppendResult::Conflict { len: 1 }
@@ -348,7 +351,7 @@ async fn log_appends_push_every_other_member() {
         );
     }
     let entry = LogEntry::create(&ids[1], &key, MAILBOX, 1, head, b"vote", &mut rng).unwrap();
-    let (_, body) = call(&app, "/v1/log/append", encode_body(&entry).unwrap()).await;
+    let (_, body) = call(&app, "/v1/log/append", entry.to_bytes().unwrap()).await;
     assert_eq!(
         decode_body::<AppendResult>(&body).unwrap(),
         AppendResult::Appended { index: 1 }
@@ -366,4 +369,44 @@ async fn log_appends_push_every_other_member() {
         vec!["tok-0".to_owned(), "tok-2".to_owned()],
         "author is not pushed"
     );
+}
+
+/// The database records its schema version; one written by a newer relay is refused
+/// instead of being misread.
+#[test]
+fn database_schema_is_versioned() {
+    use zafe_proto::version;
+    let dir = std::env::temp_dir().join(format!("zafe-relay-schema-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("relay.sqlite");
+    let _ = std::fs::remove_file(&path);
+
+    drop(Relay::open(&path).unwrap());
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    let stored: u16 = conn
+        .pragma_query_value(None, "user_version", |r| r.get(0))
+        .unwrap();
+    assert_eq!(stored, version::RELAY_DB);
+    assert!(Relay::open(&path).is_ok(), "reopens its own version");
+
+    conn.pragma_update(None, "user_version", version::RELAY_DB + 1)
+        .unwrap();
+    drop(conn);
+    assert!(matches!(
+        Relay::open(&path),
+        Err(zafe_relay::RelayError::UnsupportedVersion(v)) if v.is_newer()
+    ));
+
+    // A database from before versioning (tables, no version) is refused too.
+    let old = dir.join("old.sqlite");
+    let _ = std::fs::remove_file(&old);
+    rusqlite::Connection::open(&old)
+        .unwrap()
+        .execute_batch("CREATE TABLE mailboxes (id BLOB PRIMARY KEY);")
+        .unwrap();
+    assert!(matches!(
+        Relay::open(&old),
+        Err(zafe_relay::RelayError::UnsupportedVersion(v)) if v.found == 0 && !v.is_newer()
+    ));
+    let _ = std::fs::remove_dir_all(&dir);
 }

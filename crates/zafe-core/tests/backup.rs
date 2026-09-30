@@ -7,7 +7,10 @@ use zafe_core::{
     node::VaultMaterial,
     vault::{MemberInfo, VaultDescriptor},
 };
-use zafe_proto::Identity;
+use zafe_proto::{
+    version::{self, Format, UnsupportedVersion},
+    Identity,
+};
 
 const PASS: &str =
     "correct horse battery staple orbit lantern violet echo marble quiet river north";
@@ -15,7 +18,7 @@ const PASS: &str =
 fn material_for(ids: &[&Identity]) -> Vec<u8> {
     let descriptor = VaultDescriptor {
         vault_id: [7; 16],
-        version: 1,
+        version: version::DESCRIPTOR,
         name: "Grants".into(),
         network: "regtest".into(),
         threshold: 2,
@@ -37,20 +40,20 @@ fn material_for(ids: &[&Identity]) -> Vec<u8> {
         epoch: 0,
         transcript_hash: [2; 32],
     };
-    postcard::to_allocvec(&VaultMaterial {
+    VaultMaterial {
         descriptor,
         key_package: vec![3; 40],
         public_key_package: vec![4; 40],
         vault_secret: [5; 32],
         log_key_epoch: 0,
         log_key: [6; 32],
-    })
+    }
+    .to_bytes()
     .unwrap()
 }
 
 fn seeds(id: &Identity) -> Vec<u8> {
-    let s = id.seeds();
-    [s.sig_seed.as_slice(), s.enc_seed.as_slice()].concat()
+    id.seeds().to_bytes()
 }
 
 fn contents(rng: &mut StdRng) -> (Contents, Identity) {
@@ -134,8 +137,31 @@ fn wrong_passphrase_and_tampering_fail() {
     newer[7] = 2;
     assert_eq!(
         backup::decrypt(&newer, PASS).unwrap_err(),
-        BackupError::UnsupportedVersion
+        BackupError::UnsupportedVersion(UnsupportedVersion {
+            format: Format::Backup,
+            found: 2,
+            supported: 1
+        })
     );
+}
+
+#[test]
+fn material_and_identity_inside_are_versioned() {
+    let mut rng = StdRng::seed_from_u64(4);
+    let (c, _) = contents(&mut rng);
+    assert!(c.validate().is_ok());
+    let mut newer = c.clone();
+    newer.material[0] = 9;
+    assert!(matches!(
+        newer.validate(),
+        Err(BackupError::UnsupportedVersion(v)) if v.format == Format::VaultMaterial && v.is_newer()
+    ));
+    let mut newer = c.clone();
+    newer.identity_seeds[0] = 9;
+    assert!(matches!(
+        newer.validate(),
+        Err(BackupError::UnsupportedVersion(v)) if v.format == Format::IdentitySeeds
+    ));
 }
 
 #[test]

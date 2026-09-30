@@ -5,7 +5,10 @@ use zafe_core::vault::{
     MemberInfo, ProposalStatus, ProposedPayment, VaultDescriptor, VaultError, VaultEvent,
     VaultState,
 };
-use zafe_proto::{Chain, Identity, LogEntry, LogKey};
+use zafe_proto::{
+    version::{self, Format, UnsupportedVersion},
+    Chain, Identity, LogEntry, LogKey,
+};
 
 const MAILBOX: [u8; 16] = [4; 16];
 
@@ -32,7 +35,7 @@ impl Log {
     fn descriptor(&self) -> VaultDescriptor {
         VaultDescriptor {
             vault_id: MAILBOX,
-            version: 1,
+            version: zafe_proto::version::DESCRIPTOR,
             name: "Grants".into(),
             network: "regtest".into(),
             threshold: 2,
@@ -77,13 +80,18 @@ impl Log {
     /// Appends an event authored by member `author` (the relay only accepts members, but
     /// replay must not rely on that, so the chain here is checked against all 4 ids).
     fn push(&mut self, author: usize, event: &VaultEvent) {
+        self.push_raw(author, &event.to_bytes().unwrap());
+    }
+
+    /// Appends an entry whose plaintext is `bytes` as is.
+    fn push_raw(&mut self, author: usize, bytes: &[u8]) {
         let entry = LogEntry::create(
             &self.ids[author],
             &self.key,
             MAILBOX,
             self.chain.len(),
             self.chain.head(),
-            &event.to_bytes().unwrap(),
+            bytes,
             &mut self.rng,
         )
         .unwrap();
@@ -242,6 +250,78 @@ fn invalid_entries_are_ignored_not_fatal() {
         assert_eq!(state.proposals[&[1; 16]].approvals.len(), 1);
         assert_eq!(state.applied, 4);
     }
+}
+
+/// An event from a newer version of Zafe after creation is skipped deterministically (and
+/// counted, so the app can ask to update); the same at creation is fatal.
+#[test]
+fn unknown_event_versions_are_ignored_after_creation() {
+    let newer = |event: &VaultEvent| {
+        let mut bytes = event.to_bytes().unwrap();
+        assert_eq!(&bytes[..2], &version::VAULT_EVENT.to_le_bytes());
+        bytes[..2].copy_from_slice(&(version::VAULT_EVENT + 1).to_le_bytes());
+        bytes
+    };
+    let unsupported = UnsupportedVersion {
+        format: Format::VaultEvent,
+        found: version::VAULT_EVENT + 1,
+        supported: version::VAULT_EVENT,
+    };
+
+    let mut log = Log::new();
+    log.push(0, &log.created(&[0, 1, 2]));
+    log.push(0, &proposal(1));
+    log.push_raw(1, &newer(&vote(1, true)));
+    log.push(2, &vote(1, true));
+    let state = log.replay().expect("log stays readable");
+    assert_eq!(
+        state.ignored,
+        vec![(2, VaultError::UnsupportedVersion(unsupported))]
+    );
+    assert_eq!(state.newer_version_entries(), 1);
+    assert_eq!(state.proposals[&[1; 16]].approvals.len(), 1);
+    assert_eq!(state.applied, 4);
+
+    let mut log = Log::new();
+    let created = log.created(&[0, 1, 2]);
+    log.push_raw(0, &newer(&created));
+    assert_eq!(
+        log.replay().unwrap_err(),
+        VaultError::UnsupportedVersion(unsupported)
+    );
+}
+
+/// A descriptor from another version is fatal even when every member signed it.
+#[test]
+fn unknown_descriptor_version_is_fatal() {
+    let mut log = Log::new();
+    let mut d = log.descriptor();
+    d.version = version::DESCRIPTOR + 1;
+    let msg = d.signing_message().unwrap();
+    let signatures = (0..3)
+        .map(|i| (log.ids[i].public().sig_pk, log.ids[i].sign(&msg).to_vec()))
+        .collect();
+    log.push(
+        0,
+        &VaultEvent::Created {
+            descriptor: d,
+            signatures,
+        },
+    );
+    assert!(matches!(
+        log.replay().unwrap_err(),
+        VaultError::UnsupportedVersion(v) if v.format == Format::Descriptor && v.is_newer()
+    ));
+}
+
+/// The descriptor's version is covered by the members' signatures.
+#[test]
+fn descriptor_version_is_signed() {
+    let log = Log::new();
+    let mut d = log.descriptor();
+    let signed = d.signing_message().unwrap();
+    d.version += 1;
+    assert_ne!(d.signing_message().unwrap(), signed);
 }
 
 /// The race from the code review: the author cancels while the leader broadcasts.

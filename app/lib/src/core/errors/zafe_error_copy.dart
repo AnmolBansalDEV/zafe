@@ -19,6 +19,11 @@ String zafeErrorMessage(
     ZafeErrorKind.insufficientFunds =>
       'Not enough $kZcashDefaultCurrencyTicker in the vault to cover the amount and the fee.',
     ZafeErrorKind.invalidInput => _sentence(error.message),
+    ZafeErrorKind.updateRequired =>
+      'This needs a newer version of Zafe. Update the app, then try again.',
+    ZafeErrorKind.relayOutdated =>
+      'The relay server runs an older version of Zafe than this app. '
+          'Ask whoever runs it to update it.',
     ZafeErrorKind.other => fallback,
   };
 }

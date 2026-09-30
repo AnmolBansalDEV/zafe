@@ -7,6 +7,10 @@
 //! State is stored in SQLite (a file, or in memory for tests). That keeps the relay a
 //! single self-contained binary, which suits self-hosting; the hosted tier can move the
 //! same queries to Postgres.
+//!
+//! Versions: request bodies are tagged (`zafe_proto::version`); a body in a version this
+//! relay doesn't speak gets HTTP 426 with `zafe-supported-version`. The database schema
+//! version is `PRAGMA user_version` ([`version::RELAY_DB`]); a newer database is refused.
 
 use std::{
     path::Path,
@@ -28,11 +32,12 @@ pub mod fcm;
 use zafe_proto::{
     log::GENESIS_PREV_HASH,
     relay::{
-        decode_body, encode_body, join_token_hash, AppendResult, CreateMailbox, InboxRead,
-        InboxResponse, Join, LogRead, LogResponse, MembersRead, MembersResponse, PushPlatform,
-        RegisterPush, Remove, Seal, Signed, MAX_REQUEST_SKEW_SECS,
+        encode_body, join_token_hash, AppendResult, CreateMailbox, InboxRead, InboxResponse, Join,
+        LogRead, LogResponse, MembersRead, MembersResponse, PushPlatform, RegisterPush, Remove,
+        Seal, Signed, MAX_REQUEST_SKEW_SECS, UNSUPPORTED_VERSION_HEADER,
     },
-    Envelope, IdentityPublic, LogEntry, MailboxId, Recipient,
+    version::{self, UnsupportedVersion},
+    Envelope, IdentityPublic, LogEntry, MailboxId, ProtoError, Recipient,
 };
 
 /// Largest number of items returned by one read.
@@ -82,6 +87,18 @@ pub enum RelayError {
     Replay,
     #[error("storage error")]
     Storage,
+    /// A request in a version this relay doesn't speak (HTTP 426), or a database written
+    /// by a newer relay.
+    #[error(transparent)]
+    UnsupportedVersion(#[from] UnsupportedVersion),
+}
+
+/// Keeps version errors apart from malformed requests.
+fn bad_request(e: ProtoError) -> RelayError {
+    match e {
+        ProtoError::UnsupportedVersion(v) => RelayError::UnsupportedVersion(v),
+        _ => RelayError::BadRequest,
+    }
 }
 
 impl From<rusqlite::Error> for RelayError {
@@ -93,13 +110,23 @@ impl From<rusqlite::Error> for RelayError {
 
 impl IntoResponse for RelayError {
     fn into_response(self) -> Response {
+        if let RelayError::UnsupportedVersion(v) = self {
+            return (
+                StatusCode::UPGRADE_REQUIRED,
+                [(UNSUPPORTED_VERSION_HEADER, v.supported.to_string())],
+                self.to_string(),
+            )
+                .into_response();
+        }
         let status = match self {
             RelayError::BadRequest | RelayError::Stale => StatusCode::BAD_REQUEST,
             RelayError::Unauthenticated => StatusCode::UNAUTHORIZED,
             RelayError::Forbidden => StatusCode::FORBIDDEN,
             RelayError::NotFound => StatusCode::NOT_FOUND,
             RelayError::Exists | RelayError::Replay => StatusCode::CONFLICT,
-            RelayError::Storage => StatusCode::INTERNAL_SERVER_ERROR,
+            RelayError::Storage | RelayError::UnsupportedVersion(_) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
         };
         (status, self.to_string()).into_response()
     }
@@ -195,7 +222,19 @@ impl Relay {
     }
 
     fn from_connection(conn: Connection, clock: Clock) -> Result<Self, RelayError> {
+        let found: u16 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
+        let has_tables: bool = conn.query_row(
+            "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table')",
+            [],
+            |r| r.get(0),
+        )?;
+        // Version 0 with tables: written before versioning (unversioned envelopes and log
+        // entries), refused; delete it. Future schema bumps migrate from `found` here.
+        if found != 0 || has_tables {
+            version::check(version::Format::RelayDb, found)?;
+        }
         conn.execute_batch(SCHEMA)?;
+        conn.pragma_update(None, "user_version", version::RELAY_DB)?;
         Ok(Self {
             db: Arc::new(Mutex::new(conn)),
             clock,
@@ -311,7 +350,7 @@ fn verified<T>(body: &Bytes) -> Result<Signed<T>, RelayError>
 where
     T: serde::Serialize + serde::de::DeserializeOwned,
 {
-    let signed = Signed::<T>::from_bytes(body).map_err(|_| RelayError::BadRequest)?;
+    let signed = Signed::<T>::from_bytes(body).map_err(bad_request)?;
     signed.verify().map_err(|_| RelayError::Unauthenticated)?;
     Ok(signed)
 }
@@ -453,7 +492,7 @@ async fn register_push(State(relay): State<Relay>, body: Bytes) -> RelayResult {
 }
 
 async fn post_envelope(State(relay): State<Relay>, body: Bytes) -> RelayResult {
-    let envelope = Envelope::from_bytes(&body).map_err(|_| RelayError::BadRequest)?;
+    let envelope = Envelope::from_bytes(&body).map_err(bad_request)?;
     let h = &envelope.header;
     let mut db = relay.db.lock().expect("lock");
     let tx = db.transaction()?;
@@ -572,19 +611,15 @@ async fn inbox(State(relay): State<Relay>, body: Bytes) -> RelayResult {
         ],
         |r| Ok((r.get::<_, i64>(0)?, r.get::<_, Vec<u8>>(1)?)),
     )?;
-    let mut envelopes = Vec::new();
-    for row in rows {
-        let (cursor, bytes) = row?;
-        envelopes.push((
-            cursor as u64,
-            Envelope::from_bytes(&bytes).map_err(|_| RelayError::Storage)?,
-        ));
-    }
+    // Stored as received (`Envelope::to_bytes`); clients decode each one.
+    let envelopes = rows
+        .map(|row| row.map(|(cursor, bytes)| (cursor as u64, bytes)))
+        .collect::<Result<Vec<_>, _>>()?;
     ok(&InboxResponse { envelopes })
 }
 
 async fn log_append(State(relay): State<Relay>, body: Bytes) -> RelayResult {
-    let entry: LogEntry = decode_body(&body).map_err(|_| RelayError::BadRequest)?;
+    let entry = LogEntry::from_bytes(&body).map_err(bad_request)?;
     let h = &entry.header;
     let mut db = relay.db.lock().expect("lock");
     let tx = db.transaction()?;
@@ -652,9 +687,7 @@ async fn log_read(State(relay): State<Relay>, body: Bytes) -> RelayResult {
     let rows = stmt.query_map(params![&req.payload.mailbox[..], from, PAGE], |r| {
         r.get::<_, Vec<u8>>(0)
     })?;
-    let mut entries = Vec::new();
-    for row in rows {
-        entries.push(decode_body::<LogEntry>(&row?).map_err(|_| RelayError::Storage)?);
-    }
+    // Stored as appended (`LogEntry::to_bytes`); clients decode and verify the chain.
+    let entries = rows.collect::<Result<Vec<_>, _>>()?;
     ok(&LogResponse { entries })
 }

@@ -112,10 +112,57 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
 - **Expiry**: `descriptor.proposal_expiry_blocks` (default 7 days); proposer sets expiry =
   target + window; members accept window + 96 blocks of slack. Never remove expiry: a
   complete one-tap group stays sendable until it.
-- **Wire formats are not versioned yet** (postcard, pre-release): changing the descriptor
-  or events breaks existing vaults and stored material. Reset test devices
-  (`adb shell pm clear xyz.zafe.zafe`, `scripts/app-harness.sh stop`) after such changes.
-  Add versioning before any external testers.
+- **Every format is versioned** (`zafe_proto::version`: one constant per format, the
+  `Format` enum, `encode`/`decode` for postcard and `frame`/`unframe` for raw bytes; the
+  tag is a leading little-endian `u16`). Decoders accept only the current version and fail
+  with `UnsupportedVersion { format, found, supported }` (`is_newer()` = "update the
+  app"), never with garbage. Inventory:
+  - **Envelope** (`ENVELOPE`): `Envelope::to_bytes` tag + `Header.version` (signed, HPKE
+    AAD). It also covers the raw payloads (DKG echo hash, round-2 packages, `sk`
+    contributions, descriptor signatures, log key). Postcard payloads have their own tag:
+    `DKG_ROUND1`, `SIGNING_REQUEST` (also the leader's `<id>.req`; the request hash covers
+    the tag), `SIGNATURE_SHARES`.
+  - **Log entry** (`LOG_ENTRY`): `LogEntry::to_bytes` tag + `EntryHeader.version` (signed,
+    AEAD AAD, in the entry hash). The relay stores and serves exactly these bytes.
+  - **Vault event** (`VAULT_EVENT`): tagged plaintext of each entry. **Descriptor**
+    (`DESCRIPTOR`): the `version` field inside the hash every member signs; checked at
+    replay and when loading material.
+  - **Relay API** (`RELAY_API`): tagged request/response bodies; `Signed<T>` signs the
+    version. Inbox/log responses carry each envelope/entry as its own tagged bytes.
+    A body in a version the relay doesn't speak gets **HTTP 426** with header
+    `zafe-supported-version`; the client turns it into `RelayClientError::VersionRejected`
+    → bridge `ZafeErrorKind::UpdateRequired` (app older) or `RelayOutdated` (relay older).
+    Relay DB: `PRAGMA user_version` = `RELAY_DB`; a newer DB, or one from before
+    versioning (tables but version 0), is refused at startup: delete it.
+  - **Device state**: invites (`zafe-invite-v1:`, `INVITE`; another version →
+    `UnsupportedVersion`, not "bad invite"), identity seeds (`IdentitySeeds::to_bytes`,
+    66 bytes: secure storage, CLI `identity.bin`, backups), vault material
+    (`VaultMaterial::to_bytes`: secure storage, CLI `vault.bin`, backups), nonce and pool
+    nonce files (an unreadable version counts as missing: never used), leader `.own`
+    (`OWN_SHARES`) and `used_commitments.bin` (`USED_COMMITMENTS`; unreadable is an
+    **error**, never "empty", or a commitment set could be reused), backups (`ZAFEBAK`
+    byte = `BACKUP`, text `zafe-backup-v1:`).
+  - Not ours to version: FROST serializations (frost-core header with ciphersuite id),
+    PCZTs (own magic + version), Zcash encodings (UFVK, addresses, memos), the wallet DB
+    (zcash_client_sqlite migrations), the app's JSON caches (`seen.json`,
+    `summary.json`; rebuilt by the app).
+- **Replay and versions**: a `VaultEvent` in an unknown version after `Created` goes to
+  `VaultState.ignored` like any invalid entry (`newer_version_entries()` counts newer
+  ones, so the app can ask to update; not shown in the UI yet); an unknown version in the
+  `Created` event or its descriptor is fatal. A log entry in an unknown version stops
+  catch-up with `UnsupportedVersion` (the chain can't be verified past it). Inbox
+  envelopes in unknown versions are dropped like badly signed ones.
+- **Bumping a version**: change the constant in `zafe_proto::version`; where old data must
+  stay readable, decode the old tag via `version::split` and migrate. Log entries, events
+  and descriptors live forever in the vault log, so once external testers exist their
+  decoders must keep every old version. Adding a `VaultEvent` variant: append it (old
+  variants keep their postcard index, so old bytes still decode) and bump `VAULT_EVENT`
+  so older members record `UnsupportedVersion` (and can prompt an update) rather than a
+  generic decode error. Members on different event versions reach different states until
+  they update, so gate new event types on every member having updated. Record each bump
+  here. **Pre-release: nothing reads the unversioned bytes from before 2026-09-30**; reset
+  test devices (`adb shell pm clear xyz.zafe.zafe`), the harness
+  (`scripts/app-harness.sh stop`) and relay DBs after pulling this change.
 - **Shares are bound to the exact request** (request hash); aggregation always goes through
   `session::aggregate_request` (signer-set check + per-share verification).
 - **Vault log replay is lenient after creation**: invalid entries go to `VaultState.ignored`
@@ -143,6 +190,13 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
 - `zcash_primitives` `non-standard-fees` is a **dev-dependency only** (tests model an
   overpaying proposer).
 - `cargo build -p a -p b --examples` builds only examples — build bins separately.
+- **A `CARGO_TARGET_DIR` shared between worktrees races** when their workspace crates
+  differ: path crates hash relative to the workspace root, so every worktree writes the
+  same `libzafe_proto-<hash>.rlib` and a concurrent build can hand yours another
+  worktree's version ("could not find `version` in `zafe_proto`"). Use a private target
+  dir for verification when other agents build at the same time. Building `zafe-cli` or
+  `zafe-relay` into `/home/anmolbansal/zafe/target` also replaces the binaries
+  `scripts/app-harness.sh` runs.
 - `propose_transfer` / `create_pczt_from_proposal` need explicit error type params
   (commitment_tree::Error, GreedyInputSelectorError, zip317::FeeError).
 

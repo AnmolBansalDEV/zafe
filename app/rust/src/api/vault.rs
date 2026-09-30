@@ -13,7 +13,7 @@ use zafe_core::{
     relay_client::RelayClient,
     wallet::{connect, latest_height, VaultWallet, ZafeNetwork},
 };
-use zafe_proto::{Identity, IdentitySeeds};
+use zafe_proto::{Identity, IdentitySeeds, ProtoError};
 
 use super::error::ZafeError;
 
@@ -35,21 +35,26 @@ pub(crate) fn network(name: &str) -> Result<ZafeNetwork, ZafeError> {
         .ok_or_else(|| ZafeError::invalid(format!("unknown network {name}")))
 }
 
+/// Identity seeds as stored by the app (`IdentitySeeds::to_bytes`, versioned).
 pub(crate) fn identity(seeds: &[u8]) -> Result<Identity, ZafeError> {
-    if seeds.len() != 64 {
-        return Err(ZafeError::invalid("identity seeds must be 64 bytes"));
+    match IdentitySeeds::from_bytes(seeds) {
+        Ok(seeds) => Ok(Identity::from_seeds(seeds)),
+        Err(ProtoError::UnsupportedVersion(v)) => Err(v.into()),
+        Err(_) => Err(ZafeError::invalid("invalid identity")),
     }
-    Ok(Identity::from_seeds(IdentitySeeds {
-        sig_seed: seeds[..32].try_into().expect("32"),
-        enc_seed: seeds[32..].try_into().expect("32"),
-    }))
 }
 
+/// Vault material as stored by the app (`VaultMaterial::to_bytes`, versioned).
 pub(crate) fn material(bytes: &[u8]) -> Result<VaultMaterial, ZafeError> {
-    postcard::from_bytes(bytes).map_err(|_| ZafeError::invalid("invalid vault material"))
+    match VaultMaterial::from_bytes(bytes) {
+        Ok(m) => Ok(m),
+        Err(e @ node::NodeError::UnsupportedVersion(_)) => Err(e.into()),
+        Err(_) => Err(ZafeError::invalid("invalid vault material")),
+    }
 }
 
-/// A new member identity. `seeds` (64 bytes) is secret: store it in secure storage.
+/// A new member identity. `seeds` (versioned, see `IdentitySeeds::to_bytes`) is secret:
+/// store it in secure storage.
 pub struct IdentityInfo {
     pub seeds: Vec<u8>,
     pub public_key_hex: String,
@@ -58,10 +63,8 @@ pub struct IdentityInfo {
 #[flutter_rust_bridge::frb(sync)]
 pub fn generate_identity() -> IdentityInfo {
     let id = Identity::generate(&mut OsRng);
-    let mut seeds = id.seeds().sig_seed.to_vec();
-    seeds.extend_from_slice(&id.seeds().enc_seed);
     IdentityInfo {
-        seeds,
+        seeds: id.seeds().to_bytes(),
         public_key_hex: hex::encode(id.public().sig_pk),
     }
 }
@@ -189,7 +192,7 @@ pub fn run_keygen(
         .await
         .map_err(anyhow::Error::from)
     })?;
-    Ok(postcard::to_allocvec(&material).map_err(anyhow::Error::from)?)
+    Ok(material.to_bytes()?)
 }
 
 pub struct VaultSummary {
