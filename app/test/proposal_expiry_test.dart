@@ -58,6 +58,38 @@ void main() {
     });
   });
 
+  group('approve again', () {
+    final p = proposal(
+      'p',
+      stage: ProposalStage.approved,
+      myVote: MyVote.approved,
+      needsReapproval: true,
+    );
+
+    test('is announced once, and counts as needing action', () {
+      final first = vaultUpdates(
+        previous: snapshotOf([proposal('p', stage: ProposalStage.approved)]),
+        proposals: [p],
+        vaultName: 'Grants',
+        hideAmounts: false,
+      );
+      expect(first.map((u) => u.title), ['Grants: approve a payment again']);
+      final again = vaultUpdates(
+        previous: snapshotOf([p]),
+        proposals: [p],
+        vaultName: 'Grants',
+        hideAmounts: false,
+      );
+      expect(again, isEmpty);
+      expect(
+        actionableCount([
+          proposal('q', myVote: MyVote.approved, needsReapproval: true),
+        ]),
+        1,
+      );
+    });
+  });
+
   test('propose again fills the amount field with plain decimal ZEC', () {
     expect(zecDecimal(BigInt.from(150000000)), '1.5');
     expect(zecDecimal(BigInt.from(100000000)), '1');

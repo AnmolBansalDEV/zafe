@@ -35,6 +35,10 @@ const kReceivedMarker = 'rx:*';
 
 String receivedKey(String txid) => '$kReceivedPrefix$txid';
 
+/// Present while this member has to approve a proposal again (its signature went into an
+/// unfinished signing round), so the request is announced once.
+String reapprovalKey(String proposalId) => 're:$proposalId';
+
 String seenKey(rust.ProposalInfo p) =>
     '${p.stage.name}/${p.myVote.name}/${p.ready}';
 
@@ -70,6 +74,16 @@ List<VaultUpdate> vaultUpdates({
     }
   }
   for (final p in proposals) {
+    if (p.needsReapproval && !previous.containsKey(reapprovalKey(p.id))) {
+      out.add(
+        VaultUpdate(
+          proposalId: p.id,
+          title: '$vaultName: approve a payment again',
+          body:
+              'A signing round didn\'t finish. Approve again so the payment can be sent.',
+        ),
+      );
+    }
     final before = previous[p.id];
     if (before == seenKey(p)) continue;
     final beforeStage = before?.split('/').first;
@@ -127,6 +141,9 @@ SeenSnapshot snapshotOf(
       if (!e.key.startsWith(kReceivedPrefix)) e.key: e.value,
   if (proposals != null)
     for (final p in proposals) p.id: seenKey(p),
+  if (proposals != null)
+    for (final p in proposals)
+      if (p.needsReapproval) reapprovalKey(p.id): '',
   if (received == null)
     for (final e in previous.entries)
       if (e.key.startsWith(kReceivedPrefix)) e.key: e.value,
@@ -143,7 +160,8 @@ int actionableCount(List<rust.ProposalInfo> proposals, {int? height}) =>
         .where(
           (p) =>
               !proposalExpired(p, height) &&
-              ((p.stage == rust.ProposalStage.open &&
+              (p.needsReapproval ||
+                  (p.stage == rust.ProposalStage.open &&
                       p.myVote == rust.MyVote.none) ||
                   (p.stage == rust.ProposalStage.approved &&
                       !(p.ready && p.autoSend))),

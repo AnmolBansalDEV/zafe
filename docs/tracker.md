@@ -110,7 +110,8 @@ Open
       "Approve again"; the sending screen had no "Start over". Cancel checked too
 - [ ] Start-over follow-ups: the unresponsive signer keeps nonces for commitments no
       leader will use (harmless, never reused; deleted only when the proposal closes if at
-      all); members aren't notified that they need to approve again (only the page says so)
+      all). Done: members get a one-time "approve a payment again" notification
+      (`reapprovalKey` in the seen snapshot) and it counts as needing action
 - [x] Note reservation across concurrent proposals (`reservedNotes`, spec §9.1; done
       2026-09-30): before building, `node::propose` replays the log and locks, in this
       member's wallet, every note an open/approved/broadcast proposal (or a cancelled one
