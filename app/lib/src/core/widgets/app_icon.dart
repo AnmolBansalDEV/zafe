@@ -53,6 +53,7 @@ abstract final class AppIcons {
   static const shieldKeyhole = 'shield_keyhole';
   static const theme = 'theme';
   static const time = 'time';
+  static const tor = 'tor';
   static const trash = 'trash';
   static const unlock = 'unlock';
   static const user = 'user';

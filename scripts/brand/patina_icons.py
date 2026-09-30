@@ -68,6 +68,7 @@ MAP = {
     "shield_keyhole": "shield-check",
     "theme": "circle-half",
     "time": "clock",
+    "tor": "detective",
     "trash": "trash",
     "unlock": "lock-open",
     "user": "user",

@@ -167,7 +167,7 @@ class SettingsScreen extends ConsumerWidget {
                       title: 'Privacy',
                       rows: [
                         row(
-                          icon: AppIcons.shieldKeyholeOutline,
+                          icon: AppIcons.tor,
                           label: 'Use Tor',
                           value: tor.statusLabel,
                           chevron: true,

@@ -18,7 +18,7 @@ Last updated: 2026-10-01 (Verdigris + Seam brand implemented; note reservation; 
       gold for received/success, Patina icons for Home, Activity, the tab bar, activity
       rows, the notice card and Home buttons, Seam app icon / splash / notification icon,
       window colours, illustration palette, retinted vault emblem palettes.
-  - [x] **Patina for the rest of the icon set** (2026-10-01): all 45 used icons are
+  - [x] **Patina for the rest of the icon set** (2026-10-01): all 46 used icons are
         Patina (Phosphor via `scripts/brand/patina_icons.py`), except the Zcash currency
         glyph; 65 unused SVGs (Vizor leftovers incl. `vizor_logo`, keystone, ledger,
         dragon) and 5 unused PNGs were deleted. Contact sheet:

@@ -58,6 +58,7 @@ const _all = <String>[
   AppIcons.shieldKeyhole,
   AppIcons.theme,
   AppIcons.time,
+  AppIcons.tor,
   AppIcons.trash,
   AppIcons.unlock,
   AppIcons.user,
