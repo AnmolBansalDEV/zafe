@@ -14,6 +14,7 @@ import '../core/errors/zafe_error_copy.dart';
 import '../core/storage/vault_summaries.dart';
 import '../core/storage/zafe_paths.dart';
 import '../core/storage/zafe_secure_store.dart';
+import '../features/proposals/proposal_status.dart' show proposalExpired;
 import '../providers/privacy_mode_provider.dart' show kPrivacyModeKey;
 import '../rust/api/proposals.dart' as rust;
 import '../rust/api/received.dart' as rust_received;
@@ -256,6 +257,7 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
     final summary = rust_vault.vaultSummary(material: material);
     debugPrint('vault check: ${summary.name}');
 
+    int? height;
     try {
       final balance = await rust_vault.syncVault(
         dbDir: paths.dbDir,
@@ -265,6 +267,7 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
         seeds: seeds,
         material: material,
       );
+      height = balance.height;
       await VaultSummaries.write(v.id, balanceZat: balance.totalZat);
     } catch (_) {}
     List<rust_received.ReceivedInfo>? received;
@@ -299,7 +302,8 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
       if (p.stage == rust.ProposalStage.approved &&
           p.ready &&
           p.autoSend &&
-          p.completedByMe) {
+          p.completedByMe &&
+          !proposalExpired(p, height)) {
         try {
           await rust
               .sendProposal(
@@ -322,7 +326,10 @@ Future<void> _checkVault(StoredVault v, bool hideAmounts) async {
       seeds: seeds,
       material: material,
     );
-    await VaultSummaries.write(v.id, actionable: actionableCount(proposals));
+    await VaultSummaries.write(
+      v.id,
+      actionable: actionableCount(proposals, height: height),
+    );
 
     final updates = vaultUpdates(
       previous: await _readSeen(v.id),

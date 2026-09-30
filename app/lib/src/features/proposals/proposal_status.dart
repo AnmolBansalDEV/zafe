@@ -7,8 +7,35 @@ import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/app_tappable.dart';
 import '../../rust/api/proposals.dart' as rust;
 
+/// Seconds per block (Zcash target spacing since Blossom).
+const _blockSeconds = 75;
+
+/// Whether an unsent proposal can no longer be mined: the chain (`height`, the synced
+/// tip) has reached its transaction's expiry height. Unknown height: not expired.
+bool proposalExpired(rust.ProposalInfo p, int? height) =>
+    (p.stage == rust.ProposalStage.open ||
+        p.stage == rust.ProposalStage.approved) &&
+    p.expiryHeight > 0 &&
+    height != null &&
+    height >= p.expiryHeight;
+
+/// "about 6 days" until an unsent proposal expires, from the synced tip `height`.
+String expiresIn(rust.ProposalInfo p, int height) {
+  final seconds = (p.expiryHeight - height) * _blockSeconds;
+  final minutes = (seconds / 60).round();
+  final hours = (seconds / 3600).round();
+  final days = (seconds / 86400).round();
+  String n(int v, String unit) => '$v $unit${v == 1 ? '' : 's'}';
+  if (minutes < 60) return 'about ${n(minutes < 1 ? 1 : minutes, 'minute')}';
+  if (hours < 36) return 'about ${n(hours, 'hour')}';
+  return 'about ${n(days, 'day')}';
+}
+
 /// Title for a proposal from this member's point of view (sentence case).
-String proposalTitle(rust.ProposalInfo p) => switch (p.stage) {
+String proposalTitle(rust.ProposalInfo p, {int? height}) =>
+    proposalExpired(p, height) ? 'Expired' : _title(p);
+
+String _title(rust.ProposalInfo p) => switch (p.stage) {
   rust.ProposalStage.open =>
     p.myVote == rust.MyVote.none
         ? 'Needs your approval'
@@ -19,7 +46,10 @@ String proposalTitle(rust.ProposalInfo p) => switch (p.stage) {
   rust.ProposalStage.sent => 'Sent',
 };
 
-String _icon(rust.ProposalInfo p) => switch (p.stage) {
+String _icon(rust.ProposalInfo p, int? height) =>
+    proposalExpired(p, height) ? AppIcons.time : _stageIcon(p);
+
+String _stageIcon(rust.ProposalInfo p) => switch (p.stage) {
   rust.ProposalStage.open =>
     p.myVote == rust.MyVote.none ? AppIcons.editFilled : AppIcons.time,
   rust.ProposalStage.approved => AppIcons.plane,
@@ -54,15 +84,21 @@ class ProposalStatusChip extends StatelessWidget {
     super.key,
     required this.proposal,
     this.sending = false,
+    this.height,
   });
   final rust.ProposalInfo proposal;
   final bool sending;
+
+  /// Synced chain tip, to show expiry (unknown: never shown as expired).
+  final int? height;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final (icon, label, color) = sending
         ? (AppIcons.loader, 'Sending', colors.text.secondary)
+        : proposalExpired(proposal, height)
+        ? (AppIcons.time, 'Expired', colors.text.muted)
         : switch (proposal.stage) {
             rust.ProposalStage.open => (
               AppIcons.time,
@@ -109,23 +145,32 @@ class ProposalRow extends StatelessWidget {
     required this.proposal,
     required this.onTap,
     this.hideAmount = false,
+    this.height,
   });
   final rust.ProposalInfo proposal;
   final bool hideAmount;
   final VoidCallback onTap;
 
+  /// Synced chain tip, to show expiry.
+  final int? height;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final p = proposal;
+    final expired = proposalExpired(p, height);
     final needsMe =
-        p.stage == rust.ProposalStage.open && p.myVote == rust.MyVote.none;
-    final subtitle = switch (p.stage) {
-      rust.ProposalStage.open =>
-        '${p.approvals.length} of ${p.threshold} approved',
-      rust.ProposalStage.approved => 'Approved',
-      _ => p.createdAt > BigInt.zero ? formatTimestamp(p.createdAt) : '',
-    };
+        !expired &&
+        p.stage == rust.ProposalStage.open &&
+        p.myVote == rust.MyVote.none;
+    final subtitle = expired
+        ? (p.createdAt > BigInt.zero ? formatTimestamp(p.createdAt) : '')
+        : switch (p.stage) {
+            rust.ProposalStage.open =>
+              '${p.approvals.length} of ${p.threshold} approved',
+            rust.ProposalStage.approved => 'Approved',
+            _ => p.createdAt > BigInt.zero ? formatTimestamp(p.createdAt) : '',
+          };
     return AppTappable(
       onTap: onTap,
       child: SizedBox(
@@ -145,7 +190,7 @@ class ProposalRow extends StatelessWidget {
                 ),
                 alignment: Alignment.center,
                 child: AppIcon(
-                  _icon(p),
+                  _icon(p, height),
                   size: 18,
                   color: needsMe ? colors.icon.brand : colors.icon.regular,
                 ),
@@ -157,7 +202,7 @@ class ProposalRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      proposalTitle(p),
+                      proposalTitle(p, height: height),
                       style: AppTypography.labelLarge.copyWith(
                         color: colors.text.accent,
                       ),
@@ -184,7 +229,8 @@ class ProposalRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.labelLarge.copyWith(
                     color:
-                        p.stage == rust.ProposalStage.rejected ||
+                        expired ||
+                            p.stage == rust.ProposalStage.rejected ||
                             p.stage == rust.ProposalStage.cancelled
                         ? colors.text.muted
                         : colors.text.accent,

@@ -7,6 +7,7 @@
 use std::{path::PathBuf, process::Command, thread, time::Duration};
 
 use rust_lib_zafe::api::{
+    error::ZafeErrorKind,
     proposals::{self, MyVote, PaymentInput, ProposalStage, SendStage},
     received, vault,
 };
@@ -335,46 +336,84 @@ fn payment_flow_through_bridge() {
         members[1].material.clone(),
         id.clone(),
     );
-    assert!(
-        matches!(again, Err(e) if e.kind == rust_lib_zafe::api::error::ZafeErrorKind::NotReady)
-    );
+    assert!(matches!(again, Err(e) if e.kind == ZafeErrorKind::NotReady));
 
-    // A leads and signs its own part; B answers on its next poll; A aggregates and
-    // broadcasts.
-    let leader = {
-        let (relay, lwd, db, key, st, s, m, id) = (
+    // The leader's send, on its own thread (it waits `secs` for signature shares).
+    let start_send = |m: &Member, secs: u64| {
+        let (relay, lwd, db, key, st, s, mat, id) = (
             relay.clone(),
             lwd.clone(),
-            a.db_dir.clone(),
-            a.db_key.clone(),
-            a.state_dir.clone(),
-            a.seeds.clone(),
-            a.material.clone(),
+            m.db_dir.clone(),
+            m.db_key.clone(),
+            m.state_dir.clone(),
+            m.seeds.clone(),
+            m.material.clone(),
             id.clone(),
         );
         thread::spawn(move || {
             let mut events = Vec::new();
-            proposals::send_with_progress(relay, lwd, db, key, st, s, m, id, |p| {
-                println!("progress {:?} {}/{}", p.stage, p.received, p.needed);
-                events.push((p.stage, p.txid));
-            })
+            proposals::send_with_progress(
+                relay,
+                lwd,
+                db,
+                key,
+                st,
+                s,
+                mat,
+                id,
+                Duration::from_secs(secs),
+                |p| {
+                    println!("progress {:?} {}/{}", p.stage, p.received, p.needed);
+                    events.push((p.stage, p.txid));
+                },
+            )
             .map(|_| events)
         })
     };
+    let kind = |r: Result<_, rust_lib_zafe::api::error::ZafeError>| r.err().map(|e| e.kind);
+
+    // Round 1: A leads and signs its own part; B never answers, so it times out.
+    let round1 = start_send(a, 5).join().unwrap();
+    assert_eq!(kind(round1), Some(ZafeErrorKind::Timeout));
+    assert!(list(a)[0].signing_started);
+
+    // A starts over. Its own signature went into round 1, so it must approve again; B
+    // still holds its nonces, but its commitments count as used, so C takes its place.
+    proposals::restart_signing(a.state_dir.clone(), id.clone()).unwrap();
+    let p = &list(a)[0];
+    assert!(!p.signing_started && p.needs_reapproval);
+    assert!(!list(&members[1])[0].needs_reapproval);
+    let not_ready = start_send(a, 5).join().unwrap();
+    assert_eq!(kind(not_ready), Some(ZafeErrorKind::NotReady));
+    for m in [&members[0], &members[2]] {
+        proposals::approve_proposal(
+            relay.clone(),
+            lwd.clone(),
+            m.db_dir.clone(),
+            m.db_key.clone(),
+            m.state_dir.clone(),
+            m.seeds.clone(),
+            m.material.clone(),
+            id.clone(),
+        )
+        .unwrap();
+    }
+    assert!(!list(a)[0].needs_reapproval);
+
+    // Round 2: A and C. C answers on its next poll; A aggregates and broadcasts.
+    let leader = start_send(a, 90);
     let mut answered = 0;
     for _ in 0..60 {
-        for m in &members[1..2] {
-            answered += proposals::answer_signing_requests(
-                relay.clone(),
-                lwd.clone(),
-                m.db_dir.clone(),
-                m.db_key.clone(),
-                m.state_dir.clone(),
-                m.seeds.clone(),
-                m.material.clone(),
-            )
-            .unwrap();
-        }
+        answered += proposals::answer_signing_requests(
+            relay.clone(),
+            lwd.clone(),
+            members[2].db_dir.clone(),
+            members[2].db_key.clone(),
+            members[2].state_dir.clone(),
+            members[2].seeds.clone(),
+            members[2].material.clone(),
+        )
+        .unwrap();
         if answered >= 1 || leader.is_finished() {
             break;
         }
@@ -469,6 +508,7 @@ fn payment_flow_through_bridge() {
         b.seeds.clone(),
         b.material.clone(),
         id2.clone(),
+        Duration::from_secs(90),
         |p| {
             if p.stage == SendStage::Sent {
                 sent = p.txid;
@@ -481,6 +521,36 @@ fn payment_flow_through_bridge() {
     let p = list(&members[0]).into_iter().find(|p| p.id == id2).unwrap();
     assert_eq!(p.stage, ProposalStage::Sent);
     assert_eq!(p.txid.as_deref(), Some(txid2.as_str()));
+
+    // Cancel: only the author can; afterwards nobody can vote on it.
+    let id3 = proposals::propose_payment(
+        relay.clone(),
+        lwd.clone(),
+        a.db_dir.clone(),
+        a.db_key.clone(),
+        a.seeds.clone(),
+        a.material.clone(),
+        vec![PaymentInput {
+            address: payee.clone(),
+            amount_zat: 10_000_000,
+            memo: String::new(),
+        }],
+        false,
+    )
+    .unwrap();
+    let cancel = |m: &Member| {
+        proposals::cancel_proposal(
+            relay.clone(),
+            m.seeds.clone(),
+            m.material.clone(),
+            id3.clone(),
+        )
+    };
+    assert!(cancel(&members[1]).is_err(), "only the author cancels");
+    cancel(a).unwrap();
+    let p = list(&members[2]).into_iter().find(|p| p.id == id3).unwrap();
+    assert_eq!(p.stage, ProposalStage::Cancelled);
+    assert!(p.expiry_height > 0);
 
     let _ = std::fs::remove_dir_all(&tmp);
 }

@@ -1484,6 +1484,22 @@ pub async fn reject<R: RngCore + CryptoRng>(
     Ok(())
 }
 
+/// Cancels a proposal this member authored (open or approved, not yet sent). A proposal
+/// whose signatures are already complete could still be sent by anyone holding them until
+/// it expires; respending its notes in a new proposal invalidates it.
+pub async fn cancel<R: RngCore + CryptoRng>(
+    relay: &RelayClient,
+    me: &Identity,
+    material: &VaultMaterial,
+    proposal: ProposalId,
+    rng: &mut R,
+) -> Result<(), NodeError> {
+    let (mut chain, mut state) = load_state(relay, me, material).await?;
+    let event = VaultEvent::Cancelled { proposal };
+    append_event(relay, me, material, &mut chain, &mut state, &event, rng).await?;
+    Ok(())
+}
+
 fn member_by_frost_id(
     material: &VaultMaterial,
     id: &Identifier,
@@ -1574,7 +1590,8 @@ pub async fn request_signatures<P: Parameters, R: RngCore + CryptoRng>(
         .collect();
     if chosen.len() < threshold {
         return Err(NodeError::NotReady(format!(
-            "only {} approver(s) have unused commitments; ask members to approve again",
+            "{} of {threshold} signers are ready. Signers from the unfinished round need to \
+             approve again, or more signers need to approve",
             chosen.len()
         )));
     }

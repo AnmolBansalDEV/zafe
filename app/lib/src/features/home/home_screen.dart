@@ -181,6 +181,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         proposals: ref.watch(proposalsProvider),
                         received: ref.watch(receivedProvider),
                         hideAmounts: ref.watch(privacyModeProvider),
+                        height: vault.balance?.height,
                       ),
                       const SizedBox(height: AppSpacing.md),
                       _SignersCard(
@@ -504,10 +505,12 @@ class _Payments extends StatelessWidget {
     required this.proposals,
     required this.received,
     required this.hideAmounts,
+    this.height,
   });
   final ProposalsState proposals;
   final ReceivedState received;
   final bool hideAmounts;
+  final int? height;
 
   @override
   Widget build(BuildContext context) {
@@ -592,7 +595,11 @@ class _Payments extends StatelessWidget {
             ),
           for (var i = 0; i < items.length; i++) ...[
             if (i > 0) const SizedBox(height: AppSpacing.s),
-            ActivityRow(item: items[i], hideAmount: hideAmounts),
+            ActivityRow(
+              item: items[i],
+              hideAmount: hideAmounts,
+              height: height,
+            ),
           ],
         ],
       ),

@@ -167,7 +167,11 @@ final _routerProvider = Provider<GoRouter>((ref) {
         path: '/settings',
         pageBuilder: (_, _) => page(const SettingsScreen()),
       ),
-      GoRoute(path: '/send', pageBuilder: (_, _) => page(const SendScreen())),
+      GoRoute(
+        path: '/send',
+        pageBuilder: (_, state) =>
+            page(SendScreen(prefill: state.extra as SendPrefill?)),
+      ),
       GoRoute(
         path: '/proposal/:id',
         pageBuilder: (_, state) =>

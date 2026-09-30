@@ -125,7 +125,14 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   hash), so re-running `request_signatures` after a partial failure is safe.
 - **Leader resumability**: the app persists each signing request (`<state>/leader/<id>.req`)
   and the used-commitments set; `send_proposal` after a timeout resumes the same round.
-  Known gap: if an approver never answers, there is no "start over" yet.
+  **Start over** (`restart_signing`) deletes `<id>.req` and `<id>.own` only; the old
+  round's commitment sets stay in `used_commitments.bin`, so the next request needs t
+  approvals with fresh commitments. A member can approve again exactly when its nonce
+  store has no nonces for (proposal, pczt hash) (`Member::approve` refuses otherwise);
+  the bridge exposes that as `ProposalInfo.needs_reapproval`. An unresponsive signer
+  keeps unusable nonces (never reused). `send_with_progress` takes the share-collection
+  timeout (tests use 5 s; the app 90 s). Expiry is computed in Dart from the synced tip
+  (`proposalExpired`: open/approved and tip ≥ `expiry_height`).
 - **One-tap signing** (spec §9.5.2; `vault::assign_commitments`, `Member::sign_groups`,
   `node::{approve, send_ready, top_up_pool, forget_closed}`): members pre-publish
   commitments (`VaultEvent::Commitments`, nonces stored *before* appending); replaying a

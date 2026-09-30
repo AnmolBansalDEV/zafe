@@ -10,18 +10,24 @@ import '../core/storage/zafe_secure_store.dart';
 import '../core/storage/vault_summaries.dart';
 import '../notifications/vault_updates.dart' show actionableCount;
 import '../notifications/vault_watch.dart' show recordSeen;
+import '../features/proposals/proposal_status.dart' show proposalExpired;
+import '../rust/api/error.dart';
 import '../rust/api/proposals.dart' as rust;
 import 'vault_provider.dart';
 
 /// A send in progress (or just failed) on this device.
 class SendState {
-  const SendState({this.progress, this.error});
+  const SendState({this.progress, this.error, this.timedOut = false});
 
   /// Latest progress; `null` until the first event.
   final rust.SendProgress? progress;
 
   /// Friendly error once a send attempt failed (the send is then no longer running).
   final String? error;
+
+  /// The attempt failed because chosen signers didn't answer in time: the leader can
+  /// wait and try again, or start a new signing round.
+  final bool timedOut;
 
   bool get running => error == null && progress?.stage != rust.SendStage.sent;
 }
@@ -86,6 +92,9 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
 
   VaultState get _vault => ref.read(vaultProvider);
 
+  /// Synced chain tip of the active vault (null before the first sync).
+  int? get _height => _vault.balance?.height;
+
   Future<void> refresh() async {
     final vault = _vault;
     if (!vault.hasVault || _refreshing) return;
@@ -107,7 +116,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
       unawaited(
         VaultSummaries.write(
           vault.activeId!,
-          actionable: actionableCount(items),
+          actionable: actionableCount(items, height: _height),
         ),
       );
       _autoSend();
@@ -128,7 +137,8 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
           p.stage == rust.ProposalStage.approved &&
           p.ready &&
           p.autoSend &&
-          p.completedByMe;
+          p.completedByMe &&
+          !proposalExpired(p, _height);
       if (due && !state.sends.containsKey(p.id)) startSend(p.id);
     }
   }
@@ -218,6 +228,30 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
     await refresh();
   }
 
+  /// Cancels a proposal this member authored.
+  Future<void> cancel(String id) async {
+    final vault = _vault;
+    await rust.cancelProposal(
+      relayUrl: kZafeRelayUrl,
+      seeds: vault.identity!,
+      material: vault.material!,
+      proposalId: id,
+    );
+    await refresh();
+  }
+
+  /// Abandons this device's unfinished signing round and starts a new one with the
+  /// approvers whose signatures are still unused.
+  Future<void> startOver(String id) async {
+    if (state.sends[id]?.running ?? false) return;
+    final paths = await ZafePaths.get();
+    rust.restartSigning(
+      stateDir: await paths.stateDir(_vault.activeId!),
+      proposalId: id,
+    );
+    await startSend(id);
+  }
+
   /// Sends a proposal: directly from the approvals' signatures when they are complete
   /// (one tap), otherwise by asking the approvers to sign (interactive). Progress and
   /// errors land in `state.sends[id]`.
@@ -262,6 +296,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
       id,
       SendState(
         error: zafeErrorMessage(e, fallback: 'Send failed. Try again.'),
+        timedOut: e is ZafeError && e.kind == ZafeErrorKind.timeout,
       ),
     );
   }

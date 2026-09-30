@@ -10,6 +10,7 @@ ProposalInfo proposal(
   bool isMine = false,
   bool ready = false,
   bool autoSend = true,
+  int expiryHeight = 0,
 }) => ProposalInfo(
   id: id,
   author: 'aa',
@@ -34,6 +35,8 @@ ProposalInfo proposal(
   ready: ready,
   completedByMe: false,
   autoSend: autoSend,
+  expiryHeight: expiryHeight,
+  needsReapproval: false,
 );
 
 ReceivedInfo receipt(String txid, {bool coinbase = false}) => ReceivedInfo(

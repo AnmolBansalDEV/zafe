@@ -12,7 +12,7 @@ use zafe_core::{
     node::{self, VaultMaterial},
     nonce_store::{FileNonceStore, FilePoolStore},
     relay_client::RelayClient,
-    session::ProposalId,
+    session::{NonceStore, ProposalId},
     vault::{ProposalStatus, ProposedPayment, VaultState},
     wallet::{connect, PaymentRequest, ZafeNetwork},
 };
@@ -171,6 +171,12 @@ pub struct ProposalInfo {
     pub completed_by_me: bool,
     /// The proposer asked for it to be sent as soon as the signatures are complete.
     pub auto_send: bool,
+    /// Last block the transaction can be mined in; after it the proposal is expired.
+    pub expiry_height: u32,
+    /// This member approved with signing commitments whose nonces are gone from this
+    /// device (used in a signing round that didn't finish, or restored from a backup): it
+    /// must approve again before a new round can include it.
+    pub needs_reapproval: bool,
 }
 
 fn parse_id(hex_id: &str) -> Result<ProposalId, ZafeError> {
@@ -198,6 +204,7 @@ fn nonce_store(state_dir: &str) -> FileNonceStore {
 
 fn info(state: &VaultState, me: [u8; 32], state_dir: &str) -> Vec<ProposalInfo> {
     let d = &state.descriptor;
+    let nonces = nonce_store(state_dir);
     let mut out: Vec<_> = state
         .proposals
         .values()
@@ -244,6 +251,10 @@ fn info(state: &VaultState, me: [u8; 32], state_dir: &str) -> Vec<ProposalInfo> 
             ready: p.ready_group.is_some() && p.status == ProposalStatus::Approved,
             completed_by_me: p.completed_by == Some(me),
             auto_send: p.auto_send,
+            expiry_height: p.expiry_height,
+            needs_reapproval: matches!(p.status, ProposalStatus::Open | ProposalStatus::Approved)
+                && p.approvals.get(&me).is_some_and(|c| !c.is_empty())
+                && !nonces.contains(&p.id, &p.pczt_hash),
         })
         .collect();
     out.sort_by_key(|p| {
@@ -473,7 +484,44 @@ pub fn reject_proposal(
     Ok(())
 }
 
+/// Cancels a proposal this member authored (open or approved, not yet sent).
+pub fn cancel_proposal(
+    relay_url: String,
+    seeds: Vec<u8>,
+    material: Vec<u8>,
+    proposal_id: String,
+) -> Result<(), ZafeError> {
+    let me = identity(&seeds)?;
+    let m = self::material(&material)?;
+    let id = parse_id(&proposal_id)?;
+    runtime().block_on(node::cancel(
+        &RelayClient::new(relay_url),
+        &me,
+        &m,
+        id,
+        &mut OsRng,
+    ))?;
+    Ok(())
+}
+
 // --- Signing ----------------------------------------------------------------------------
+
+/// Leader: abandons this device's unfinished signing round for a proposal (a chosen
+/// signer never answered), so the next send starts a new one. Commitment sets the old
+/// round used stay recorded as used; signers who took part approve again for fresh ones.
+#[flutter_rust_bridge::frb(sync)]
+pub fn restart_signing(state_dir: String, proposal_id: String) -> Result<(), ZafeError> {
+    let id = parse_id(&proposal_id)?;
+    for ext in ["req", "own"] {
+        let path = leader_dir(&state_dir).join(format!("{}.{ext}", hex::encode(id)));
+        match fs::remove_file(&path) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(ZafeError::new(ZafeErrorKind::Other, e.to_string())),
+        }
+    }
+    Ok(())
+}
 
 /// Answers signing requests for proposals this member approved (each is re-verified first).
 /// Called on every poll. Returns how many were answered.
@@ -552,6 +600,7 @@ pub fn send_proposal(
         seeds,
         material,
         proposal_id,
+        COLLECT_TIMEOUT,
         |p| {
             let _ = sink.add(p);
         },
@@ -570,7 +619,8 @@ pub fn send_proposal(
     Ok(())
 }
 
-/// `send_proposal` with a plain callback (tests and non-Flutter callers).
+/// `send_proposal` with a plain callback and how long to wait for signature shares
+/// (tests and non-Flutter callers).
 #[flutter_rust_bridge::frb(ignore)]
 #[allow(clippy::too_many_arguments)]
 pub fn send_with_progress(
@@ -582,6 +632,7 @@ pub fn send_with_progress(
     seeds: Vec<u8>,
     material: Vec<u8>,
     proposal_id: String,
+    collect_timeout: Duration,
     mut on_progress: impl FnMut(SendProgress),
 ) -> Result<(), ZafeError> {
     let me = identity(&seeds)?;
@@ -672,7 +723,7 @@ pub fn send_with_progress(
             &request,
             own.as_deref(),
             &mut client,
-            COLLECT_TIMEOUT,
+            collect_timeout,
             |p| {
                 on_progress(SendProgress {
                     stage: SendStage::Collecting,

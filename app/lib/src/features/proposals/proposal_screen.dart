@@ -11,11 +11,13 @@ import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/app_loading_icon.dart';
 import '../../core/widgets/app_toast.dart';
+import '../../core/layout/mobile/app_mobile_sheet.dart';
 import '../../core/widgets/mobile/mobile_surface_card.dart';
 import '../../providers/proposals_provider.dart';
 import '../../core/security/unlock_gate.dart';
 import '../../providers/vault_provider.dart';
 import '../../rust/api/proposals.dart' as rust;
+import '../send/send_screen.dart' show SendPrefill;
 import 'proposal_parts.dart';
 import 'proposal_status.dart';
 
@@ -31,6 +33,7 @@ class ProposalScreen extends ConsumerStatefulWidget {
 
 class _ProposalScreenState extends ConsumerState<ProposalScreen> {
   bool _voting = false;
+  bool _cancelling = false;
   Timer? _poll;
 
   @override
@@ -108,6 +111,100 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
     if (mounted) context.push('/proposal/${widget.id}/send');
   }
 
+  Future<void> _startOver() async {
+    if (!await confirmUnlock(
+      context,
+      ref,
+      reason: 'Unlock to start a new signing round',
+    )) {
+      return;
+    }
+    // Reset the round before the sending screen opens (it would resume the old one).
+    await ref.read(proposalsProvider.notifier).startOver(widget.id);
+    if (mounted) context.push('/proposal/${widget.id}/send');
+  }
+
+  Future<void> _cancel(rust.ProposalInfo p) async {
+    final cancel = await showAppMobileSheet<bool>(
+      context: context,
+      builder: (sheet) {
+        final colors = sheet.colors;
+        return MobileModalScaffold(
+          title: 'Cancel this payment?',
+          onClose: () => Navigator.of(sheet).pop(false),
+          leading: AppIcon(
+            AppIcons.warning,
+            size: 20,
+            color: colors.icon.destructive,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                p.ready
+                    ? 'Signers stop working on it and its funds become available for new '
+                          'payments. Every signature is already in, though: until it expires, '
+                          'a signer could still send it. A new payment that uses the same '
+                          'funds makes it impossible to send.'
+                    : 'Signers stop working on it and its funds become available for new '
+                          'payments. This can\'t be undone.',
+                style: AppTypography.bodyMedium.copyWith(
+                  color: colors.text.accent,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              AppButton(
+                expand: true,
+                variant: AppButtonVariant.destructive,
+                onPressed: () => Navigator.of(sheet).pop(true),
+                child: const Text('Cancel payment'),
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              AppButton(
+                expand: true,
+                variant: AppButtonVariant.ghost,
+                onPressed: () => Navigator.of(sheet).pop(false),
+                child: const Text('Keep it'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (cancel != true || !mounted) return;
+    setState(() => _cancelling = true);
+    try {
+      await ref.read(proposalsProvider.notifier).cancel(widget.id);
+      if (mounted) showAppToast(context, 'Payment cancelled');
+    } catch (e) {
+      debugPrint('cancel failed: ${describeError(e)}');
+      if (mounted) {
+        showAppToast(
+          context,
+          zafeErrorMessage(e, fallback: 'Couldn\'t cancel. Try again.'),
+          iconName: AppIcons.warningCircle,
+          tone: AppToastTone.destructive,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _cancelling = false);
+    }
+  }
+
+  void _proposeAgain(rust.ProposalInfo p) {
+    final payment = p.payments.first;
+    context.push(
+      '/send',
+      extra: SendPrefill(
+        address: payment.address,
+        amountZat: payment.amountZat,
+        memo: payment.memo,
+        autoSend: p.autoSend,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -115,6 +212,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
     final proposals = ref.watch(proposalsProvider);
     final p = proposals.byId(widget.id);
     final me = vault.myKeyHex;
+    final height = vault.balance?.height;
 
     if (p == null) {
       return ZafeScreen(
@@ -145,7 +243,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
     return PopScope(
       canPop: !sending,
       child: ZafeScreen(
-        title: sending ? 'Sending...' : _screenTitle(p),
+        title: sending ? 'Sending...' : _screenTitle(p, height),
         showBack: !sending,
         children: [
           ProposalBody(
@@ -153,9 +251,10 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
             members: vault.summary!.members,
             me: me,
             send: send,
+            height: height,
           ),
           const SizedBox(height: AppSpacing.lg),
-          ..._actions(p, sent: sent, send: send),
+          ..._actions(p, sent: sent, send: send, height: height),
         ],
       ),
     );
@@ -165,9 +264,11 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
     rust.ProposalInfo p, {
     required bool sent,
     required SendState? send,
+    required int? height,
   }) {
     final colors = context.colors;
     if (sent) return const [];
+    final note = AppTypography.bodySmall.copyWith(color: colors.text.secondary);
 
     final sending = send?.running ?? false;
     if (send != null) {
@@ -230,7 +331,82 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
             onPressed: _startSend,
             child: const Text('Try again'),
           ),
+          if (send.timedOut && !p.ready) ...[
+            const SizedBox(height: AppSpacing.s),
+            AppButton(
+              expand: true,
+              variant: AppButtonVariant.ghost,
+              onPressed: _startOver,
+              child: const Text('Start over with other signers'),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Starts a new signing round without the signers who didn\'t answer. '
+              'Signers who already signed this round need to approve again.',
+              textAlign: TextAlign.center,
+              style: note,
+            ),
+          ],
         ],
+      ];
+    }
+
+    if (proposalExpired(p, height)) {
+      return [
+        Text(
+          'This payment expired before it was sent: its transaction can no longer be '
+          'added to the chain, and nothing left the vault.',
+          textAlign: TextAlign.center,
+          style: note,
+        ),
+        if (p.payments.length == 1) ...[
+          const SizedBox(height: AppSpacing.sm),
+          AppButton(
+            expand: true,
+            leading: const AppIcon(AppIcons.renew, size: 20),
+            onPressed: () => _proposeAgain(p),
+            child: const Text('Propose again'),
+          ),
+        ],
+      ];
+    }
+
+    final footer = [
+      if (height != null && p.expiryHeight > 0) ...[
+        const SizedBox(height: AppSpacing.sm),
+        Text(
+          'Expires in ${expiresIn(p, height)} if it isn\'t sent.',
+          textAlign: TextAlign.center,
+          style: note,
+        ),
+      ],
+      if (p.isMine) ...[
+        const SizedBox(height: AppSpacing.s),
+        AppButton(
+          expand: true,
+          variant: AppButtonVariant.ghost,
+          onPressed: _cancelling || _voting ? null : () => _cancel(p),
+          child: Text(_cancelling ? 'Cancelling...' : 'Cancel payment'),
+        ),
+      ],
+    ];
+
+    if (p.needsReapproval) {
+      return [
+        AppButton(
+          expand: true,
+          leading: _voting ? null : const AppIcon(AppIcons.check, size: 20),
+          onPressed: _voting ? null : () => _vote(true),
+          child: Text(_voting ? 'Checking and approving...' : 'Approve again'),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          'Your signature went into a signing round that didn\'t finish, or this phone '
+          'was restored from a backup. Approve again so a new round can include you.',
+          textAlign: TextAlign.center,
+          style: note,
+        ),
+        ...footer,
       ];
     }
 
@@ -248,6 +424,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
                 color: colors.text.secondary,
               ),
             ),
+            ...footer,
           ];
         }
         final review = ref.watch(proposalReviewProvider(p.id));
@@ -282,6 +459,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
             onPressed: _voting ? null : () => _vote(false),
             child: const Text('Reject'),
           ),
+          ...footer,
         ];
       case rust.ProposalStage.approved when p.ready:
         return [
@@ -301,6 +479,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
               color: colors.text.secondary,
             ),
           ),
+          ...footer,
         ];
       case rust.ProposalStage.approved:
         return [
@@ -321,6 +500,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
               color: colors.text.secondary,
             ),
           ),
+          ...footer,
         ];
       case rust.ProposalStage.rejected:
       case rust.ProposalStage.cancelled:
@@ -331,8 +511,11 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
 }
 
 /// Short page titles (the nav title has room for about 20 characters).
-String _screenTitle(rust.ProposalInfo p) => switch (p.stage) {
-  rust.ProposalStage.open =>
-    p.myVote == rust.MyVote.none ? 'Review payment' : 'Awaiting votes',
-  _ => proposalTitle(p),
-};
+String _screenTitle(rust.ProposalInfo p, int? height) =>
+    proposalExpired(p, height)
+    ? 'Expired'
+    : switch (p.stage) {
+        rust.ProposalStage.open =>
+          p.myVote == rust.MyVote.none ? 'Review payment' : 'Awaiting votes',
+        _ => proposalTitle(p),
+      };

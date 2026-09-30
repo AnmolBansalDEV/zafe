@@ -68,15 +68,24 @@ List<ActivityItem> mergeActivity(
 
 /// The row for an activity item; tapping opens its detail page.
 class ActivityRow extends StatelessWidget {
-  const ActivityRow({super.key, required this.item, this.hideAmount = false});
+  const ActivityRow({
+    super.key,
+    required this.item,
+    this.hideAmount = false,
+    this.height,
+  });
   final ActivityItem item;
   final bool hideAmount;
+
+  /// Synced chain tip, to show expired proposals.
+  final int? height;
 
   @override
   Widget build(BuildContext context) => switch (item) {
     ProposalActivity(:final proposal) => ProposalRow(
       proposal: proposal,
       hideAmount: hideAmount,
+      height: height,
       onTap: () => context.push('/proposal/${proposal.id}'),
     ),
     ReceivedActivity(:final received) => ReceivedRow(

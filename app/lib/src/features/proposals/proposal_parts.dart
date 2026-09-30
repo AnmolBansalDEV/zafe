@@ -29,11 +29,15 @@ class ProposalBody extends ConsumerWidget {
     required this.members,
     required this.me,
     this.send,
+    this.height,
   });
   final rust.ProposalInfo proposal;
   final List<String> members;
   final String? me;
   final SendState? send;
+
+  /// Synced chain tip, to show expiry.
+  final int? height;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -41,9 +45,11 @@ class ProposalBody extends ConsumerWidget {
     final payment = p.payments.first;
     final progress = send?.progress;
     final sending = send?.running ?? false;
+    final expired = proposalExpired(p, height);
     final showReview =
-        p.stage == rust.ProposalStage.open ||
-        p.stage == rust.ProposalStage.approved;
+        !expired &&
+        (p.stage == rust.ProposalStage.open ||
+            p.stage == rust.ProposalStage.approved);
     final txid = p.txid ?? progress?.txid;
 
     return Column(
@@ -55,6 +61,7 @@ class ProposalBody extends ConsumerWidget {
           address: payment.address,
           recipients: p.payments.length,
           strikethrough:
+              expired ||
               p.stage == rust.ProposalStage.rejected ||
               p.stage == rust.ProposalStage.cancelled,
           onFullAddress: () => showMobileAddressVerifySheet(
@@ -69,6 +76,7 @@ class ProposalBody extends ConsumerWidget {
           members: members,
           me: me,
           sending: sending,
+          height: height,
         ),
         const SizedBox(height: AppSpacing.md),
         MobileSurfaceCard(
@@ -117,11 +125,13 @@ class ProposalApprovalsCard extends StatefulWidget {
     required this.members,
     required this.me,
     this.sending = false,
+    this.height,
   });
   final rust.ProposalInfo proposal;
   final List<String> members;
   final String? me;
   final bool sending;
+  final int? height;
 
   @override
   State<ProposalApprovalsCard> createState() => _ProposalApprovalsCardState();
@@ -131,6 +141,7 @@ class _ProposalApprovalsCardState extends State<ProposalApprovalsCard> {
   bool? _expanded;
 
   bool get _finished => switch (widget.proposal.stage) {
+    _ when proposalExpired(widget.proposal, widget.height) => true,
     rust.ProposalStage.open || rust.ProposalStage.approved => false,
     _ => true,
   };
@@ -165,7 +176,11 @@ class _ProposalApprovalsCardState extends State<ProposalApprovalsCard> {
                   ),
                 ),
               ),
-              ProposalStatusChip(proposal: p, sending: sending),
+              ProposalStatusChip(
+                proposal: p,
+                sending: sending,
+                height: widget.height,
+              ),
             ],
           ),
           const SizedBox(height: AppSpacing.s),

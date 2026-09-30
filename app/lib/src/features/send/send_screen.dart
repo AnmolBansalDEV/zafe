@@ -30,10 +30,37 @@ import '../../rust/api/proposals.dart' as rust;
 
 enum _Step { recipient, amount, review }
 
+/// A payment to propose again (an expired proposal): opens the review step prefilled.
+class SendPrefill {
+  const SendPrefill({
+    required this.address,
+    required this.amountZat,
+    required this.memo,
+    required this.autoSend,
+  });
+  final String address;
+  final BigInt amountZat;
+  final String memo;
+  final bool autoSend;
+}
+
+/// Plain decimal ZEC for an amount field ("1.5"), the inverse of `parseZec`.
+String zecDecimal(BigInt zat) {
+  final whole = zat ~/ BigInt.from(100000000);
+  final frac = (zat % BigInt.from(100000000))
+      .toString()
+      .padLeft(8, '0')
+      .replaceFirst(RegExp(r'0+$'), '');
+  return frac.isEmpty ? '$whole' : '$whole.$frac';
+}
+
 /// New payment: a three-step send wizard (recipient, amount, review). The last step
 /// logs a proposal for the other signers instead of sending.
 class SendScreen extends ConsumerStatefulWidget {
-  const SendScreen({super.key});
+  const SendScreen({super.key, this.prefill});
+
+  /// Starts on the review step with these details (propose again).
+  final SendPrefill? prefill;
 
   @override
   ConsumerState<SendScreen> createState() => _SendScreenState();
@@ -49,6 +76,23 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   bool _autoSend = true;
   rust.AddressCheck? _check;
   bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final prefill = widget.prefill;
+    if (prefill != null) {
+      _address.text = prefill.address;
+      _amount.text = zecDecimal(prefill.amountZat);
+      _memo = prefill.memo;
+      _autoSend = prefill.autoSend;
+      _check = rust.checkAddress(
+        networkName: kZafeNetwork,
+        address: prefill.address,
+      );
+      if (_check!.valid) _step = _Step.review;
+    }
+  }
 
   @override
   void dispose() {

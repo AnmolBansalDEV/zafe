@@ -85,11 +85,27 @@ Open
 - [ ] iOS: `permission_handler` needs `PERMISSION_CAMERA=1` in the Podfile
       `GCC_PREPROCESSOR_DEFINITIONS` if we ever request through it (today only
       `openAppSettings` is used; `mobile_scanner` asks for the camera itself)
-- [ ] Cancel a proposal (author) in the UI; the log already supports `Cancelled`
-- [ ] Proposal expiry: show it in the UI, offer "propose again" when it lapses, make the window configurable at vault creation (D2)
+- [x] Cancel a proposal (author) in the UI (2026-09-30): "Cancel payment" on the proposal
+      page with a confirmation that warns when every signature is already in (it stays
+      sendable until expiry); bridge `cancel_proposal` → `node::cancel`. Tested in `bridge_e2e`
+- [x] Proposal expiry in the UI (2026-09-30): `ProposalInfo.expiry_height`; "Expires in
+      about N days" on open/approved proposals; once the synced tip reaches it, rows, chip
+      and page say "Expired", it stops counting as needing action and isn't auto-sent;
+      "Propose again" opens Send on the review step prefilled (`SendPrefill`, single
+      payment). Dart tests in `test/proposal_expiry_test.dart`. Not checked on a device yet
+- [ ] Expiry window configurable at vault creation (D2): every member builds and signs the
+      descriptor, so the choice has to travel in the invite (invite format bump) or the
+      seal; today it's `DEFAULT_PROPOSAL_EXPIRY_BLOCKS` (7 days)
 - [ ] Privacy: a 7-day expiry delta differs from the 40-block wallet default, so vault spends are distinguishable on chain by expiry. Consider rounding or a shared convention
-- [ ] "Start over" for a signing round when a chosen signer never answers (today the
-      leader can only retry the same round; members must re-approve for fresh nonces)
+- [x] "Start over" for a signing round (2026-09-30): after a timeout the leader can "Start
+      over with other signers" (bridge `restart_signing` drops `<id>.req`/`.own`; used
+      commitment sets stay used); members whose approval's nonces are gone
+      (`ProposalInfo.needs_reapproval`: used in the unfinished round, or restored from a
+      backup) see "Approve again". Tested in `bridge_e2e` (round 1 times out, start over,
+      A re-approves, C joins, sent). Not checked on a device yet
+- [ ] Start-over follow-ups: the unresponsive signer keeps nonces for commitments no
+      leader will use (harmless, never reused; deleted only when the proposal closes if at
+      all); members aren't notified that they need to approve again (only the page says so)
 - [x] Note reservation across concurrent proposals (`reservedNotes`, spec §9.1; done
       2026-09-30): before building, `node::propose` replays the log and locks, in this
       member's wallet, every note an open/approved/broadcast proposal (or a cancelled one

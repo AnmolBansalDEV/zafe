@@ -9,6 +9,7 @@ import '../../core/widgets/app_toast.dart';
 import '../../providers/privacy_mode_provider.dart';
 import '../../providers/proposals_provider.dart';
 import '../../providers/received_provider.dart';
+import '../../providers/vault_provider.dart';
 import '../onboarding/onboarding_art.dart';
 import 'activity_feed.dart';
 
@@ -23,6 +24,7 @@ class ActivityScreen extends ConsumerWidget {
     final proposals = ref.watch(proposalsProvider);
     final received = ref.watch(receivedProvider);
     final hide = ref.watch(privacyModeProvider);
+    final height = ref.watch(vaultProvider.select((v) => v.balance?.height));
     final sections = activitySections(
       mergeActivity(proposals.items, received.items),
     );
@@ -53,7 +55,11 @@ class ActivityScreen extends ConsumerWidget {
                           title: title,
                           children: [
                             for (final item in rows)
-                              ActivityRow(item: item, hideAmount: hide),
+                              ActivityRow(
+                                item: item,
+                                hideAmount: hide,
+                                height: height,
+                              ),
                           ],
                         ),
                         const SizedBox(height: AppSpacing.md),

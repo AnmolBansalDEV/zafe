@@ -117,6 +117,28 @@ Future<void> rejectProposal({
   proposalId: proposalId,
 );
 
+/// Cancels a proposal this member authored (open or approved, not yet sent).
+Future<void> cancelProposal({
+  required String relayUrl,
+  required List<int> seeds,
+  required List<int> material,
+  required String proposalId,
+}) => RustLib.instance.api.crateApiProposalsCancelProposal(
+  relayUrl: relayUrl,
+  seeds: seeds,
+  material: material,
+  proposalId: proposalId,
+);
+
+/// Leader: abandons this device's unfinished signing round for a proposal (a chosen
+/// signer never answered), so the next send starts a new one. Commitment sets the old
+/// round used stay recorded as used; signers who took part approve again for fresh ones.
+void restartSigning({required String stateDir, required String proposalId}) =>
+    RustLib.instance.api.crateApiProposalsRestartSigning(
+      stateDir: stateDir,
+      proposalId: proposalId,
+    );
+
 /// Answers signing requests for proposals this member approved (each is re-verified first).
 /// Called on every poll. Returns how many were answered.
 Future<int> answerSigningRequests({
@@ -291,6 +313,14 @@ class ProposalInfo {
   /// The proposer asked for it to be sent as soon as the signatures are complete.
   final bool autoSend;
 
+  /// Last block the transaction can be mined in; after it the proposal is expired.
+  final int expiryHeight;
+
+  /// This member approved with signing commitments whose nonces are gone from this
+  /// device (used in a signing round that didn't finish, or restored from a backup): it
+  /// must approve again before a new round can include it.
+  final bool needsReapproval;
+
   const ProposalInfo({
     required this.id,
     required this.author,
@@ -310,6 +340,8 @@ class ProposalInfo {
     required this.ready,
     required this.completedByMe,
     required this.autoSend,
+    required this.expiryHeight,
+    required this.needsReapproval,
   });
 
   @override
@@ -331,7 +363,9 @@ class ProposalInfo {
       oneTap.hashCode ^
       ready.hashCode ^
       completedByMe.hashCode ^
-      autoSend.hashCode;
+      autoSend.hashCode ^
+      expiryHeight.hashCode ^
+      needsReapproval.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -355,7 +389,9 @@ class ProposalInfo {
           oneTap == other.oneTap &&
           ready == other.ready &&
           completedByMe == other.completedByMe &&
-          autoSend == other.autoSend;
+          autoSend == other.autoSend &&
+          expiryHeight == other.expiryHeight &&
+          needsReapproval == other.needsReapproval;
 }
 
 enum ProposalStage {

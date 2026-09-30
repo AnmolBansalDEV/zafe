@@ -1,6 +1,7 @@
 import '../core/formatting/member_label.dart';
 import '../core/formatting/zec_amount.dart';
 import '../core/privacy/amount_display.dart';
+import '../features/proposals/proposal_status.dart' show proposalExpired;
 import '../rust/api/proposals.dart' as rust;
 import '../rust/api/received.dart' as rust;
 
@@ -137,11 +138,14 @@ SeenSnapshot snapshotOf(
 
 /// Payments waiting for this member: a vote, or (once every signature is in and nobody is
 /// auto-sending) a send.
-int actionableCount(List<rust.ProposalInfo> proposals) => proposals
-    .where(
-      (p) =>
-          (p.stage == rust.ProposalStage.open &&
-              p.myVote == rust.MyVote.none) ||
-          (p.stage == rust.ProposalStage.approved && !(p.ready && p.autoSend)),
-    )
-    .length;
+int actionableCount(List<rust.ProposalInfo> proposals, {int? height}) =>
+    proposals
+        .where(
+          (p) =>
+              !proposalExpired(p, height) &&
+              ((p.stage == rust.ProposalStage.open &&
+                      p.myVote == rust.MyVote.none) ||
+                  (p.stage == rust.ProposalStage.approved &&
+                      !(p.ready && p.autoSend))),
+        )
+        .length;
