@@ -461,6 +461,23 @@ impl<P: Parameters + Clone + Send + Sync + 'static> VaultWallet<P> {
         received_payments_at(&self.path, &self.key, self.account.expose_uuid().as_bytes())
     }
 
+    /// Unix time of the block that mined `txid` (protocol byte order), if the wallet has
+    /// seen it mined and scanned that block.
+    pub fn mined_time(&self, txid: &[u8; 32]) -> Result<Option<u64>, WalletError> {
+        let conn = open_connection(&self.path, &self.key, true)?;
+        conn.query_row(
+            "SELECT b.time FROM transactions t JOIN blocks b ON b.height = t.mined_height
+             WHERE t.txid = ?1",
+            [txid.as_slice()],
+            |r| r.get::<_, i64>(0),
+        )
+        .map(|t| Some(t as u64))
+        .or_else(|e| match e {
+            rusqlite::Error::QueryReturnedNoRows => Ok(None),
+            e => Err(db_err(e)),
+        })
+    }
+
     /// Whether this wallet has seen transaction `txid` mined (e.g. a vault spend).
     pub fn tx_mined(&self, txid: &[u8; 32]) -> Result<bool, WalletError> {
         let conn = open_connection(&self.path, &self.key, true)?;

@@ -1,17 +1,81 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/layout/mobile/mobile_top_nav.dart';
 import '../../core/layout/mobile/mobile_top_scroll_fade.dart';
+import '../../core/config/network_config.dart';
+import '../../core/errors/zafe_error_copy.dart';
+import '../../core/security/unlock_gate.dart';
+import '../../core/storage/zafe_paths.dart';
+import '../../core/storage/zafe_secure_store.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/app_toast.dart';
 import '../../providers/privacy_mode_provider.dart';
 import '../../providers/proposals_provider.dart';
 import '../../providers/received_provider.dart';
 import '../../providers/vault_provider.dart';
 import '../onboarding/onboarding_art.dart';
+import '../../rust/api/history.dart' as rust_history;
 import 'activity_feed.dart';
+
+/// Exports the vault history as CSV (spec §11.3) through the share sheet. It lists every
+/// payment and memo, so it asks for an unlock first.
+Future<void> exportHistory(BuildContext context, WidgetRef ref) async {
+  if (!await confirmUnlock(
+    context,
+    ref,
+    reason: 'Unlock to export the vault history',
+  )) {
+    return;
+  }
+  final vault = ref.read(vaultProvider);
+  try {
+    final paths = await ZafePaths.get();
+    final csv = await rust_history.exportHistoryCsv(
+      relayUrl: kZafeRelayUrl,
+      dbDir: paths.dbDir,
+      dbKey: await ZafeSecureStore.instance.walletKey(vault.activeId!),
+      seeds: vault.identity!,
+      material: vault.material!,
+    );
+    final name = vault.summary!.name.replaceAll(
+      RegExp(r'[^A-Za-z0-9_-]+'),
+      '-',
+    );
+    final d = DateTime.now();
+    String two(int n) => n.toString().padLeft(2, '0');
+    final fileName =
+        'Zafe-$name-history-${d.year}-${two(d.month)}-${two(d.day)}.csv';
+    final file = File('${(await getTemporaryDirectory()).path}/$fileName');
+    await file.writeAsString(csv, flush: true);
+    await SharePlus.instance.share(
+      ShareParams(files: [XFile(file.path)], fileNameOverrides: [fileName]),
+    );
+    try {
+      await file.delete();
+    } catch (_) {}
+  } catch (e) {
+    debugPrint('history export failed: ${describeError(e)}');
+    if (context.mounted) {
+      showAppToast(
+        context,
+        zafeErrorMessage(
+          e,
+          fallback: 'Couldn\'t export the history. Try again.',
+        ),
+        iconName: AppIcons.warningCircle,
+        tone: AppToastTone.destructive,
+      );
+    }
+  }
+}
 
 /// Every payment in the vault, sent and received, grouped into sections: "This week", then
 /// month and year, then "Earlier"; one card per section.
@@ -35,7 +99,17 @@ class ActivityScreen extends ConsumerWidget {
           bottom: false,
           child: Column(
             children: [
-              MobileTopNav.back(title: 'Activity', onBack: () => context.pop()),
+              MobileTopNav.back(
+                title: 'Activity',
+                onBack: () => context.pop(),
+                trailing: AppButton(
+                  variant: AppButtonVariant.secondary,
+                  size: AppButtonSize.small,
+                  leading: const AppIcon(AppIcons.share, size: 16),
+                  onPressed: () => exportHistory(context, ref),
+                  child: const Text('Export'),
+                ),
+              ),
               Expanded(
                 child: MobileTopScrollFade(
                   child: ListView(

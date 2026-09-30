@@ -62,8 +62,8 @@ Done
 - [x] Settings, app-wide hide amounts, theme (`c508aff`)
 
 Open
-- [ ] Auto-submit (see Next up)
-- [ ] Push notifications (see Next up)
+- [x] Auto-submit (see Next up 1)
+- [~] Push notifications (see Next up 2)
 - [x] Clients speak TLS (2026-09-30): relay client (reqwest `rustls-tls`) and lightwalletd
       (tonic `tls-ring` + `tls-webpki-roots`, explicit `ClientTlsConfig` for `https`), both
       with the bundled Mozilla roots; `crates/zafe-core/tests/tls.rs` (local rustls server:
@@ -206,7 +206,7 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       Proposal: "move to a new phone" exports, then retires this device's copy
       (deletes material and pool nonces after the import is confirmed); plain backups
       stay passive files
-- [ ] **Export history** (CSV, already M2 §11.3) and **viewing-key export** for auditors
+- [ ] **Viewing-key export** for auditors (CSV history export done, M2 §11.3)
       (read-only UFVK; see Vizor viewing-key export in Ideas), plus **import a vault as
       view-only** (auditor mode: balance and history, no signing)
 - [~] Backup health: per-device prompt after creation + home reminder done; members attesting backups in the log (so others see vault-wide backup health) still open
@@ -220,7 +220,12 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       recipients (§11.2)
 - [ ] Rules via `RULES` proposals: per-tx / per-period limits, allowlist-only,
       large-payment extra approvals; enforced by apps before voting and signing (§11.1)
-- [ ] CSV export of vault history, generated locally (§11.3)
+- [x] CSV export of vault history, generated locally (§11.3; 2026-09-30):
+      `zafe_core::history` (sent rows from the log, one per payment, fee on the first;
+      received rows from the wallet; UTC ISO dates, exact 8-decimal ZEC, RFC 4180 quoting,
+      formula injection defused for memos), bridge `export_history_csv`, "Export" on
+      Activity (unlock, then share sheet). Tested in `bridge_e2e` and on the emulator.
+      Contact names stay empty until the address book exists
 - [x] Encrypted backup (Argon2id + XChaCha20-Poly1305; file via the share sheet, or text) and restore;
       never includes nonces (§12.2–12.3)
 - [ ] Backup health: members attest a verified backup in the log (§12.2)

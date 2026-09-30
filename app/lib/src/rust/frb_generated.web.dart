@@ -8,6 +8,7 @@
 
 import 'api/backup.dart';
 import 'api/error.dart';
+import 'api/history.dart';
 import 'api/proposals.dart';
 import 'api/received.dart';
 import 'api/vault.dart';

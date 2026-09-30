@@ -577,5 +577,27 @@ fn payment_flow_through_bridge() {
     assert_eq!(p.stage, ProposalStage::Cancelled);
     assert!(p.expiry_height > 0);
 
+    // History export (CSV): both sent payments with payee, amount, fee and memo, plus the
+    // mining rewards received.
+    let csv = rust_lib_zafe::api::history::export_history_csv(
+        relay.clone(),
+        a.db_dir.clone(),
+        a.db_key.clone(),
+        a.seeds.clone(),
+        a.material.clone(),
+    )
+    .unwrap();
+    let lines: Vec<&str> = csv.lines().collect();
+    assert!(lines[0].starts_with("date,txid,direction,counterparty"));
+    let sent: Vec<&&str> = lines.iter().filter(|l| l.contains(",sent,")).collect();
+    assert_eq!(sent.len(), 2, "{csv}");
+    assert!(sent.iter().any(|l| l.contains(&txid)
+        && l.contains(&payee)
+        && l.contains(",-1.00000000,0.00010000,grant #1,")));
+    assert!(sent
+        .iter()
+        .any(|l| l.contains(&txid2) && l.contains(",-0.50000000,")));
+    assert!(lines.iter().filter(|l| l.contains(",received,")).count() >= 100);
+
     let _ = std::fs::remove_dir_all(&tmp);
 }
