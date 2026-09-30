@@ -14,10 +14,10 @@ use zafe_core::{
     nonce_store::{FileNonceStore, FilePoolStore},
     relay_client::RelayClient,
     session::ProposalId,
-    wallet::{connect, latest_height, regtest_network, PaymentRequest, VaultWallet, WalletKey},
+    wallet::{connect, latest_height, PaymentRequest, VaultWallet, WalletKey, ZafeNetwork},
 };
 use zafe_proto::{Identity, IdentitySeeds};
-use zcash_protocol::{local_consensus::LocalNetwork, memo::Memo};
+use zcash_protocol::memo::Memo;
 
 #[derive(Parser)]
 #[command(
@@ -36,6 +36,9 @@ struct Cli {
         default_value = "http://127.0.0.1:9067"
     )]
     lightwalletd: String,
+    /// Zcash network: regtest (local, default), test or main. Read from `ZAFE_NETWORK`.
+    #[arg(long, env = "ZAFE_NETWORK", default_value = "regtest")]
+    network: String,
     #[command(subcommand)]
     command: Command,
 }
@@ -146,8 +149,12 @@ impl Home {
 }
 
 /// Nonces on disk, one file per (proposal, PCZT hash). `take` deletes before returning.
-fn network() -> LocalNetwork {
-    regtest_network()
+/// Set once from `--network` / `ZAFE_NETWORK` at startup.
+static NETWORK: std::sync::OnceLock<ZafeNetwork> = std::sync::OnceLock::new();
+
+/// The network this run uses (regtest unless `--network` says otherwise).
+fn network() -> ZafeNetwork {
+    NETWORK.get().cloned().expect("network is set at startup")
 }
 
 fn parse_proposal(s: &str) -> Result<ProposalId> {
@@ -160,7 +167,7 @@ async fn open_wallet(
     home: &Home,
     material: &VaultMaterial,
     lwd: &str,
-) -> Result<VaultWallet<LocalNetwork>> {
+) -> Result<VaultWallet<ZafeNetwork>> {
     let mut client = connect(lwd).await?;
     let path = home.path("wallet.sqlite");
     let ufvk = material.vault_keys()?.ufvk()?;
@@ -205,6 +212,9 @@ async fn tip(home: &Home, material: &VaultMaterial, lwd: &str) -> Result<u32> {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+    let net = ZafeNetwork::from_name(&cli.network)
+        .ok_or_else(|| anyhow::anyhow!("--network must be regtest, test or main"))?;
+    let _ = NETWORK.set(net);
     let home = Home(cli.home.clone());
     fs::create_dir_all(&home.0)?;
     let relay = RelayClient::new(&cli.relay);
@@ -525,7 +535,7 @@ async fn vault(
                 &invite,
                 &safety_number,
                 &network(),
-                "regtest",
+                network().name(),
                 birthday,
                 expiry_days.map(|d| d * 1152),
                 rng,
