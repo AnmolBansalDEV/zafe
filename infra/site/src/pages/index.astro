@@ -1,6 +1,6 @@
 ---
-// Landing page, laid out after vizor.cash (centred hero, device showcase, the one-tap
-// flow as three live cards, a dark feature panel with live UI cards, FAQ, closing card, dark footer) with
+// Landing page, laid out after vizor.cash (centred hero, device showcase, two live phones
+// playing a payment between members (after headnote.in's animated mockups), a dark feature panel with live UI cards, FAQ, closing card, dark footer) with
 // Zafe's brand, art and copy. Copy: short, and "Zcash" only where it's needed. Every
 // claim must be something the app does today (docs/tracker.md); the chain card is the
 // real testnet payment from the 2026-09-30 dry run. No JavaScript: the intro is CSS and
@@ -72,39 +72,75 @@ const faq = [
       </div>
     </div>
 
-    <section class="flow" aria-label="How approving works">
-      <article>
-        <div class="flow-tile">
-          <div class="notif">
-            <p class="notif-app"><Mark class="notif-mark" /><span>Zafe</span><time>now</time></p>
-            <p class="notif-title">Ops fund: payment needs your approval</p>
-            <p class="notif-body">Bob proposed 12.50 TAZ to utest1k&hellip;f6d8s0a.</p>
+    <section class="demo" aria-label="Two members making a payment together">
+      <div class="demo-head">
+        <h2>Two phones. One payment.</h2>
+        <p>Bob proposes, you approve with one tap, and it&rsquo;s sent.</p>
+      </div>
+      <div class="demo-card">
+        <div class="demo-stage" aria-hidden="true">
+          <figure class="demo-phone a">
+            <div class="demo-screen">
+            <img class="demo-home" src="/assets/screens/phone_home_light.webp" width="390" height="844" alt="" />
+            <i class="demo-finger fa1"></i>
+            <div class="demo-scrim sa"></div>
+            <div class="demo-sheet compose">
+              <i class="sheet-grabber"></i>
+              <p class="sheet-title">New payment</p>
+              <p class="sheet-amount">12.50 <span>TAZ</span></p>
+              <p class="sheet-to">To <code>utest1k&hellip;f6d8s0a</code></p>
+              <p class="sheet-row"><span>Memo</span><b>Grant: Q4 audit</b></p>
+              <p class="sheet-button"><span>Propose payment</span><i class="sheet-ripple ra"></i></p>
+            </div>
+            <i class="demo-finger fa2"></i>
+            <p class="demo-toast ta1"><Icon name="time" />Proposed &middot; waiting for approval</p>
+            <p class="demo-toast ta2"><Icon name="check_circle" />Payment sent &middot; 12.50 TAZ</p>
+            </div>
+            <figcaption>Bob</figcaption>
+          </figure>
+
+          <div class="demo-lane">
+            <i class="lane-line"></i>
+            <i class="lane-packet out"><Mark class="packet-mark" /></i>
+            <i class="lane-packet back"><Mark class="packet-mark" /></i>
+            <span class="lane-label">sealed, via the relay</span>
           </div>
+
+          <figure class="demo-phone b">
+            <div class="demo-screen">
+            <img class="demo-home" src="/assets/screens/phone_home_light.webp" width="390" height="844" alt="" />
+            <div class="demo-notif">
+              <p class="notif-app"><Mark class="notif-mark" /><span>Zafe</span><time>now</time></p>
+              <p class="notif-title">Ops fund: payment needs your approval</p>
+              <p class="notif-body">Bob proposed 12.50 TAZ.</p>
+            </div>
+            <i class="demo-finger fb1"></i>
+            <div class="demo-scrim sb"></div>
+            <div class="demo-sheet review">
+              <i class="sheet-grabber"></i>
+              <p class="sheet-title">Review payment</p>
+              <p class="sheet-amount">12.50 <span>TAZ</span></p>
+              <p class="sheet-to">To <code>utest1k&hellip;f6d8s0a</code></p>
+              <p class="sheet-row"><span>Checked on this device</span><b>Matches <i class="sheet-ok"><Icon name="check" /></i></b></p>
+              <p class="sheet-votes">
+                <span class="sheet-dots"><i class="on"></i><i class="two"></i><b></b><i></i></span>
+                <span class="sheet-status"><em class="s1">1 of 2 approved</em><em class="s2">Sending&hellip;</em><em class="s3">Sent</em></span>
+              </p>
+              <p class="sheet-button"><span class="b1"><Icon name="check" />Approve and sign</span><span class="b2"><Icon name="check_circle" />Signed</span><i class="sheet-ripple rb"></i></p>
+            </div>
+            <i class="demo-finger fb2"></i>
+            <p class="demo-toast tb"><Icon name="check_circle" />Payment sent &middot; 12.50 TAZ</p>
+            </div>
+            <figcaption>You</figcaption>
+          </figure>
         </div>
-        <h2>Notified</h2>
-        <p>Every signer knows in seconds.</p>
-      </article>
-      <article>
-        <div class="flow-tile">
-          <div class="tap">
-            <p class="tap-button"><Icon name="check" />Approve and sign<i class="tap-ripple"></i></p>
-            <p class="tap-note">Your approval is your signature.</p>
-          </div>
-        </div>
-        <h2>One tap</h2>
-        <p>No second round. Nobody waits for anyone.</p>
-      </article>
-      <article>
-        <div class="flow-tile">
-          <div class="sent">
-            <p class="sent-check"><Icon name="check" /></p>
-            <p class="sent-amount">12.50 <span>TAZ</span></p>
-            <p class="sent-note">Sent &middot; 2 of 3 approved</p>
-          </div>
-        </div>
-        <h2>Sent</h2>
-        <p>The last approval sends it.</p>
-      </article>
+        <ol class="demo-steps">
+          <li class="c1"><b>Propose</b><span>Anyone in the vault can.</span></li>
+          <li class="c2"><b>Notified</b><span>Every signer knows in seconds.</span></li>
+          <li class="c3"><b>One tap</b><span>Your phone checks it. Approving is signing.</span></li>
+          <li class="c4"><b>Sent</b><span>The last approval sends it.</span></li>
+        </ol>
+      </div>
     </section>
 
     <section class="vision">

@@ -3,6 +3,19 @@
 The landing page (`infra/site/src/pages/index.astro`) follows this brief. Keep it current
 when the page changes.
 
+## Decisions (2026-10-01, fifth round)
+
+- The flow cards went. In their place, after headnote.in's animated product mockups (they
+  animate real HTML UI, not video): **two phones playing one payment**, "Two phones. One
+  payment." Bob taps New payment, the compose sheet slides up, he proposes, the sheet
+  slides down; a sealed packet crosses the relay lane; your notification drops in, you
+  tap it, the review sheet slides up, "Checked on this device" pops, one tap on Approve
+  and sign (ripple, "Signed", the second dot fills, "Sending…", "Sent"); the packet
+  returns; both phones show "Payment sent". Steps 01 Propose / 02 Notified / 03 One tap /
+  04 Sent light up in sync. One 12 s CSS timeline (`--T` on `.demo-card`, keyframe
+  percentages per beat); the still frame for reduced motion is your review sheet open.
+  On phones the stage is scaled with `zoom`.
+
 ## Decisions (2026-10-01, fourth round)
 
 - The pillars are now the **one-tap flow** (Notified, One tap, Sent) as live HTML cards:
