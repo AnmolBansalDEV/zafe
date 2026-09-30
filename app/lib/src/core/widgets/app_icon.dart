@@ -121,9 +121,41 @@ abstract final class AppIcons {
   static const wrench = 'wrench';
   static const zcash = 'zcash';
   static const zcashCurrency = 'zcash_currency';
+
+  /// Icons drawn in the Patina two-tone style (docs/brand.md §4), from Phosphor
+  /// Icons (MIT) by `scripts/brand/patina_icons.py` into `assets/icons/patina/`.
+  /// Every other name still renders its filled `assets/icons/<name>.svg`.
+  /// Keep in sync with the script's `MAP`.
+  static const patina = {
+    home,
+    history,
+    users,
+    cog,
+    plane,
+    arrowDownCircle,
+    addNew,
+    warning,
+    warningCircle,
+    share,
+    chevronForward,
+    chevronBackward,
+    eye,
+    eyeClosed,
+    shieldKeyhole,
+    editFilled,
+    time,
+    cross,
+    check,
+    checkCircle,
+    arrowDown,
+  };
 }
 
-/// Renders a Figma-exported icon from `assets/icons/<name>.svg`.
+/// Renders a Figma-exported icon from `assets/icons/<name>.svg`, or a Patina
+/// two-tone icon from `assets/icons/patina/` for names in [AppIcons.patina]:
+/// idle, a rounded 1.7 px outline in [color] with closed shapes filled with
+/// [patina] (default: the brand accent) at 38%; [active], the solid Phosphor
+/// fill in [color] (pass the accent: current tab, a payment that needs you).
 ///
 /// SVGs preserve their Figma icon frame in the viewBox, so the art's
 /// position inside the frame is preserved when Flutter scales the SVG to any
@@ -150,8 +182,17 @@ class AppIcon extends StatelessWidget {
     this.color,
     this.animated = true,
     this.semanticLabel,
+    this.active = false,
+    this.patina,
     super.key,
   });
+
+  /// Patina icons only: draw the solid (filled) form, for state.
+  final bool active;
+
+  /// Patina icons only: colour of the closed shapes (drawn at 38%). Defaults to
+  /// the brand accent; pass the icon colour for semantic icons (warning, value).
+  final Color? patina;
 
   /// Pass a constant from [AppIcons] — e.g. `AppIcons.book`.
   final String name;
@@ -184,6 +225,28 @@ class AppIcon extends StatelessWidget {
         semanticLabel: semanticLabel,
       );
     }
+    if (AppIcons.patina.contains(name)) {
+      if (active) {
+        return SvgPicture.asset(
+          'assets/icons/patina/${name}_active.svg',
+          width: size,
+          height: size,
+          colorFilter: ColorFilter.mode(resolved, BlendMode.srcIn),
+          semanticsLabel: semanticLabel,
+        );
+      }
+      final fill = patina ?? context.colors.icon.brand;
+      return SvgPicture.asset(
+        'assets/icons/patina/$name.svg',
+        width: size,
+        height: size,
+        colorMapper: PatinaColorMapper(
+          outline: resolved,
+          fill: fill.withValues(alpha: fill.a * kPatinaFillOpacity),
+        ),
+        semanticsLabel: semanticLabel,
+      );
+    }
     return SvgPicture.asset(
       'assets/icons/$name.svg',
       width: size,
@@ -192,4 +255,40 @@ class AppIcon extends StatelessWidget {
       semanticsLabel: semanticLabel,
     );
   }
+}
+
+/// Opacity of a Patina icon's closed shapes.
+const kPatinaFillOpacity = 0.38;
+
+/// Recolours a Patina SVG: black (#000000) is the outline, magenta (#FF00FF) the
+/// closed shapes. Value equality keeps flutter_svg's picture cache working.
+@immutable
+class PatinaColorMapper extends ColorMapper {
+  const PatinaColorMapper({required this.outline, required this.fill});
+  final Color outline;
+  final Color fill;
+
+  static const _outlineKey = Color(0xFF000000);
+  static const _fillKey = Color(0xFFFF00FF);
+
+  @override
+  Color substitute(
+    String? id,
+    String elementName,
+    String attributeName,
+    Color color,
+  ) {
+    if (color == _outlineKey) return outline;
+    if (color == _fillKey) return fill;
+    return color;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is PatinaColorMapper &&
+      other.outline == outline &&
+      other.fill == fill;
+
+  @override
+  int get hashCode => Object.hash(outline, fill);
 }

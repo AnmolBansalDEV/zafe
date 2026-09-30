@@ -173,7 +173,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 64 + 48),
                     children: [
-                      _BalanceCard(
+                      BalanceCard(
                         totalZat: vault.balance?.totalZat,
                         notes: vault.balance == null
                             ? const []
@@ -240,7 +240,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                             ),
                           ) >
                           0) ...[
-                        const _NoticeCard(
+                        const NoticeCard(
                           title: 'Update Zafe',
                           body:
                               'Other members use a newer version. Some vault activity '
@@ -249,7 +249,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                         const SizedBox(height: AppSpacing.md),
                       ],
                       if (ref.watch(backupStatusProvider).value == false) ...[
-                        _NoticeCard(
+                        NoticeCard(
                           title: 'Back up this vault',
                           body: 'Your key share lives only on this phone',
                           onTap: () => context.push('/export'),
@@ -274,10 +274,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 }
 
-/// Zafe's vault card: the balance on a dark card with a lime glow and safe-dial rings,
-/// and the approval rule as signer dots along the bottom.
-class _BalanceCard extends StatelessWidget {
-  const _BalanceCard({
+/// Zafe's vault card: the balance on the vault card (`colors.vaultCard`: ink in dark
+/// mode, pale verdigris in light mode) with safe-dial rings, and the approval rule as
+/// signer dots along the bottom.
+class BalanceCard extends StatelessWidget {
+  const BalanceCard({
     required this.totalZat,
     required this.notes,
     required this.hidden,
@@ -614,8 +615,8 @@ class _Payments extends StatelessWidget {
 
 /// Until this device's copy of the vault is backed up (spec §12.2 "backup health").
 /// Home entry card (backup reminder, update notice); a chevron when it opens a page.
-class _NoticeCard extends StatelessWidget {
-  const _NoticeCard({required this.title, required this.body, this.onTap});
+class NoticeCard extends StatelessWidget {
+  const NoticeCard({required this.title, required this.body, this.onTap});
   final String title;
   final String body;
   final VoidCallback? onTap;
@@ -647,7 +648,12 @@ class _NoticeCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AppIcon(AppIcons.warning, size: 20, color: colors.icon.warning),
+              AppIcon(
+                AppIcons.warning,
+                size: 20,
+                color: colors.icon.warning,
+                patina: colors.icon.warning,
+              ),
               const SizedBox(width: AppSpacing.s),
               Expanded(
                 child: Column(

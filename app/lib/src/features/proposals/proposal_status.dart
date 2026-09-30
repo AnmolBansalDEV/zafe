@@ -130,7 +130,7 @@ class ProposalStatusChip extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        AppIcon(icon, size: 13, color: color),
+        AppIcon(icon, size: 13, color: color, patina: color),
         const SizedBox(width: AppSpacing.xxs),
         Text(label, style: AppTypography.labelMedium.copyWith(color: color)),
       ],
@@ -186,13 +186,15 @@ class ProposalRow extends StatelessWidget {
                   color: needsMe
                       ? colors.background.brandAlpha
                       : colors.background.neutralSubtleOpacity,
-                  borderRadius: BorderRadius.circular(AppRadii.small),
+                  shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
+                // A payment that needs your vote: the solid accent icon.
                 child: AppIcon(
                   _icon(p, height),
                   size: 18,
                   color: needsMe ? colors.icon.brand : colors.icon.regular,
+                  active: needsMe,
                 ),
               ),
               const SizedBox(width: AppSpacing.xs),

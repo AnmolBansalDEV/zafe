@@ -12,13 +12,14 @@ import 'src/rust/frb_generated.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   initInviteLinks(); // early, so the link that launched the app isn't missed
-  // Shown on the licenses page (Settings > Open-source licenses): bundled fonts and the
-  // third-party code (NOTICE).
+  // Shown on the licenses page (Settings > Open-source licenses): bundled fonts, icons
+  // and the third-party code (NOTICE).
   LicenseRegistry.addLicense(() async* {
     for (final (packages, asset) in const [
       (['Space Grotesk'], 'assets/fonts/licenses/SpaceGrotesk-OFL.txt'),
       (['DM Sans'], 'assets/fonts/licenses/DMSans-OFL.txt'),
       (['JetBrains Mono'], 'assets/fonts/licenses/JetBrainsMono-OFL.txt'),
+      (['Phosphor Icons'], 'assets/icons/licenses/Phosphor-MIT.txt'),
       (['Vizor (chainapsis/vizor-wallet)'], 'NOTICE'),
     ]) {
       yield LicenseEntryWithLineBreaks(

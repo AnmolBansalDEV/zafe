@@ -22,3 +22,9 @@ Zafe restyles the derived code with its own palette, typefaces and shapes.
 
 Fonts in assets/fonts (Space Grotesk, DM Sans, JetBrains Mono) are licensed under the SIL
 Open Font License 1.1; see assets/fonts/licenses.
+
+Icons in assets/icons/patina are derived from Phosphor Icons
+(https://github.com/phosphor-icons/core), Copyright (c) 2023 Phosphor Icons, licensed
+under the MIT License (assets/icons/licenses/Phosphor-MIT.txt). They were modified for
+Zafe: recoloured into two tones and the outlines thickened
+(scripts/brand/patina_icons.py).

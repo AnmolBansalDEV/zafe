@@ -252,6 +252,8 @@ class _TabBarItemState extends State<_TabBarItem>
                     widget.item.iconName,
                     size: AppMobileTabBar._iconSize,
                     color: color ?? iconColor,
+                    // Patina: solid for the current tab, two-tone otherwise.
+                    active: widget.active,
                   ),
                 ),
               ),

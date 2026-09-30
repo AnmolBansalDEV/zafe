@@ -67,9 +67,10 @@ class ReceivedRow extends StatelessWidget {
               Container(
                 width: 40,
                 height: 40,
+                // Money arriving: the value colour (Zcash gold).
                 decoration: BoxDecoration(
                   color: colors.background.utilitySuccessAlpha,
-                  borderRadius: BorderRadius.circular(AppRadii.small),
+                  shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
                 child: AppIcon(
