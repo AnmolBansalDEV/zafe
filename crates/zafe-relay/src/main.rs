@@ -52,9 +52,13 @@ async fn main() -> std::io::Result<()> {
             let account =
                 zafe_relay::fcm::ServiceAccount::from_json(&json).map_err(std::io::Error::other)?;
             tracing::info!("FCM pushes enabled for project {}", account.project_id);
-            relay.with_notifier(std::sync::Arc::new(zafe_relay::fcm::FcmNotifier::new(
-                account,
-            )))
+            let store = relay.clone();
+            let fcm = zafe_relay::fcm::FcmNotifier::new(account).on_unregistered(move |token| {
+                if let Err(e) = store.forget_push_token(token) {
+                    tracing::warn!("forgetting a push token failed: {e}");
+                }
+            });
+            relay.with_notifier(std::sync::Arc::new(fcm))
         }
         Err(_) => relay,
     };

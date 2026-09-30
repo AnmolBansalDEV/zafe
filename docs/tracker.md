@@ -29,7 +29,7 @@ Last updated: 2026-09-30 (note reservation; versioned formats; relay TLS + packa
    opens the payment on tap. FCM is configured (project `zafe-18c4d`) and verified end to
    end on the emulator (relay → Google → device → background check → notification).
    Next: confirm latency on a real phone.
-   Open: APNs sender + iOS (NSE), pruning dead FCM tokens (404 UNREGISTERED).
+   Open: APNs sender + iOS (NSE). Done: dead FCM tokens are pruned (2026-09-30).
    Done: relay-client TLS (2026-09-30, see M1 "Hosted relay").
 3. [ ] **Tor** (as in Vizor `rust/src/network_privacy.rs`): `zcash_client_backend` `tor`
    feature (arti), process-wide fail-closed route policy, bootstrap timeout, dormant when
@@ -82,7 +82,9 @@ Open
       `RelayClientError::RateLimited` → `NotReady` ("the relay is busy"). Keygen
       (`node_keygen`) and the whole payment flow (`bridge_e2e`) run under the hosted limits
 - [ ] Relay follow-ups: storage quotas (undelivered envelopes per recipient, log size per
-      mailbox), off-site backups (Litestream) *(idea)*, pruning dead FCM tokens
+      mailbox), off-site backups (Litestream) *(idea)*. Done: dead FCM tokens (404
+      `UNREGISTERED`) are deleted (`FcmNotifier::on_unregistered` →
+      `Relay::forget_push_token`)
 - [x] Invite by link: `zafe://join?invite=...` custom scheme (see Next up 5)
 - [ ] Universal/App Links (`https://…/join#invite`) so a link works for people without
       Zafe installed (landing page + `assetlinks.json` / AASA). Put the invite in the URL

@@ -50,7 +50,11 @@ pub struct FcmNotifier {
     http: reqwest::Client,
     token: Arc<Mutex<Option<CachedToken>>>,
     runtime: tokio::runtime::Handle,
+    on_unregistered: Option<OnUnregistered>,
 }
+
+/// Callback for device tokens FCM reports as gone.
+type OnUnregistered = Arc<dyn Fn(&str) + Send + Sync>;
 
 impl FcmNotifier {
     /// Must be created inside the relay's tokio runtime (pushes are sent on it).
@@ -69,7 +73,26 @@ impl FcmNotifier {
                 .expect("http client"),
             token: Arc::new(Mutex::new(None)),
             runtime: tokio::runtime::Handle::current(),
+            on_unregistered: None,
         }
+    }
+
+    /// Called with a device token FCM reports as no longer registered (app uninstalled,
+    /// token rotated), so the relay stops pushing to it.
+    pub fn on_unregistered(mut self, f: impl Fn(&str) + Send + Sync + 'static) -> Self {
+        self.on_unregistered = Some(Arc::new(f));
+        self
+    }
+
+    /// Whether an FCM v1 error response says the device token is gone for good.
+    pub fn is_unregistered(status: u16, body: &str) -> bool {
+        status == 404
+            && serde_json::from_str::<serde_json::Value>(body).is_ok_and(|v| {
+                v["error"]["details"].as_array().is_some_and(|d| {
+                    d.iter()
+                        .any(|e| e["errorCode"].as_str() == Some("UNREGISTERED"))
+                })
+            })
     }
 
     async fn access_token(
@@ -157,6 +180,7 @@ impl Notifier for FcmNotifier {
             self.fcm_base, account.project_id
         );
         let body = Self::message(token);
+        let (device_token, on_unregistered) = (token.to_owned(), self.on_unregistered.clone());
         self.runtime.spawn(async move {
             let result = async {
                 let bearer = Self::access_token(&http, &account, &cache).await?;
@@ -170,6 +194,13 @@ impl Notifier for FcmNotifier {
                 let status = resp.status();
                 if !status.is_success() {
                     let text = resp.text().await.unwrap_or_default();
+                    if Self::is_unregistered(status.as_u16(), &text) {
+                        tracing::info!("push: token unregistered, forgetting it");
+                        if let Some(f) = &on_unregistered {
+                            f(&device_token);
+                        }
+                        return Ok(());
+                    }
                     return Err(format!("FCM {status}: {text}"));
                 }
                 tracing::debug!("push: sent");

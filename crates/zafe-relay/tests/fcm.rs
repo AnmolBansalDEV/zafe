@@ -111,3 +111,61 @@ async fn sends_content_free_high_priority_pushes() {
     );
     assert_eq!(claims.aud, format!("{base}/token"));
 }
+
+#[tokio::test]
+async fn unregistered_tokens_are_reported_once_fcm_says_so() {
+    let app = Router::new()
+        .route(
+            "/token",
+            post(|| async { Json(serde_json::json!({"access_token": "tok", "expires_in": 3600})) }),
+        )
+        .route(
+            "/v1/projects/zafe-test/messages:send",
+            post(|| async {
+                (
+                    axum::http::StatusCode::NOT_FOUND,
+                    Json(serde_json::json!({"error": {
+                        "code": 404,
+                        "status": "NOT_FOUND",
+                        "details": [{
+                            "@type": "type.googleapis.com/google.firebase.fcm.v1.FcmError",
+                            "errorCode": "UNREGISTERED"
+                        }]
+                    }})),
+                )
+            }),
+        );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+    let account = ServiceAccount {
+        project_id: "zafe-test".into(),
+        client_email: "relay@zafe-test.iam.gserviceaccount.com".into(),
+        private_key: TEST_KEY.into(),
+        token_uri: format!("{base}/token"),
+    };
+    let gone = Arc::new(Mutex::new(Vec::<String>::new()));
+    let sink = gone.clone();
+    let notifier = FcmNotifier::with_endpoint(account, &base)
+        .on_unregistered(move |t| sink.lock().unwrap().push(t.to_owned()));
+    notifier.notify(PushPlatform::Fcm, "stale-device");
+    for _ in 0..100 {
+        if !gone.lock().unwrap().is_empty() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+    }
+    assert_eq!(*gone.lock().unwrap(), vec!["stale-device".to_owned()]);
+
+    // Other failures never forget a token.
+    assert!(!FcmNotifier::is_unregistered(404, "not json"));
+    assert!(!FcmNotifier::is_unregistered(
+        400,
+        r#"{"error":{"details":[{"errorCode":"UNREGISTERED"}]}}"#
+    ));
+    assert!(!FcmNotifier::is_unregistered(
+        404,
+        r#"{"error":{"details":[{"errorCode":"SENDER_ID_MISMATCH"}]}}"#
+    ));
+}

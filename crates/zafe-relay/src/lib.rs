@@ -277,6 +277,13 @@ impl Relay {
         self
     }
 
+    /// Deletes a push token everywhere it is registered (FCM reported it gone). Returns
+    /// how many registrations were removed.
+    pub fn forget_push_token(&self, token: &str) -> Result<usize, RelayError> {
+        let db = self.db.lock().expect("lock");
+        Ok(db.execute("DELETE FROM push_tokens WHERE token = ?1", params![token])?)
+    }
+
     /// Charges one request to a signing key whose signature already verified.
     fn limit_key(&self, key: &[u8; 32]) -> Result<(), RelayError> {
         match &self.per_key {

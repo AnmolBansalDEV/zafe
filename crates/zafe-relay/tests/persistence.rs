@@ -332,9 +332,8 @@ async fn deliveries_push_to_registered_recipients_only() {
 async fn log_appends_push_every_other_member() {
     let now = Arc::new(AtomicU64::new(T0));
     let recorder = Arc::new(Recorder::default());
-    let app = Relay::with_clock(clock(&now))
-        .with_notifier(recorder.clone())
-        .router();
+    let relay = Relay::with_clock(clock(&now)).with_notifier(recorder.clone());
+    let app = relay.clone().router();
     let mut rng = StdRng::seed_from_u64(4);
     let ids: Vec<Identity> = (0..3).map(|_| Identity::generate(&mut rng)).collect();
     let (key, head) = populate_with_head(&app, &ids[..3], &mut rng).await;
@@ -368,6 +367,25 @@ async fn log_appends_push_every_other_member() {
         pushed,
         vec!["tok-0".to_owned(), "tok-2".to_owned()],
         "author is not pushed"
+    );
+
+    // A token FCM reported as unregistered is forgotten: no more pushes to it.
+    assert_eq!(relay.forget_push_token("tok-0").unwrap(), 1);
+    recorder.0.lock().unwrap().clear();
+    let next = LogEntry::create(
+        &ids[1],
+        &key,
+        MAILBOX,
+        2,
+        entry.hash().unwrap(),
+        b"vote",
+        &mut rng,
+    )
+    .unwrap();
+    call(&app, "/v1/log/append", next.to_bytes().unwrap()).await;
+    assert_eq!(
+        *recorder.0.lock().unwrap(),
+        vec![(PushPlatform::Fcm, "tok-2".to_owned())]
     );
 }
 
