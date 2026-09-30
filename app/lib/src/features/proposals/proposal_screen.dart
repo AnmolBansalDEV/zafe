@@ -194,13 +194,17 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
   }
 
   void _proposeAgain(rust.ProposalInfo p) {
-    final payment = p.payments.first;
     context.push(
       '/send',
       extra: SendPrefill(
-        address: payment.address,
-        amountZat: payment.amountZat,
-        memo: payment.memo,
+        payments: [
+          for (final x in p.payments)
+            rust.PaymentInput(
+              address: x.address,
+              amountZat: x.amountZat,
+              memo: x.memo,
+            ),
+        ],
         autoSend: p.autoSend,
       ),
     );
@@ -380,15 +384,13 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
           textAlign: TextAlign.center,
           style: note,
         ),
-        if (p.payments.length == 1) ...[
-          const SizedBox(height: AppSpacing.sm),
-          AppButton(
-            expand: true,
-            leading: const AppIcon(AppIcons.renew, size: 20),
-            onPressed: () => _proposeAgain(p),
-            child: const Text('Propose again'),
-          ),
-        ],
+        const SizedBox(height: AppSpacing.sm),
+        AppButton(
+          expand: true,
+          leading: const AppIcon(AppIcons.renew, size: 20),
+          onPressed: () => _proposeAgain(p),
+          child: const Text('Propose again'),
+        ),
       ];
     }
 

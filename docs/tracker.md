@@ -220,7 +220,13 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 
 ## M2 — v1 feature-complete, mainnet beta (spec §16)
 
-- [ ] Batch payments (1..50 recipients; core supports many payments, UI is single)
+- [x] Batch payments UI (2026-09-30): "Add another recipient" on the review step (up to
+      50), a recipients list with remove, available balance net of added recipients;
+      proposal pages list every recipient (`RecipientsCard`); "Propose again" keeps the
+      batch. Emulator: a 2-recipient proposal verified on B (fee 15000 zat, 3 actions),
+      approved, signed interactively with B and sent
+- [ ] Batch follow-ups: import recipients from CSV (grant payouts), per-recipient edit
+      (today: remove and re-add)
 - [ ] Address book via `ADDRESS_BOOK` proposals (t approvals, no FROST); warn on unknown
       recipients (§11.2)
 - [ ] Rules via `RULES` proposals: per-tx / per-period limits, allowlist-only,

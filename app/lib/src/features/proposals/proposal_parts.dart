@@ -74,6 +74,10 @@ class ProposalBody extends ConsumerWidget {
             address: payment.address,
           ),
         ),
+        if (p.payments.length > 1) ...[
+          const SizedBox(height: AppSpacing.md),
+          RecipientsCard.fromProposal(p.payments),
+        ],
         const SizedBox(height: AppSpacing.md),
         ProposalApprovalsCard(
           proposal: p,
@@ -103,7 +107,7 @@ class ProposalBody extends ConsumerWidget {
                   value: formatTimestamp(p.createdAt),
                 ),
               ],
-              if (payment.memo.isNotEmpty) ...[
+              if (p.payments.length == 1 && payment.memo.isNotEmpty) ...[
                 const DetailDivider(),
                 DetailRow(label: 'Message', value: payment.memo),
               ],
@@ -420,5 +424,133 @@ class _VoteTag extends StatelessWidget {
       ),
       _ => SignerTag(label: 'Didn\'t vote', color: colors.text.muted),
     };
+  }
+}
+
+/// One payment of a batch, as plain data (proposal or draft).
+typedef RecipientLine = ({String address, BigInt amountZat, String memo});
+
+/// Every recipient of a batch payment: short address, amount and message, each address
+/// tappable in full. [onRemove] (drafts only) shows a remove button per line while there
+/// is more than one.
+class RecipientsCard extends ConsumerWidget {
+  const RecipientsCard({super.key, required this.lines, this.onRemove});
+
+  /// From a draft's `PaymentInput`s or a proposal's `PaymentInfo`s.
+  RecipientsCard.fromInputs(
+    List<rust.PaymentInput> payments, {
+    Key? key,
+    void Function(int)? onRemove,
+  }) : this(
+         key: key,
+         lines: [
+           for (final p in payments)
+             (address: p.address, amountZat: p.amountZat, memo: p.memo),
+         ],
+         onRemove: onRemove,
+       );
+
+  RecipientsCard.fromProposal(List<rust.PaymentInfo> payments, {Key? key})
+    : this(
+        key: key,
+        lines: [
+          for (final p in payments)
+            (address: p.address, amountZat: p.amountZat, memo: p.memo),
+        ],
+      );
+
+  final List<RecipientLine> lines;
+  final void Function(int index)? onRemove;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final hide = ref.watch(privacyModeProvider);
+    return MobileSurfaceCard(
+      cornerRadius: AppRadii.large,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.s,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '${lines.length} recipients',
+            style: AppTypography.labelLarge.copyWith(
+              color: colors.text.accent,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          for (var i = 0; i < lines.length; i++) ...[
+            if (i > 0) const DetailDivider(),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AppTappable(
+                          onTap: () => showMobileAddressVerifySheet(
+                            context,
+                            title: 'Recipient ${i + 1}',
+                            address: lines[i].address,
+                          ),
+                          semanticsLabel: 'Recipient ${i + 1} full address',
+                          child: Text(
+                            compactAddress(lines[i].address),
+                            style: AppTypography.labelLarge.copyWith(
+                              fontFamily: 'JetBrains Mono',
+                              color: colors.text.primary,
+                            ),
+                          ),
+                        ),
+                        if (lines[i].memo.isNotEmpty)
+                          Text(
+                            lines[i].memo,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.bodySmall.copyWith(
+                              color: colors.text.secondary,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.xs),
+                  Text(
+                    amountWithTicker(
+                      ZecAmount.fromZatoshi(
+                        lines[i].amountZat,
+                      ).activity.amountText,
+                      hide: hide,
+                      maskLength: 3,
+                    ),
+                    style: AppTypography.labelLarge.copyWith(
+                      color: colors.text.accent,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (onRemove != null && lines.length > 1) ...[
+                    const SizedBox(width: AppSpacing.xs),
+                    AppTappable(
+                      onTap: () => onRemove!(i),
+                      semanticsLabel: 'Remove recipient ${i + 1}',
+                      child: AppIcon(
+                        AppIcons.cross,
+                        size: 18,
+                        color: colors.icon.muted,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }

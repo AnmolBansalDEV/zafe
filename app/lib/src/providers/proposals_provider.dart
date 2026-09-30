@@ -196,10 +196,9 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
     }
   }
 
+  /// Logs a proposal paying `payments` (one, or a batch of up to 50).
   Future<String> propose({
-    required String address,
-    required BigInt amountZat,
-    required String memo,
+    required List<rust.PaymentInput> payments,
     required bool autoSend,
   }) async {
     final vault = _vault;
@@ -211,9 +210,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
       dbKey: await ZafeSecureStore.instance.walletKey(vault.activeId!),
       seeds: vault.identity!,
       material: vault.material!,
-      payments: [
-        rust.PaymentInput(address: address, amountZat: amountZat, memo: memo),
-      ],
+      payments: payments,
       autoSend: autoSend,
     );
     await refresh();

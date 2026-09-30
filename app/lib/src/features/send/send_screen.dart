@@ -27,22 +27,19 @@ import '../../core/privacy/amount_display.dart';
 import '../../core/security/unlock_gate.dart';
 import '../../providers/vault_provider.dart';
 import '../../rust/api/proposals.dart' as rust;
+import '../proposals/proposal_parts.dart' show RecipientsCard;
 
 enum _Step { recipient, amount, review }
 
-/// A payment to propose again (an expired proposal): opens the review step prefilled.
+/// Payments to propose again (an expired proposal): opens the review step prefilled.
 class SendPrefill {
-  const SendPrefill({
-    required this.address,
-    required this.amountZat,
-    required this.memo,
-    required this.autoSend,
-  });
-  final String address;
-  final BigInt amountZat;
-  final String memo;
+  const SendPrefill({required this.payments, required this.autoSend});
+  final List<rust.PaymentInput> payments;
   final bool autoSend;
 }
+
+/// Most recipients in one proposal (spec: batch payments, 1..50).
+const kMaxRecipients = 50;
 
 /// Plain decimal ZEC for an amount field ("1.5"), the inverse of `parseZec`.
 String zecDecimal(BigInt zat) {
@@ -77,20 +74,23 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   rust.AddressCheck? _check;
   bool _busy = false;
 
+  /// Recipients already added to this proposal; the fields hold the one being edited.
+  final List<rust.PaymentInput> _added = [];
+
   @override
   void initState() {
     super.initState();
     final prefill = widget.prefill;
-    if (prefill != null) {
-      _address.text = prefill.address;
-      _amount.text = zecDecimal(prefill.amountZat);
-      _memo = prefill.memo;
+    if (prefill != null && prefill.payments.isNotEmpty) {
+      _added.addAll(prefill.payments.take(prefill.payments.length - 1));
+      _edit(prefill.payments.last);
       _autoSend = prefill.autoSend;
-      _check = rust.checkAddress(
-        networkName: kZafeNetwork,
-        address: prefill.address,
+      final allValid = prefill.payments.every(
+        (p) => rust
+            .checkAddress(networkName: kZafeNetwork, address: p.address)
+            .valid,
       );
-      if (_check!.valid) _step = _Step.review;
+      if (allValid) _step = _Step.review;
     }
   }
 
@@ -122,6 +122,50 @@ class _SendScreenState extends ConsumerState<SendScreen> {
 
   BigInt? get _amountZat => rust.parseZec(text: _amount.text);
 
+  /// The payment being edited.
+  rust.PaymentInput get _current => rust.PaymentInput(
+    address: _address.text.trim(),
+    amountZat: _amountZat ?? BigInt.zero,
+    memo: _memo,
+  );
+
+  /// Every payment of the proposal, in order.
+  List<rust.PaymentInput> get _payments => [..._added, _current];
+
+  BigInt get _addedTotal =>
+      _added.fold(BigInt.zero, (sum, p) => sum + p.amountZat);
+
+  /// Puts `p` in the fields.
+  void _edit(rust.PaymentInput p) {
+    _address.text = p.address;
+    _amount.text = zecDecimal(p.amountZat);
+    _memo = p.memo;
+    _check = rust.checkAddress(networkName: kZafeNetwork, address: p.address);
+  }
+
+  /// Parks the current payment and starts a new recipient.
+  void _addRecipient() {
+    setState(() {
+      _added.add(_current);
+      _address.clear();
+      _amount.clear();
+      _memo = '';
+      _check = null;
+      _step = _Step.recipient;
+    });
+  }
+
+  /// Drops payment `i` of [_payments] (not the last remaining one).
+  void _removeRecipient(int i) {
+    setState(() {
+      if (i < _added.length) {
+        _added.removeAt(i);
+      } else if (_added.isNotEmpty) {
+        _edit(_added.removeLast());
+      }
+    });
+  }
+
   BigInt get _spendable =>
       ref.read(vaultProvider).balance?.spendableZat ?? BigInt.zero;
 
@@ -133,6 +177,12 @@ class _SendScreenState extends ConsumerState<SendScreen> {
 
   void _back() {
     switch (_step) {
+      case _Step.recipient when _added.isNotEmpty:
+        // Abandon the new recipient: back to the review of the ones already added.
+        setState(() {
+          _edit(_added.removeLast());
+          _step = _Step.review;
+        });
       case _Step.recipient:
         context.pop();
       case _Step.amount:
@@ -154,12 +204,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
     try {
       final id = await ref
           .read(proposalsProvider.notifier)
-          .propose(
-            address: _address.text.trim(),
-            amountZat: _amountZat!,
-            memo: _memo,
-            autoSend: _autoSend,
-          );
+          .propose(payments: _payments, autoSend: _autoSend);
       if (!mounted) return;
       context.go('/home');
       context.push('/proposal/$id');
@@ -185,7 +230,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     return PopScope(
-      canPop: _step == _Step.recipient && !_busy,
+      canPop: _step == _Step.recipient && _added.isEmpty && !_busy,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop && !_busy) _back();
       },
@@ -298,7 +343,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   Widget _amountStep() {
     final colors = context.colors;
     final amount = _amountZat;
-    final tooMuch = amount != null && amount > _spendable;
+    final tooMuch = amount != null && _addedTotal + amount > _spendable;
     final memoLen = rust.memoLength(memo: _memo);
     final label = amount == null || amount == BigInt.zero
         ? 'Enter amount to continue'
@@ -319,7 +364,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
                     const SizedBox(width: AppSpacing.xs),
                     Expanded(
                       child: Text(
-                        '${amountWithTicker(ZecAmount.fromZatoshi(_spendable).balance.amountText, hide: ref.watch(privacyModeProvider))} available',
+                        '${amountWithTicker(ZecAmount.fromZatoshi(_spendable - _addedTotal).balance.amountText, hide: ref.watch(privacyModeProvider))} available',
                         style: AppTypography.labelLarge.copyWith(
                           color: colors.text.accent,
                           fontWeight: FontWeight.w600,
@@ -466,19 +511,44 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   Widget _reviewStep() {
     final colors = context.colors;
     final summary = ref.watch(vaultProvider).summary!;
-    final amount = ZecAmount.fromZatoshi(_amountZat!).receipt;
-    final address = _address.text.trim();
+    final payments = _payments;
+    final total = payments.fold(BigInt.zero, (sum, p) => sum + p.amountZat);
+    final amount = ZecAmount.fromZatoshi(total).receipt;
+    final address = payments.first.address;
+    final batch = payments.length > 1;
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       children: [
         PaymentCard(
-          label: 'NEW PAYMENT',
+          label: batch ? 'NEW BATCH PAYMENT' : 'NEW PAYMENT',
           amountText: amount.amountText,
           address: address,
+          recipients: payments.length,
           onFullAddress: () => showMobileAddressVerifySheet(
             context,
             title: 'Full address',
             address: address,
+          ),
+        ),
+        if (batch) ...[
+          const SizedBox(height: AppSpacing.md),
+          RecipientsCard.fromInputs(
+            payments,
+            onRemove: _busy ? null : _removeRecipient,
+          ),
+        ],
+        const SizedBox(height: AppSpacing.s),
+        AppButton(
+          expand: true,
+          variant: AppButtonVariant.secondary,
+          leading: const AppIcon(AppIcons.plus, size: 20),
+          onPressed: _busy || payments.length >= kMaxRecipients
+              ? null
+              : _addRecipient,
+          child: Text(
+            payments.length >= kMaxRecipients
+                ? '$kMaxRecipients recipients at most'
+                : 'Add another recipient',
           ),
         ),
         const SizedBox(height: AppSpacing.lg),
@@ -490,11 +560,13 @@ class _SendScreenState extends ConsumerState<SendScreen> {
           ),
           child: Column(
             children: [
-              DetailRow(
-                label: 'Message',
-                value: _memo.isEmpty ? 'None' : _memo,
-              ),
-              const DetailDivider(),
+              if (!batch) ...[
+                DetailRow(
+                  label: 'Message',
+                  value: _memo.isEmpty ? 'None' : _memo,
+                ),
+                const DetailDivider(),
+              ],
               DetailRow(
                 label: 'Approvals needed',
                 value:
