@@ -173,7 +173,7 @@ abstract final class BrandPrimitives {
 
 /// Error ladder: rose (hue 350). Destructive actions and validation errors.
 /// Dark p500 #E96CAD and light p300 #A82571 are the text colours.
-abstract final class PlumPrimitives {
+abstract final class RosePrimitives {
   static const p0Dark = Color(0xFF14020A);
   static const p0Light = Color(0xFFFFE9F3);
 

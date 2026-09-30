@@ -109,7 +109,7 @@ class ProposalStatusChip extends StatelessWidget {
             rust.ProposalStage.approved => (
               AppIcons.check,
               'Approved',
-              colors.text.positiveStrong,
+              colors.text.value,
             ),
             rust.ProposalStage.rejected => (
               AppIcons.cross,
@@ -124,7 +124,7 @@ class ProposalStatusChip extends StatelessWidget {
             rust.ProposalStage.sent => (
               AppIcons.checkCircle,
               'Completed',
-              colors.text.positiveStrong,
+              colors.text.value,
             ),
           };
     return Row(

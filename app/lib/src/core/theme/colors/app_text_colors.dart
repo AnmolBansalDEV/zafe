@@ -12,13 +12,12 @@ import '../primitives.dart';
 /// * [inverse] — Text placed on inverted surfaces (e.g. dark text on a light
 ///   chip inside dark mode).
 /// * [warning] — Inline caution copy (orange warning ladder).
-/// * [positiveStrong] — Positive-state copy and money received: Zcash gold
+/// * [value] — Positive-state copy and money received: Zcash gold
 ///   (the value colour; teal and green are too close to tell apart).
 /// * [destructive] — Destructive utility copy.
 /// * [destructiveLight] — Softer destructive copy for secondary error text.
-/// * [success] — Positive / success utility copy.
 /// * [brand] — Brand-colored inline text accent.
-/// * [homeCard] — Exception text used on the home balance card. Theme-invariant.
+/// * [darkCard] — Text and QR dots on `background.darkCard`.
 class AppTextColors {
   const AppTextColors({
     required this.accent,
@@ -28,12 +27,11 @@ class AppTextColors {
     required this.disabled,
     required this.inverse,
     required this.warning,
-    required this.positiveStrong,
+    required this.value,
     required this.destructive,
     required this.destructiveLight,
-    required this.success,
     required this.brand,
-    required this.homeCard,
+    required this.darkCard,
   });
 
   final Color accent;
@@ -43,12 +41,11 @@ class AppTextColors {
   final Color disabled;
   final Color inverse;
   final Color warning;
-  final Color positiveStrong;
+  final Color value;
   final Color destructive;
   final Color destructiveLight;
-  final Color success;
   final Color brand;
-  final Color homeCard;
+  final Color darkCard;
 
   static const dark = AppTextColors(
     accent: Primitives.p900Dark,
@@ -58,12 +55,11 @@ class AppTextColors {
     disabled: Primitives.p400Dark,
     inverse: Primitives.p0Dark,
     warning: OrangePrimitives.p500Dark,
-    positiveStrong: GoldPrimitives.p500Dark,
-    destructive: PlumPrimitives.p500Dark,
-    destructiveLight: PlumPrimitives.p400Dark,
-    success: GoldPrimitives.p500Dark,
+    value: GoldPrimitives.p500Dark,
+    destructive: RosePrimitives.p500Dark,
+    destructiveLight: RosePrimitives.p400Dark,
     brand: BrandPrimitives.p400Dark,
-    homeCard: Primitives.p800Dark,
+    darkCard: Primitives.p800Dark,
   );
 
   static const light = AppTextColors(
@@ -76,11 +72,10 @@ class AppTextColors {
     disabled: Primitives.p400Light,
     inverse: Primitives.p0Light,
     warning: OrangePrimitives.p400Light,
-    positiveStrong: GoldPrimitives.p400Light,
-    destructive: PlumPrimitives.p300Light,
-    destructiveLight: PlumPrimitives.p150Light,
-    success: GoldPrimitives.p400Light,
+    value: GoldPrimitives.p400Light,
+    destructive: RosePrimitives.p300Light,
+    destructiveLight: RosePrimitives.p150Light,
     brand: BrandPrimitives.p300Light,
-    homeCard: Primitives.p0Light,
+    darkCard: Primitives.p0Light,
   );
 }

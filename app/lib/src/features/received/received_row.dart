@@ -69,14 +69,15 @@ class ReceivedRow extends StatelessWidget {
                 height: 40,
                 // Money arriving: the value colour (Zcash gold).
                 decoration: BoxDecoration(
-                  color: colors.background.utilitySuccessAlpha,
+                  color: colors.background.valueAlpha,
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
                 child: AppIcon(
                   AppIcons.arrowDown,
                   size: 18,
-                  color: colors.text.positiveStrong,
+                  color: colors.text.value,
+                  patina: colors.text.value,
                 ),
               ),
               const SizedBox(width: AppSpacing.xs),
@@ -110,7 +111,7 @@ class ReceivedRow extends StatelessWidget {
                   style: AppTypography.labelLarge.copyWith(
                     color: r.minedHeight == 0
                         ? colors.text.secondary
-                        : colors.text.positiveStrong,
+                        : colors.text.value,
                     fontWeight: FontWeight.w600,
                   ),
                 ),

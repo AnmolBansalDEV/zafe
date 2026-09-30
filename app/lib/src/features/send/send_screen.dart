@@ -391,9 +391,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
                 focusNode: _addressFocus,
                 hintText: 'Zcash address',
                 onChanged: (_) => _validateAddress(),
-                restingBorderColor: invalid
-                    ? colors.border.utilityDestructive
-                    : null,
+                restingBorderColor: invalid ? colors.border.destructive : null,
                 leading: AppIcon(
                   AppIcons.plane,
                   size: 20,

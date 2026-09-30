@@ -86,7 +86,7 @@ emit(`}
 
 /// Error ladder: rose (hue 350). Destructive actions and validation errors.
 /// Dark p500 #E96CAD and light p300 #A82571 are the text colours.
-abstract final class PlumPrimitives {`);
+abstract final class RosePrimitives {`);
 pairs('r', rose.d, rose.l);
 alphas(rose.d, rose.l, [[400, 4], [400, 8], [400, 15], [400, 25]]);
 lines.pop();

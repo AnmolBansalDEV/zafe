@@ -125,9 +125,7 @@ class _StatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final confirmed = receivedStatus(received) == 'Confirmed';
-    final color = confirmed
-        ? colors.text.positiveStrong
-        : colors.text.secondary;
+    final color = confirmed ? colors.text.value : colors.text.secondary;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [

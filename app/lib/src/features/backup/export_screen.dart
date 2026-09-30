@@ -140,7 +140,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
         children: [
           _Note(
             icon: AppIcons.checkCircle,
-            iconColor: colors.icon.success,
+            iconColor: colors.icon.value,
             text:
                 'Encrypted with your passphrase. Keep the file and the passphrase in different '
                 'places: together they give full signing power in "$name".',
@@ -220,9 +220,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
           Text(
             check.ok ? 'Strong passphrase' : check.hint,
             style: AppTypography.bodySmall.copyWith(
-              color: check.ok
-                  ? colors.text.positiveStrong
-                  : colors.text.destructive,
+              color: check.ok ? colors.text.value : colors.text.destructive,
             ),
           ),
         const SizedBox(height: AppSpacing.sm),

@@ -92,14 +92,14 @@ class ViewingKeyScreen extends ConsumerWidget {
               height: 292,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: colors.background.homeCard,
+                color: colors.background.darkCard,
                 borderRadius: BorderRadius.circular(AppRadii.xLarge),
                 border: Border.all(color: colors.border.subtleOpacity),
               ),
               child: PrettyQrView.data(
                 data: key!,
                 decoration: PrettyQrDecoration(
-                  shape: DotQrShape(color: colors.text.homeCard),
+                  shape: DotQrShape(color: colors.text.darkCard),
                 ),
               ),
             ),

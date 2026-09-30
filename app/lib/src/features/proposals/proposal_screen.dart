@@ -138,6 +138,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
             AppIcons.warning,
             size: 20,
             color: colors.icon.destructive,
+            patina: colors.icon.destructive,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -341,6 +342,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
                       AppIcons.warning,
                       size: 20,
                       color: colors.icon.destructive,
+                      patina: colors.icon.destructive,
                     ),
                   const SizedBox(width: AppSpacing.xs),
                   Expanded(

@@ -30,7 +30,7 @@ class AppToast extends StatelessWidget {
     final colors = context.colors;
     final backgroundColor = switch (tone) {
       AppToastTone.neutral => colors.background.inverse,
-      AppToastTone.destructive => colors.background.utilityDestructiveStrong,
+      AppToastTone.destructive => colors.background.destructiveStrong,
     };
     final textColor = switch (tone) {
       AppToastTone.neutral => colors.text.inverse,

@@ -438,7 +438,7 @@ class _SafetyNumberCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
       decoration: BoxDecoration(
-        color: colors.background.homeCard,
+        color: colors.background.darkCard,
         borderRadius: BorderRadius.circular(AppRadii.large),
         border: Border.all(color: const Color(0x12FFFFFF), width: 1.5),
       ),
@@ -450,13 +450,13 @@ class _SafetyNumberCard extends StatelessWidget {
               AppIcon(
                 AppIcons.shieldKeyhole,
                 size: 20,
-                color: colors.text.homeCard,
+                color: colors.text.darkCard,
               ),
               const SizedBox(width: AppSpacing.xs),
               Text(
                 'Safety number',
                 style: AppTypography.labelMedium.copyWith(
-                  color: colors.text.homeCard,
+                  color: colors.text.darkCard,
                 ),
               ),
             ],
@@ -465,7 +465,7 @@ class _SafetyNumberCard extends StatelessWidget {
           Text(
             number,
             style: AppTypography.headlineLarge.copyWith(
-              color: colors.text.homeCard,
+              color: colors.text.darkCard,
             ),
             textAlign: TextAlign.center,
           ),
@@ -475,7 +475,7 @@ class _SafetyNumberCard extends StatelessWidget {
             'If any member sees a different one, stop: someone may be impersonating a member.',
             textAlign: TextAlign.center,
             style: AppTypography.bodySmall.copyWith(
-              color: colors.text.homeCard.withValues(alpha: 0.7),
+              color: colors.text.darkCard.withValues(alpha: 0.7),
             ),
           ),
         ],

@@ -14,7 +14,7 @@ import '../primitives.dart';
 /// * [warning] — Caution icons (orange warning ladder).
 /// * [destructive] — Destructive-state icons.
 /// * [destructiveLight] — Softer destructive icon for secondary error affordances.
-/// * [success] — Positive / success icons: Zcash gold, the value colour.
+/// * [value] — Money received and success: Zcash gold, the value colour.
 /// * [brand] — Brand-colored icons.
 class AppIconColors {
   const AppIconColors({
@@ -27,7 +27,7 @@ class AppIconColors {
     required this.warning,
     required this.destructive,
     required this.destructiveLight,
-    required this.success,
+    required this.value,
     required this.brand,
   });
 
@@ -40,7 +40,7 @@ class AppIconColors {
   final Color warning;
   final Color destructive;
   final Color destructiveLight;
-  final Color success;
+  final Color value;
   final Color brand;
 
   static const dark = AppIconColors(
@@ -51,9 +51,9 @@ class AppIconColors {
     inverse: Primitives.p0Dark,
     onPrimary: Primitives.p0Dark,
     warning: OrangePrimitives.p500Dark,
-    destructive: PlumPrimitives.p400Dark,
-    destructiveLight: PlumPrimitives.p300Dark,
-    success: GoldPrimitives.p500Dark,
+    destructive: RosePrimitives.p400Dark,
+    destructiveLight: RosePrimitives.p300Dark,
+    value: GoldPrimitives.p500Dark,
     brand: BrandPrimitives.p400Dark,
   );
 
@@ -65,9 +65,9 @@ class AppIconColors {
     inverse: Primitives.p0Light,
     onPrimary: Primitives.p0Light,
     warning: OrangePrimitives.p400Light,
-    destructive: PlumPrimitives.p300Light,
-    destructiveLight: PlumPrimitives.p200Light,
-    success: GoldPrimitives.p400Light,
+    destructive: RosePrimitives.p300Light,
+    destructiveLight: RosePrimitives.p200Light,
+    value: GoldPrimitives.p400Light,
     brand: BrandPrimitives.p300Light,
   );
 }

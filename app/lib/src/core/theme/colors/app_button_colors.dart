@@ -182,22 +182,22 @@ class AppDestructiveButtonColors {
   final Color label;
 
   static const dark = AppDestructiveButtonColors(
-    bg: PlumPrimitives.p200Dark,
-    bgHover: PlumPrimitives.p150Dark,
-    bgPressed: PlumPrimitives.p150Dark,
+    bg: RosePrimitives.p200Dark,
+    bgHover: RosePrimitives.p150Dark,
+    bgPressed: RosePrimitives.p150Dark,
     border: Primitives.p900Alpha10Dark,
     borderHover: Primitives.p900Alpha10Dark,
     borderPressed: Primitives.p900Alpha10Dark,
-    label: PlumPrimitives.p800Dark,
+    label: RosePrimitives.p800Dark,
   );
 
   static const light = AppDestructiveButtonColors(
-    bg: PlumPrimitives.p500Light,
-    bgHover: PlumPrimitives.p600Light,
-    bgPressed: PlumPrimitives.p600Light,
+    bg: RosePrimitives.p500Light,
+    bgHover: RosePrimitives.p600Light,
+    bgPressed: RosePrimitives.p600Light,
     border: Primitives.p900Alpha5Light,
     borderHover: Primitives.p900Alpha5Light,
     borderPressed: Primitives.p900Alpha5Light,
-    label: PlumPrimitives.p50Light,
+    label: RosePrimitives.p50Light,
   );
 }

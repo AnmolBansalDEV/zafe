@@ -367,6 +367,7 @@ class _MobileTransactionProgressBadgeState
             const ValueKey('mobile_transaction_progress_icon_success'),
         size: _statusIconSize,
         color: _statusIconColor,
+        patina: _statusIconColor,
       ),
       MobileTransactionProgressPhase.failed => AppIcon(
         AppIcons.warning,
@@ -375,6 +376,7 @@ class _MobileTransactionProgressBadgeState
             const ValueKey('mobile_transaction_progress_icon_failed'),
         size: _statusIconSize,
         color: _statusIconColor,
+        patina: _statusIconColor,
       ),
     };
 

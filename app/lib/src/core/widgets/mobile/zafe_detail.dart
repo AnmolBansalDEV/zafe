@@ -666,11 +666,16 @@ class _Dot extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: colors.background.utilityDestructiveAlpha,
-          border: Border.all(color: colors.border.utilityDestructive),
+          color: colors.background.destructiveAlpha,
+          border: Border.all(color: colors.border.destructive),
         ),
         alignment: Alignment.center,
-        child: AppIcon(AppIcons.cross, size: 7, color: colors.icon.destructive),
+        child: AppIcon(
+          AppIcons.cross,
+          size: 7,
+          color: colors.icon.destructive,
+          patina: colors.icon.destructive,
+        ),
       ),
     };
   }

@@ -14,11 +14,11 @@ import '../primitives.dart';
 ///   Alpha neutral overlays.
 /// * [brandSubtle] / [brandStrong] — Brand-accent backgrounds.
 /// * [brandAlpha] — Alpha brand overlay.
-/// * [utilityDestructiveSubtle] / [utilityDestructiveStrong] /
-///   [utilitySuccessSubtle] / [utilitySuccessStrong] — Utility backgrounds.
-/// * [utilityDestructiveAlphaSubtle] / [utilityDestructiveAlpha] /
-///   [utilitySuccessAlpha] — Alpha utility overlays.
-/// * [homeCard] — Exception surface for the home balance card. Theme-invariant.
+/// * [destructiveSubtle] / [destructiveStrong] — Error (rose) backgrounds.
+/// * [destructiveAlphaSubtle] / [destructiveAlpha] — Alpha error overlays.
+/// * [valueAlpha] — Alpha value (Zcash gold) overlay: received-money tiles.
+/// * [darkCard] — A dark card in both themes (QR codes on receive, viewing key and
+///   invite); text on it is `text.darkCard`.
 class AppBackgroundColors {
   const AppBackgroundColors({
     required this.window,
@@ -33,14 +33,12 @@ class AppBackgroundColors {
     required this.brandSubtle,
     required this.brandStrong,
     required this.brandAlpha,
-    required this.utilityDestructiveSubtle,
-    required this.utilityDestructiveStrong,
-    required this.utilityDestructiveAlphaSubtle,
-    required this.utilityDestructiveAlpha,
-    required this.utilitySuccessSubtle,
-    required this.utilitySuccessStrong,
-    required this.utilitySuccessAlpha,
-    required this.homeCard,
+    required this.destructiveSubtle,
+    required this.destructiveStrong,
+    required this.destructiveAlphaSubtle,
+    required this.destructiveAlpha,
+    required this.valueAlpha,
+    required this.darkCard,
   });
 
   final Color window;
@@ -55,14 +53,12 @@ class AppBackgroundColors {
   final Color brandSubtle;
   final Color brandStrong;
   final Color brandAlpha;
-  final Color utilityDestructiveSubtle;
-  final Color utilityDestructiveStrong;
-  final Color utilityDestructiveAlphaSubtle;
-  final Color utilityDestructiveAlpha;
-  final Color utilitySuccessSubtle;
-  final Color utilitySuccessStrong;
-  final Color utilitySuccessAlpha;
-  final Color homeCard;
+  final Color destructiveSubtle;
+  final Color destructiveStrong;
+  final Color destructiveAlphaSubtle;
+  final Color destructiveAlpha;
+  final Color valueAlpha;
+  final Color darkCard;
 
   static const dark = AppBackgroundColors(
     window: Color(0xFF080B0B),
@@ -77,14 +73,12 @@ class AppBackgroundColors {
     brandSubtle: BrandPrimitives.p100Dark,
     brandStrong: BrandPrimitives.p400Dark,
     brandAlpha: BrandPrimitives.p300Alpha35Dark,
-    utilityDestructiveSubtle: PlumPrimitives.p50Dark,
-    utilityDestructiveStrong: PlumPrimitives.p300Dark,
-    utilityDestructiveAlphaSubtle: PlumPrimitives.p400Alpha8Dark,
-    utilityDestructiveAlpha: PlumPrimitives.p400Alpha25Dark,
-    utilitySuccessSubtle: GoldPrimitives.p150Dark,
-    utilitySuccessStrong: GoldPrimitives.p500Dark,
-    utilitySuccessAlpha: GoldPrimitives.p500Alpha15Dark,
-    homeCard: Primitives.p50Dark,
+    destructiveSubtle: RosePrimitives.p50Dark,
+    destructiveStrong: RosePrimitives.p300Dark,
+    destructiveAlphaSubtle: RosePrimitives.p400Alpha8Dark,
+    destructiveAlpha: RosePrimitives.p400Alpha25Dark,
+    valueAlpha: GoldPrimitives.p500Alpha15Dark,
+    darkCard: Primitives.p50Dark,
   );
 
   static const light = AppBackgroundColors(
@@ -100,13 +94,11 @@ class AppBackgroundColors {
     brandSubtle: BrandPrimitives.p0Light,
     brandStrong: BrandPrimitives.p300Light,
     brandAlpha: BrandPrimitives.p300Alpha15Light,
-    utilityDestructiveSubtle: PlumPrimitives.p0Light,
-    utilityDestructiveStrong: PlumPrimitives.p400Light,
-    utilityDestructiveAlphaSubtle: PlumPrimitives.p400Alpha8Light,
-    utilityDestructiveAlpha: PlumPrimitives.p400Alpha15Light,
-    utilitySuccessSubtle: GoldPrimitives.p50Light,
-    utilitySuccessStrong: GoldPrimitives.p300Light,
-    utilitySuccessAlpha: GoldPrimitives.p400Alpha15Light,
-    homeCard: Primitives.p800Light,
+    destructiveSubtle: RosePrimitives.p0Light,
+    destructiveStrong: RosePrimitives.p400Light,
+    destructiveAlphaSubtle: RosePrimitives.p400Alpha8Light,
+    destructiveAlpha: RosePrimitives.p400Alpha15Light,
+    valueAlpha: GoldPrimitives.p400Alpha15Light,
+    darkCard: Primitives.p800Light,
   );
 }

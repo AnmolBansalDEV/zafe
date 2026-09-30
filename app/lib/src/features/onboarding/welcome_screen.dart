@@ -132,7 +132,7 @@ class _InfoCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AppIcon(icon, size: 20, color: colors.text.homeCard),
+          AppIcon(icon, size: 20, color: colors.text.darkCard),
           const SizedBox(width: AppSpacing.s),
           Expanded(
             child: Column(
@@ -141,14 +141,14 @@ class _InfoCard extends StatelessWidget {
                 Text(
                   title,
                   style: AppTypography.labelLarge.copyWith(
-                    color: colors.text.homeCard,
+                    color: colors.text.darkCard,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
                   body,
                   style: AppTypography.bodySmall.copyWith(
-                    color: colors.text.homeCard.withValues(alpha: 0.7),
+                    color: colors.text.darkCard.withValues(alpha: 0.7),
                   ),
                 ),
               ],
@@ -160,7 +160,7 @@ class _InfoCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
-        color: colors.background.homeCard,
+        color: colors.background.darkCard,
         borderRadius: BorderRadius.circular(AppRadii.large),
         border: Border.all(color: const Color(0x12FFFFFF), width: 1.5),
       ),

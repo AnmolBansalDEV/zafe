@@ -333,7 +333,8 @@ class _ReviewRows extends ConsumerWidget {
                   trailing: AppIcon(
                     AppIcons.checkCircle,
                     size: 16,
-                    color: colors.icon.success,
+                    color: colors.icon.value,
+                    patina: colors.icon.value,
                   ),
                 ),
               ],
@@ -349,6 +350,7 @@ class _ReviewRows extends ConsumerWidget {
                     AppIcons.warning,
                     size: 16,
                     color: colors.icon.destructive,
+                    patina: colors.icon.destructive,
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xs),
@@ -624,7 +626,8 @@ Future<void> showDeviceCheckSheet(
             child: AppIcon(
               AppIcons.checkCircle,
               size: 16,
-              color: colors.icon.success,
+              color: colors.icon.value,
+              patina: colors.icon.value,
             ),
           ),
           const SizedBox(width: AppSpacing.xs),

@@ -11,10 +11,8 @@ import '../primitives.dart';
 ///   Figma's `default` because `default` is a reserved word in Dart.)
 /// * [medium] — Active/filled field border.
 /// * [strong] — Max-contrast border.
-/// * [utilityDestructive] — Validation / destructive emphasis.
-/// * [utilityDestructiveSubtle] — Soft destructive border.
-/// * [utilitySuccess] — Success emphasis.
-/// * [utilityPositiveStrong] — Positive-state emphasis on the green ramp.
+/// * [destructive] — Validation / destructive emphasis.
+/// * [destructiveSubtle] — Soft destructive border.
 /// * [brandStrong] — Brand feedback / accent border.
 class AppBorderColors {
   const AppBorderColors({
@@ -24,10 +22,8 @@ class AppBorderColors {
     required this.regular,
     required this.medium,
     required this.strong,
-    required this.utilityDestructive,
-    required this.utilityDestructiveSubtle,
-    required this.utilitySuccess,
-    required this.utilityPositiveStrong,
+    required this.destructive,
+    required this.destructiveSubtle,
     required this.brandStrong,
   });
 
@@ -37,10 +33,8 @@ class AppBorderColors {
   final Color regular;
   final Color medium;
   final Color strong;
-  final Color utilityDestructive;
-  final Color utilityDestructiveSubtle;
-  final Color utilitySuccess;
-  final Color utilityPositiveStrong;
+  final Color destructive;
+  final Color destructiveSubtle;
   final Color brandStrong;
 
   static const dark = AppBorderColors(
@@ -50,10 +44,8 @@ class AppBorderColors {
     regular: Primitives.p300Dark,
     medium: Primitives.p400Dark,
     strong: Primitives.p800Dark,
-    utilityDestructive: PlumPrimitives.p400Dark,
-    utilityDestructiveSubtle: PlumPrimitives.p100Dark,
-    utilitySuccess: GoldPrimitives.p500Dark,
-    utilityPositiveStrong: GoldPrimitives.p500Dark,
+    destructive: RosePrimitives.p400Dark,
+    destructiveSubtle: RosePrimitives.p100Dark,
     brandStrong: BrandPrimitives.p400Dark,
   );
 
@@ -64,10 +56,8 @@ class AppBorderColors {
     regular: Primitives.p200Light,
     medium: Primitives.p300Light,
     strong: Primitives.p900Light,
-    utilityDestructive: PlumPrimitives.p300Light,
-    utilityDestructiveSubtle: PlumPrimitives.p100Light,
-    utilitySuccess: GoldPrimitives.p400Light,
-    utilityPositiveStrong: GoldPrimitives.p400Light,
+    destructive: RosePrimitives.p300Light,
+    destructiveSubtle: RosePrimitives.p100Light,
     brandStrong: BrandPrimitives.p300Light,
   );
 }

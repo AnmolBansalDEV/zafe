@@ -34,14 +34,14 @@ class ReceiveScreen extends ConsumerWidget {
             height: 308,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             decoration: BoxDecoration(
-              color: colors.background.homeCard,
+              color: colors.background.darkCard,
               borderRadius: BorderRadius.circular(AppRadii.xLarge),
               border: Border.all(color: colors.border.subtleOpacity),
             ),
             child: PrettyQrView.data(
               data: address,
               decoration: PrettyQrDecoration(
-                shape: DotQrShape(color: colors.text.homeCard),
+                shape: DotQrShape(color: colors.text.darkCard),
               ),
             ),
           ),

@@ -255,6 +255,7 @@ class SettingsScreen extends ConsumerWidget {
             AppIcons.warning,
             size: 20,
             color: colors.icon.destructive,
+            patina: colors.icon.destructive,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -388,7 +389,12 @@ class _NoScreenLockNote extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AppIcon(AppIcons.warning, size: 16, color: colors.icon.warning),
+          AppIcon(
+            AppIcons.warning,
+            size: 16,
+            color: colors.icon.warning,
+            patina: colors.icon.warning,
+          ),
           const SizedBox(width: AppSpacing.xs),
           Expanded(
             child: Text(

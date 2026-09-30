@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/theme/app_theme_host.dart';
-import 'core/theme/legacy_material_theme.dart';
+import 'core/theme/material_theme.dart';
 import 'features/backup/backup_prompt_screen.dart';
 import 'features/backup/export_screen.dart';
 import 'features/backup/restore_screen.dart';
@@ -239,8 +239,8 @@ class ZafeApp extends ConsumerWidget {
       child: MaterialApp.router(
         title: 'Zafe',
         debugShowCheckedModeBanner: false,
-        theme: buildLegacyLightTheme(),
-        darkTheme: buildLegacyDarkTheme(),
+        theme: buildMaterialLightTheme(),
+        darkTheme: buildMaterialDarkTheme(),
         themeMode: themeMode,
         routerConfig: ref.watch(_routerProvider),
       ),

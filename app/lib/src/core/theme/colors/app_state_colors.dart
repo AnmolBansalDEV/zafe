@@ -52,7 +52,7 @@ class AppStateColors {
     focusRing: Primitives.p800Dark,
     focusGap: Primitives.p0Dark,
     focusRingBrand: BrandPrimitives.p400Dark,
-    focusRingDestructive: PlumPrimitives.p200Dark,
+    focusRingDestructive: RosePrimitives.p200Dark,
   );
 
   static const light = AppStateColors(
@@ -65,6 +65,6 @@ class AppStateColors {
     focusRing: Primitives.p900Light,
     focusGap: Primitives.p0Light,
     focusRingBrand: BrandPrimitives.p300Light,
-    focusRingDestructive: PlumPrimitives.p400Light,
+    focusRingDestructive: RosePrimitives.p400Light,
   );
 }
