@@ -192,8 +192,10 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       use Vizor's layout; launcher icon and splash are still defaults
 - [ ] iOS: `xyz.zafe/modal_corners` has no Swift handler yet (Dart falls back to fixed
       corners); port Vizor's `NativeModalCorners` when iOS work starts
-- [ ] No CI: add GitHub Actions for `cargo fmt/clippy/test` and `flutter analyze`
-      (regtest/Docker tests stay manual or nightly). Vizor has no workflows to copy
+- [x] CI: `.github/workflows/ci.yml` runs `cargo fmt --check`, clippy `-D warnings`,
+      `cargo test --workspace`, the ZIP 2005 Python check, `flutter analyze` and
+      `flutter test test` (regtest/Docker tests stay manual). No GitHub remote yet, so it
+      runs once the repo is pushed
 - [ ] Agent-device flows are manual; capture them as a repeatable script
       (`scripts/app-harness.sh` covers the backend side). Model: Vizor's app-level regtest
       E2E, `integration_test/payment_uri_prefill_test.dart` driven by
