@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../../rust/api/names.dart';
 import 'zafe_paths.dart';
 
 /// Names this member gave the vault's other signers (signing key hex → name). Local to
-/// this device: never sent to the relay or other members, and not in backups.
+/// this device: never sent to the relay or other members. Encrypted backups carry them.
 class MemberNames {
   static Future<File> _file(String vaultId) async =>
       File('${(await ZafePaths.get()).vaultDir(vaultId)}/names.json');
@@ -31,6 +32,22 @@ class MemberNames {
     final tmp = File('${f.path}.${DateTime.now().microsecondsSinceEpoch}.tmp');
     await tmp.writeAsString(jsonEncode(names), flush: true);
     await tmp.rename(f.path);
+  }
+
+  /// The names as the bridge's list (backups, CSV export).
+  static List<SignerName> toSigners(Map<String, String> names) => [
+    for (final e in names.entries) SignerName(keyHex: e.key, name: e.value),
+  ];
+
+  /// Names from the bridge's list (a restored backup), cleaned like typed names; entries
+  /// that clean to nothing or whose key isn't hex are dropped.
+  static Map<String, String> fromSigners(Iterable<SignerName> signers) {
+    final hex = RegExp(r'^[0-9a-f]{64}$');
+    return {
+      for (final s in signers)
+        if (hex.hasMatch(s.keyHex) && clean(s.name).isNotEmpty)
+          s.keyHex: clean(s.name),
+    };
   }
 
   /// `name` trimmed and capped; empty removes the name.

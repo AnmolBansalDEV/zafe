@@ -44,8 +44,9 @@ pub const POOL_NONCE: u16 = 1;
 pub const OWN_SHARES: u16 = 1;
 /// The leader's set of commitment sets already used in requests (`used_commitments.bin`).
 pub const USED_COMMITMENTS: u16 = 1;
-/// Encrypted vault backups (`ZAFEBAK`; the tag is a single byte there).
-pub const BACKUP: u16 = 1;
+/// Encrypted vault backups (`ZAFEBAK`; the tag is a single byte there). 2 added signer
+/// names (2026-09-30); version 1 still decrypts and is migrated.
+pub const BACKUP: u16 = 2;
 /// The relay's SQLite schema (`PRAGMA user_version`).
 pub const RELAY_DB: u16 = 1;
 

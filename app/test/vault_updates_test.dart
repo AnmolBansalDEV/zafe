@@ -12,9 +12,11 @@ ProposalInfo proposal(
   bool autoSend = true,
   bool needsReapproval = false,
   int expiryHeight = 0,
+  String author = 'aa',
+  List<String> rejections = const [],
 }) => ProposalInfo(
   id: id,
-  author: 'aa',
+  author: author,
   isMine: isMine,
   payments: [
     PaymentInfo(
@@ -26,7 +28,7 @@ ProposalInfo proposal(
   totalZat: BigInt.from(150000000),
   stage: stage,
   approvals: const [],
-  rejections: const [],
+  rejections: rejections,
   myVote: myVote,
   threshold: 2,
   rejectionThreshold: 2,
@@ -62,6 +64,51 @@ List<VaultUpdate> updates(
 );
 
 void main() {
+  test('signers this device named are mentioned by name', () {
+    const names = {'aa': 'Alice', 'bb': 'Bob'};
+    List<VaultUpdate> named(
+      SeenSnapshot previous,
+      ProposalInfo p, {
+      bool hide = false,
+    }) => vaultUpdates(
+      previous: previous,
+      proposals: [p],
+      vaultName: 'Grants',
+      hideAmounts: hide,
+      names: names,
+    );
+    expect(
+      named({}, proposal('p1')).single.body,
+      'Alice proposed 1.5 TAZ to uregtes .... 3456789.',
+    );
+    expect(
+      named({}, proposal('p1'), hide: true).single.body,
+      'Alice proposed a payment.',
+    );
+    // Unnamed proposer: no mention.
+    expect(
+      named({}, proposal('p1', author: 'cc')).single.body,
+      '1.5 TAZ to uregtes .... 3456789',
+    );
+    expect(
+      named(
+        {'p1': 'open/none/false'},
+        proposal(
+          'p1',
+          stage: ProposalStage.rejected,
+          rejections: ['bb', 'cc', 'aa'],
+        ),
+      ).single.body,
+      '1.5 TAZ to uregtes .... 3456789. Rejected by Bob, Alice.',
+    );
+    expect(
+      named({
+        'p1': 'open/none/false',
+      }, proposal('p1', stage: ProposalStage.cancelled)).single.body,
+      '1.5 TAZ to uregtes .... 3456789. Cancelled by Alice.',
+    );
+  });
+
   test('a fresh install announces nothing', () {
     expect(updates(null, [proposal('p1')]), isEmpty);
   });

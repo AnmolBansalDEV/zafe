@@ -578,15 +578,21 @@ fn payment_flow_through_bridge() {
     assert!(p.expiry_height > 0);
 
     // History export (CSV): both sent payments with payee, amount, fee and memo, plus the
-    // mining rewards received.
+    // mining rewards received. A signer named on this device shows as "Name (hexkey)".
+    let a_key = rust_lib_zafe::api::vault::identity_public_key(a.seeds.clone()).unwrap();
     let csv = rust_lib_zafe::api::history::export_history_csv(
         relay.clone(),
         a.db_dir.clone(),
         a.db_key.clone(),
         a.seeds.clone(),
         a.material.clone(),
+        vec![rust_lib_zafe::api::names::SignerName {
+            key_hex: a_key.clone(),
+            name: "Alice".into(),
+        }],
     )
     .unwrap();
+    assert!(csv.contains(&format!("Alice ({a_key})")), "{csv}");
     let lines: Vec<&str> = csv.lines().collect();
     assert!(lines[0].starts_with("date,txid,direction,counterparty"));
     let sent: Vec<&&str> = lines.iter().filter(|l| l.contains(",sent,")).collect();

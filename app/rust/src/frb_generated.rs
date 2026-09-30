@@ -37,7 +37,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1275436381;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1504445898;
 
 // Section: executor
 
@@ -318,6 +318,7 @@ fn wire__crate__api__history__export_history_csv_impl(
             let api_db_key = <Vec<u8>>::sse_decode(&mut deserializer);
             let api_seeds = <Vec<u8>>::sse_decode(&mut deserializer);
             let api_material = <Vec<u8>>::sse_decode(&mut deserializer);
+            let api_names = <Vec<crate::api::names::SignerName>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
                 transform_result_sse::<_, crate::api::error::ZafeError>((move || {
@@ -327,6 +328,7 @@ fn wire__crate__api__history__export_history_csv_impl(
                         api_db_key,
                         api_seeds,
                         api_material,
+                        api_names,
                     )?;
                     Ok(output_ok)
                 })())
@@ -359,6 +361,7 @@ fn wire__crate__api__backup__export_vault_backup_impl(
             let api_seeds = <Vec<u8>>::sse_decode(&mut deserializer);
             let api_material = <Vec<u8>>::sse_decode(&mut deserializer);
             let api_invite = <String>::sse_decode(&mut deserializer);
+            let api_names = <Vec<crate::api::names::SignerName>>::sse_decode(&mut deserializer);
             let api_passphrase = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
@@ -367,6 +370,7 @@ fn wire__crate__api__backup__export_vault_backup_impl(
                         api_seeds,
                         api_material,
                         api_invite,
+                        api_names,
                         api_passphrase,
                     )?;
                     Ok(output_ok)
@@ -1269,6 +1273,36 @@ fn wire__crate__api__vault__vault_summary_impl(
         },
     )
 }
+fn wire__crate__api__vault__vault_viewing_key_impl(
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartSse {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::SseCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "vault_viewing_key",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_material = <Vec<u8>>::sse_decode(&mut deserializer);
+            deserializer.end();
+            transform_result_sse::<_, crate::api::error::ZafeError>((move || {
+                let output_ok = crate::api::vault::vault_viewing_key(api_material)?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
 
 // Section: dart2rust
 
@@ -1387,12 +1421,14 @@ impl SseDecode for crate::api::backup::ImportedVault {
         let mut var_identitySeeds = <Vec<u8>>::sse_decode(deserializer);
         let mut var_material = <Vec<u8>>::sse_decode(deserializer);
         let mut var_invite = <String>::sse_decode(deserializer);
+        let mut var_names = <Vec<crate::api::names::SignerName>>::sse_decode(deserializer);
         return crate::api::backup::ImportedVault {
             vault_id: var_vaultId,
             name: var_name,
             identity_seeds: var_identitySeeds,
             material: var_material,
             invite: var_invite,
+            names: var_names,
         };
     }
 }
@@ -1504,6 +1540,18 @@ impl SseDecode for Vec<crate::api::proposals::ScannedPayment> {
             ans_.push(<crate::api::proposals::ScannedPayment>::sse_decode(
                 deserializer,
             ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::names::SignerName> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::names::SignerName>::sse_decode(deserializer));
         }
         return ans_;
     }
@@ -1801,6 +1849,18 @@ impl SseDecode for crate::api::proposals::SendStage {
     }
 }
 
+impl SseDecode for crate::api::names::SignerName {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_keyHex = <String>::sse_decode(deserializer);
+        let mut var_name = <String>::sse_decode(deserializer);
+        return crate::api::names::SignerName {
+            key_hex: var_keyHex,
+            name: var_name,
+        };
+    }
+}
+
 impl SseDecode for u16 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -1946,6 +2006,7 @@ fn pde_ffi_dispatcher_sync_impl(
         24 => wire__crate__api__proposals__restart_signing_impl(ptr, rust_vec_len, data_len),
         29 => wire__crate__api__backup__suggest_backup_passphrase_impl(ptr, rust_vec_len, data_len),
         32 => wire__crate__api__vault__vault_summary_impl(ptr, rust_vec_len, data_len),
+        33 => wire__crate__api__vault__vault_viewing_key_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2063,6 +2124,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::backup::ImportedVault {
             self.identity_seeds.into_into_dart().into_dart(),
             self.material.into_into_dart().into_dart(),
             self.invite.into_into_dart().into_dart(),
+            self.names.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -2433,6 +2495,24 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::proposals::SendStage>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::names::SignerName {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.key_hex.into_into_dart().into_dart(),
+            self.name.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::names::SignerName {}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::names::SignerName>
+    for crate::api::names::SignerName
+{
+    fn into_into_dart(self) -> crate::api::names::SignerName {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::vault::VaultSummary {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -2596,6 +2676,7 @@ impl SseEncode for crate::api::backup::ImportedVault {
         <Vec<u8>>::sse_encode(self.identity_seeds, serializer);
         <Vec<u8>>::sse_encode(self.material, serializer);
         <String>::sse_encode(self.invite, serializer);
+        <Vec<crate::api::names::SignerName>>::sse_encode(self.names, serializer);
     }
 }
 
@@ -2676,6 +2757,16 @@ impl SseEncode for Vec<crate::api::proposals::ScannedPayment> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::proposals::ScannedPayment>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::names::SignerName> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::names::SignerName>::sse_encode(item, serializer);
         }
     }
 }
@@ -2895,6 +2986,14 @@ impl SseEncode for crate::api::proposals::SendStage {
             },
             serializer,
         );
+    }
+}
+
+impl SseEncode for crate::api::names::SignerName {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.key_hex, serializer);
+        <String>::sse_encode(self.name, serializer);
     }
 }
 

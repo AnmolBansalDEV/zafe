@@ -317,6 +317,7 @@ async fn main() -> Result<()> {
                 created_at: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)?
                     .as_secs(),
+                names: Default::default(),
             };
             let bytes = zafe_core::backup::encrypt(
                 &contents,

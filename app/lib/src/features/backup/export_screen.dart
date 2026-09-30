@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/errors/zafe_error_copy.dart';
 import '../../core/layout/mobile/zafe_screen.dart';
 import '../../core/security/unlock_gate.dart';
+import '../../core/storage/member_names.dart';
 import '../../core/storage/vault_summaries.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_button.dart';
@@ -76,6 +77,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
         seeds: vault.identity!,
         material: vault.material!,
         invite: vault.invite!,
+        names: MemberNames.toSigners(await MemberNames.read(vault.activeId!)),
         passphrase: _pass.text,
       );
       await VaultSummaries.write(vault.activeId!, backedUp: true);

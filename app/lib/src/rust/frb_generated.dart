@@ -6,6 +6,7 @@
 import 'api/backup.dart';
 import 'api/error.dart';
 import 'api/history.dart';
+import 'api/names.dart';
 import 'api/proposals.dart';
 import 'api/received.dart';
 import 'api/vault.dart';
@@ -71,7 +72,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1275436381;
+  int get rustContentHash => -1504445898;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -133,12 +134,14 @@ abstract class RustLibApi extends BaseApi {
     required List<int> dbKey,
     required List<int> seeds,
     required List<int> material,
+    required List<SignerName> names,
   });
 
   Future<ExportedBackup> crateApiBackupExportVaultBackup({
     required List<int> seeds,
     required List<int> material,
     required String invite,
+    required List<SignerName> names,
     required String passphrase,
   });
 
@@ -273,6 +276,8 @@ abstract class RustLibApi extends BaseApi {
   });
 
   VaultSummary crateApiVaultVaultSummary({required List<int> material});
+
+  String crateApiVaultVaultViewingKey({required List<int> material});
 }
 
 class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
@@ -553,6 +558,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required List<int> dbKey,
     required List<int> seeds,
     required List<int> material,
+    required List<SignerName> names,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -563,6 +569,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_list_prim_u_8_loose(dbKey, serializer);
           sse_encode_list_prim_u_8_loose(seeds, serializer);
           sse_encode_list_prim_u_8_loose(material, serializer);
+          sse_encode_list_signer_name(names, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -575,7 +582,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_zafe_error,
         ),
         constMeta: kCrateApiHistoryExportHistoryCsvConstMeta,
-        argValues: [relayUrl, dbDir, dbKey, seeds, material],
+        argValues: [relayUrl, dbDir, dbKey, seeds, material, names],
         apiImpl: this,
       ),
     );
@@ -584,7 +591,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiHistoryExportHistoryCsvConstMeta =>
       const TaskConstMeta(
         debugName: "export_history_csv",
-        argNames: ["relayUrl", "dbDir", "dbKey", "seeds", "material"],
+        argNames: ["relayUrl", "dbDir", "dbKey", "seeds", "material", "names"],
       );
 
   @override
@@ -592,6 +599,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required List<int> seeds,
     required List<int> material,
     required String invite,
+    required List<SignerName> names,
     required String passphrase,
   }) {
     return handler.executeNormal(
@@ -601,6 +609,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           sse_encode_list_prim_u_8_loose(seeds, serializer);
           sse_encode_list_prim_u_8_loose(material, serializer);
           sse_encode_String(invite, serializer);
+          sse_encode_list_signer_name(names, serializer);
           sse_encode_String(passphrase, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
@@ -614,7 +623,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_zafe_error,
         ),
         constMeta: kCrateApiBackupExportVaultBackupConstMeta,
-        argValues: [seeds, material, invite, passphrase],
+        argValues: [seeds, material, invite, names, passphrase],
         apiImpl: this,
       ),
     );
@@ -623,7 +632,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiBackupExportVaultBackupConstMeta =>
       const TaskConstMeta(
         debugName: "export_vault_backup",
-        argNames: ["seeds", "material", "invite", "passphrase"],
+        argNames: ["seeds", "material", "invite", "names", "passphrase"],
       );
 
   @override
@@ -1514,6 +1523,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiVaultVaultSummaryConstMeta =>
       const TaskConstMeta(debugName: "vault_summary", argNames: ["material"]);
 
+  @override
+  String crateApiVaultVaultViewingKey({required List<int> material}) {
+    return handler.executeSync(
+      SyncTask(
+        callFfi: () {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_list_prim_u_8_loose(material, serializer);
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 33)!;
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_String,
+          decodeErrorData: sse_decode_zafe_error,
+        ),
+        constMeta: kCrateApiVaultVaultViewingKeyConstMeta,
+        argValues: [material],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiVaultVaultViewingKeyConstMeta =>
+      const TaskConstMeta(
+        debugName: "vault_viewing_key",
+        argNames: ["material"],
+      );
+
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -1630,14 +1665,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ImportedVault dco_decode_imported_vault(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 5)
-      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    if (arr.length != 6)
+      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return ImportedVault(
       vaultId: dco_decode_String(arr[0]),
       name: dco_decode_String(arr[1]),
       identitySeeds: dco_decode_list_prim_u_8_strict(arr[2]),
       material: dco_decode_list_prim_u_8_strict(arr[3]),
       invite: dco_decode_String(arr[4]),
+      names: dco_decode_list_signer_name(arr[5]),
     );
   }
 
@@ -1702,6 +1738,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<ScannedPayment> dco_decode_list_scanned_payment(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_scanned_payment).toList();
+  }
+
+  @protected
+  List<SignerName> dco_decode_list_signer_name(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_signer_name).toList();
   }
 
   @protected
@@ -1916,6 +1958,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SignerName dco_decode_signer_name(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return SignerName(
+      keyHex: dco_decode_String(arr[0]),
+      name: dco_decode_String(arr[1]),
+    );
+  }
+
+  @protected
   int dco_decode_u_16(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
@@ -2090,12 +2144,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_identitySeeds = sse_decode_list_prim_u_8_strict(deserializer);
     var var_material = sse_decode_list_prim_u_8_strict(deserializer);
     var var_invite = sse_decode_String(deserializer);
+    var var_names = sse_decode_list_signer_name(deserializer);
     return ImportedVault(
       vaultId: var_vaultId,
       name: var_name,
       identitySeeds: var_identitySeeds,
       material: var_material,
       invite: var_invite,
+      names: var_names,
     );
   }
 
@@ -2206,6 +2262,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <ScannedPayment>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_scanned_payment(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<SignerName> sse_decode_list_signer_name(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <SignerName>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_signer_name(deserializer));
     }
     return ans_;
   }
@@ -2467,6 +2535,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SignerName sse_decode_signer_name(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_keyHex = sse_decode_String(deserializer);
+    var var_name = sse_decode_String(deserializer);
+    return SignerName(keyHex: var_keyHex, name: var_name);
+  }
+
+  @protected
   int sse_decode_u_16(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint16();
@@ -2644,6 +2720,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_list_prim_u_8_strict(self.identitySeeds, serializer);
     sse_encode_list_prim_u_8_strict(self.material, serializer);
     sse_encode_String(self.invite, serializer);
+    sse_encode_list_signer_name(self.names, serializer);
   }
 
   @protected
@@ -2744,6 +2821,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_scanned_payment(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_signer_name(
+    List<SignerName> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_signer_name(item, serializer);
     }
   }
 
@@ -2932,6 +3021,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_send_stage(SendStage self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_signer_name(SignerName self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.keyHex, serializer);
+    sse_encode_String(self.name, serializer);
   }
 
   @protected

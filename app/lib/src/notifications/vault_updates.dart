@@ -47,13 +47,22 @@ String seenKey(rust.ProposalInfo p) =>
 ///
 /// Without an earlier snapshot nothing is announced (a fresh install shouldn't replay the
 /// vault's history). Amounts are left out when `hideAmounts` (privacy mode) is on.
+/// `names` are this device's local signer names (key hex → name): a signer it named is
+/// mentioned by name (who proposed, rejected or cancelled); unnamed signers aren't
+/// mentioned (a short key means little in a notification).
 List<VaultUpdate> vaultUpdates({
   required SeenSnapshot? previous,
   required List<rust.ProposalInfo> proposals,
   required String vaultName,
   required bool hideAmounts,
   List<rust.ReceivedInfo> received = const [],
+  Map<String, String> names = const {},
 }) {
+  String? nameOf(String keyHex) {
+    final n = names[keyHex]?.trim();
+    return n == null || n.isEmpty ? null : n;
+  }
+
   if (previous == null) return const [];
   final out = <VaultUpdate>[];
   if (previous.containsKey(kReceivedMarker)) {
@@ -102,7 +111,15 @@ List<VaultUpdate> vaultUpdates({
       case rust.ProposalStage.open:
         // New proposals that need this member's vote (not their own).
         if (before == null && !p.isMine && p.myVote == rust.MyVote.none) {
-          out.add(update('payment needs your approval', what));
+          final by = nameOf(p.author);
+          out.add(
+            update(
+              'payment needs your approval',
+              by == null
+                  ? what
+                  : '$by proposed ${hideAmounts ? 'a payment' : what}.',
+            ),
+          );
         }
       case rust.ProposalStage.approved:
         if (beforeStage == rust.ProposalStage.approved.name &&
@@ -121,9 +138,24 @@ List<VaultUpdate> vaultUpdates({
       case rust.ProposalStage.sent:
         out.add(update('payment sent', what));
       case rust.ProposalStage.rejected:
-        out.add(update('payment rejected', what));
+        final by = [
+          for (final k in p.rejections)
+            if (nameOf(k) != null) nameOf(k)!,
+        ];
+        out.add(
+          update(
+            'payment rejected',
+            by.isEmpty ? what : '$what. Rejected by ${by.join(', ')}.',
+          ),
+        );
       case rust.ProposalStage.cancelled:
-        out.add(update('payment cancelled', what));
+        final by = p.isMine ? null : nameOf(p.author);
+        out.add(
+          update(
+            'payment cancelled',
+            by == null ? what : '$what. Cancelled by $by.',
+          ),
+        );
     }
   }
   return out;

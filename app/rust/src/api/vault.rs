@@ -224,6 +224,27 @@ pub fn vault_summary(material: Vec<u8>) -> Result<VaultSummary, ZafeError> {
     })
 }
 
+/// The vault's unified full viewing key (for auditors): it reveals every past and future
+/// payment of the vault but can't spend. Derived from this member's material and checked
+/// against the descriptor every member signed.
+#[flutter_rust_bridge::frb(sync)]
+pub fn vault_viewing_key(material: Vec<u8>) -> Result<String, ZafeError> {
+    let m = self::material(&material)?;
+    let net = network(&m.descriptor.network)?;
+    let ufvk = m
+        .vault_keys()?
+        .ufvk()
+        .map_err(|e| ZafeError::new(ZafeErrorKind::Other, e.to_string()))?
+        .encode(&net);
+    if ufvk != m.descriptor.ufvk {
+        return Err(ZafeError::new(
+            ZafeErrorKind::Verification,
+            "the viewing key doesn't match the vault descriptor",
+        ));
+    }
+    Ok(ufvk)
+}
+
 pub struct Balance {
     pub height: u32,
     pub spendable_zat: u64,

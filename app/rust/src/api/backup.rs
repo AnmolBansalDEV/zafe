@@ -4,7 +4,10 @@
 use rand::rngs::OsRng;
 use zafe_core::backup::{self, Contents, KdfParams};
 
-use super::error::{ZafeError, ZafeErrorKind};
+use super::{
+    error::{ZafeError, ZafeErrorKind},
+    names::{from_map, to_map, SignerName},
+};
 
 impl From<backup::BackupError> for ZafeError {
     fn from(e: backup::BackupError) -> Self {
@@ -68,11 +71,13 @@ pub struct ExportedBackup {
     pub text: String,
 }
 
-/// Encrypts this device's copy of a vault (Argon2id 64 MiB; takes a second or two).
+/// Encrypts this device's copy of a vault (Argon2id 64 MiB; takes a second or two), with
+/// the local names this device gave the signers.
 pub fn export_vault_backup(
     seeds: Vec<u8>,
     material: Vec<u8>,
     invite: String,
+    names: Vec<SignerName>,
     passphrase: String,
 ) -> Result<ExportedBackup, ZafeError> {
     let contents = Contents {
@@ -82,6 +87,7 @@ pub fn export_vault_backup(
         created_at: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs()),
+        names: to_map(names),
     };
     let bytes = backup::encrypt(&contents, &passphrase, KdfParams::DEFAULT, &mut OsRng)?;
     let text = backup::to_text(&bytes);
@@ -94,6 +100,9 @@ pub struct ImportedVault {
     pub identity_seeds: Vec<u8>,
     pub material: Vec<u8>,
     pub invite: String,
+    /// Local signer names saved with the backup (empty for backups made before names were
+    /// included).
+    pub names: Vec<SignerName>,
 }
 
 /// Decrypts a backup (file bytes, or the pasted text form) and checks it: the identity must
@@ -111,5 +120,6 @@ pub fn import_vault_backup(data: Vec<u8>, passphrase: String) -> Result<Imported
         identity_seeds: contents.identity_seeds.clone(),
         material: contents.material.clone(),
         invite: contents.invite.clone(),
+        names: from_map(&contents.names),
     })
 }

@@ -2,6 +2,8 @@
 //! the vault sent) and the wallet database (payments it received). Nothing is sent to a
 //! server.
 
+use std::collections::BTreeMap;
+
 use crate::{
     vault::{ProposalStatus, VaultState},
     wallet::{memo_text, ReceivedPayment},
@@ -34,9 +36,10 @@ pub struct HistoryRow {
     pub memo: String,
     /// Hex proposal id (sent only).
     pub proposal: String,
-    /// Hex signing key of the proposer (sent only).
+    /// The proposer (sent only): hex signing key, or "Name (hex)" when this device named
+    /// that signer.
     pub proposer: String,
-    /// Hex signing keys of the approvers (sent only).
+    /// The approvers (sent only), each like `proposer`.
     pub approvers: Vec<String>,
 }
 
@@ -51,10 +54,21 @@ fn display_txid(txid: &[u8; 32]) -> String {
     hex::encode(t)
 }
 
+/// "Name (hex)" when `names` (signing key hex → local name) has a name, else the hex.
+fn member_label(key: &[u8; 32], names: &BTreeMap<String, String>) -> String {
+    let hex = hex::encode(key);
+    match names.get(&hex).map(|n| n.trim()) {
+        Some(name) if !name.is_empty() => format!("{name} ({hex})"),
+        _ => hex,
+    }
+}
+
 /// Rows for every proposal the vault broadcast, one per payment. `mined_time` gives the
-/// mining block's time for a txid (protocol byte order) when the wallet has it.
+/// mining block's time for a txid (protocol byte order) when the wallet has it; `names`
+/// are this device's local signer names (signing key hex → name).
 pub fn sent_rows(
     state: &VaultState,
+    names: &BTreeMap<String, String>,
     mined_time: impl Fn(&[u8; 32]) -> Option<u64>,
 ) -> Vec<HistoryRow> {
     let mut rows = Vec::new();
@@ -74,8 +88,8 @@ pub fn sent_rows(
                 fee_zat: (i == 0).then(|| zip317_fee(p.nullifiers.len())),
                 memo: memo_text(&payment.memo).unwrap_or_default(),
                 proposal: hex::encode(p.id),
-                proposer: hex::encode(p.author),
-                approvers: p.approvals.keys().map(hex::encode).collect(),
+                proposer: member_label(&p.author, names),
+                approvers: p.approvals.keys().map(|k| member_label(k, names)).collect(),
             });
         }
     }
@@ -125,7 +139,7 @@ pub fn to_csv(mut rows: Vec<HistoryRow>) -> String {
             r.memo,
             r.proposal,
             r.proposer,
-            r.approvers.join(" "),
+            r.approvers.join("; "),
         ];
         let line: Vec<String> = fields.iter().map(|f| quote(f)).collect();
         out.push_str(&line.join(","));
@@ -202,6 +216,21 @@ mod tests {
             proposer: String::new(),
             approvers: vec![],
         }
+    }
+
+    #[test]
+    fn named_members_show_name_and_key() {
+        let names: BTreeMap<String, String> = [
+            (hex::encode([1u8; 32]), "Alice".to_string()),
+            (hex::encode([2u8; 32]), "  ".to_string()),
+        ]
+        .into();
+        assert_eq!(
+            member_label(&[1; 32], &names),
+            format!("Alice ({})", hex::encode([1u8; 32]))
+        );
+        assert_eq!(member_label(&[2; 32], &names), hex::encode([2u8; 32]));
+        assert_eq!(member_label(&[3; 32], &names), hex::encode([3u8; 32]));
     }
 
     #[test]

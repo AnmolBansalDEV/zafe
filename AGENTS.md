@@ -176,7 +176,7 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
     nonce files (an unreadable version counts as missing: never used), leader `.own`
     (`OWN_SHARES`) and `used_commitments.bin` (`USED_COMMITMENTS`; unreadable is an
     **error**, never "empty", or a commitment set could be reused), backups (`ZAFEBAK`
-    byte = `BACKUP`, text `zafe-backup-v1:`).
+    byte = `BACKUP`, text `zafe-backup-v1:`; the text prefix is not the format version).
   - Not ours to version: FROST serializations (frost-core header with ciphersuite id),
     PCZTs (own magic + version), Zcash encodings (UFVK, addresses, memos), the wallet DB
     (zcash_client_sqlite migrations), the app's JSON caches (`seen.json`,
@@ -195,7 +195,10 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   so older members record `UnsupportedVersion` (and can prompt an update) rather than a
   generic decode error. Members on different event versions reach different states until
   they update, so gate new event types on every member having updated. Record each bump
-  here. **Pre-release: nothing reads the unversioned bytes from before 2026-09-30**; reset
+  here. Bumps so far: `BACKUP` 1 → 2 (2026-09-30, signer names added to the contents;
+  the header byte is the tag, not `version::split`, so `backup::decrypt` matches byte 1
+  itself and migrates `ContentsV1` with no names; tested in `backup::tests`).
+  **Pre-release: nothing reads the unversioned bytes from before 2026-09-30**; reset
   test devices (`adb shell pm clear xyz.zafe.zafe`), the harness
   (`scripts/app-harness.sh stop`) and relay DBs after pulling this change.
 - **Shares are bound to the exact request** (request hash); aggregation always goes through
@@ -454,8 +457,20 @@ Learned while studying it:
   also deletes a DB with no account (`VaultWallet::exists`). Previously the first sync with
   lightwalletd down left an empty DB that failed forever ("expected one account, found 0").
 - Vizor's `AppButton` used an onTapUp-only detector (no semantics tap action); Zafe wraps
-  it in `Semantics(button, onTap)`. Its label still shows as a separate node in
-  accessibility trees (open item). Use `expand: true` inside `Expanded` rows.
+  it in `MergeSemantics(Semantics(button, enabled, onTap, Focus(...)))`. `Focus` must stay
+  **inside** the merge (outside, it adds an unlabeled focusable node and the label reads
+  as a separate node); `test/app_button_semantics_test.dart` guards it. Use
+  `expand: true` inside `Expanded` rows.
+- **Signer names** (`core/storage/member_names.dart`, `names.json` per vault) travel as
+  `Vec<SignerName>` (`api/names.rs`) to `export_vault_backup` / `export_history_csv`
+  and back from `import_vault_backup`. Background checks read `names.json` themselves
+  (`MemberNames.read`, no providers in that isolate) and pass `names:` to `vaultUpdates`.
+- **CSV recipients import** (`features/send/recipients_csv.dart`): pure parser with the
+  bridge validators injected (`checkAddress` for `kZafeNetwork`, `parseZec`,
+  `memoLength`), so it's unit-tested without Rust. All-or-nothing.
+- **Viewing key** (`/viewing-key`, in `inVault`, SecureScreen): bridge
+  `vault_viewing_key(material)` derives the UFVK and refuses if it differs from the
+  descriptor's `ufvk` (`Verification`).
 - Pushed-page titles are 24 px and left-aligned (room for ~20 characters); keep them short.
 - **Privacy mode is app-wide** (`privacyModeProvider`, persisted in prefs, read in the
   bootstrap): every amount goes through `amountWithTicker(text, hide:)`. Vizor's
@@ -483,9 +498,11 @@ Learned while studying it:
   `MainActivity : FlutterFragmentActivity` (else `uiUnavailable` → every gated action is
   blocked), `USE_BIOMETRIC`, and iOS `NSFaceIDUsageDescription`.
 - **Backups** (spec §12.2; `zafe_core::backup`, bridge `api/backup.rs`, app `features/backup/`):
-  `ZAFEBAK` v1 = header (Argon2id params, salt, nonce; authenticated as AEAD data) +
-  XChaCha20-Poly1305 of {identity seeds, material, invite}; **never nonces** (nor the wallet
-  DB key: a restore gets a new key and resyncs). Import checks
+  `ZAFEBAK` v2 = header (Argon2id params, salt, nonce; authenticated as AEAD data) +
+  XChaCha20-Poly1305 of {identity seeds, material, invite, signer names}; **never nonces**
+  (nor the wallet DB key: a restore gets a new key and resyncs). v1 (no names) still
+  restores. Restore writes the names to `names.json` (cleaned with `MemberNames.clean`,
+  non-hex keys dropped) before the vault becomes active. Import checks
   the identity is a vault member and refuses KDF params below 64 MiB / 3 passes (or absurdly
   high). Text form `zafe-backup-v1:` + base64url. Passphrase: 12+ words or zxcvbn 4
   ("Suggest" = 12 BIP-39 words). The app prompts right after key generation

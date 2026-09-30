@@ -5,20 +5,24 @@
 
 import '../frb_generated.dart';
 import 'error.dart';
+import 'names.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 /// CSV of every payment the vault sent (from the vault log) and received (from this
 /// device's wallet database), oldest first. Before the first sync the wallet part is empty.
+/// Proposers and approvers this device named show as "Name (hexkey)".
 Future<String> exportHistoryCsv({
   required String relayUrl,
   required String dbDir,
   required List<int> dbKey,
   required List<int> seeds,
   required List<int> material,
+  required List<SignerName> names,
 }) => RustLib.instance.api.crateApiHistoryExportHistoryCsv(
   relayUrl: relayUrl,
   dbDir: dbDir,
   dbKey: dbKey,
   seeds: seeds,
   material: material,
+  names: names,
 );

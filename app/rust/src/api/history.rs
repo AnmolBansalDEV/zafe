@@ -8,18 +8,22 @@ use zafe_core::{
 
 use super::{
     error::ZafeError,
+    names::{to_map, SignerName},
     vault::{identity, material, network, runtime, wallet_key, wallet_lock, wallet_path},
 };
 
 /// CSV of every payment the vault sent (from the vault log) and received (from this
 /// device's wallet database), oldest first. Before the first sync the wallet part is empty.
+/// Proposers and approvers this device named show as "Name (hexkey)".
 pub fn export_history_csv(
     relay_url: String,
     db_dir: String,
     db_key: Vec<u8>,
     seeds: Vec<u8>,
     material: Vec<u8>,
+    names: Vec<SignerName>,
 ) -> Result<String, ZafeError> {
+    let names = to_map(names);
     let me = identity(&seeds)?;
     let m = self::material(&material)?;
     let net = network(&m.descriptor.network)?;
@@ -37,7 +41,7 @@ pub fn export_history_csv(
     } else {
         None
     };
-    let mut rows = history::sent_rows(&state, |txid| {
+    let mut rows = history::sent_rows(&state, &names, |txid| {
         wallet
             .as_ref()
             .and_then(|w| w.mined_time(txid).ok().flatten())

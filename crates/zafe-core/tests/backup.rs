@@ -65,6 +65,7 @@ fn contents(rng: &mut StdRng) -> (Contents, Identity) {
             material: material_for(&[&me, &other]),
             invite: "zafe-invite-v1:abc".into(),
             created_at: 1_700_000_000,
+            names: [(hex::encode([1u8; 32]), "Alice".to_string())].into(),
         },
         me,
     )
@@ -80,6 +81,7 @@ fn round_trip_as_bytes_and_text() {
     assert_eq!(back.identity_seeds, c.identity_seeds);
     assert_eq!(back.material, c.material);
     assert_eq!(back.invite, c.invite);
+    assert_eq!(back.names, c.names);
 
     // The text form survives line wrapping (e.g. pasted from a note).
     let text = backup::to_text(&bytes);
@@ -134,13 +136,13 @@ fn wrong_passphrase_and_tampering_fail() {
         BackupError::NotABackup
     );
     let mut newer = bytes.clone();
-    newer[7] = 2;
+    newer[7] = 3;
     assert_eq!(
         backup::decrypt(&newer, PASS).unwrap_err(),
         BackupError::UnsupportedVersion(UnsupportedVersion {
             format: Format::Backup,
-            found: 2,
-            supported: 1
+            found: 3,
+            supported: 2
         })
     );
 }

@@ -9,6 +9,7 @@
 import 'api/backup.dart';
 import 'api/error.dart';
 import 'api/history.dart';
+import 'api/names.dart';
 import 'api/proposals.dart';
 import 'api/received.dart';
 import 'api/vault.dart';
@@ -97,6 +98,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ScannedPayment> dco_decode_list_scanned_payment(dynamic raw);
 
   @protected
+  List<SignerName> dco_decode_list_signer_name(dynamic raw);
+
+  @protected
   MembershipInfo dco_decode_membership_info(dynamic raw);
 
   @protected
@@ -149,6 +153,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SendStage dco_decode_send_stage(dynamic raw);
+
+  @protected
+  SignerName dco_decode_signer_name(dynamic raw);
 
   @protected
   int dco_decode_u_16(dynamic raw);
@@ -254,6 +261,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<SignerName> sse_decode_list_signer_name(SseDeserializer deserializer);
+
+  @protected
   MembershipInfo sse_decode_membership_info(SseDeserializer deserializer);
 
   @protected
@@ -308,6 +318,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SendStage sse_decode_send_stage(SseDeserializer deserializer);
+
+  @protected
+  SignerName sse_decode_signer_name(SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_16(SseDeserializer deserializer);
@@ -433,6 +446,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_signer_name(
+    List<SignerName> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_membership_info(
     MembershipInfo self,
     SseSerializer serializer,
@@ -500,6 +519,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_send_stage(SendStage self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_signer_name(SignerName self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_16(int self, SseSerializer serializer);
