@@ -163,7 +163,9 @@ class ProposalApprovalsCard extends StatelessWidget {
                 ),
               ),
               Text(
-                '${p.approvals.length} of ${p.threshold} needed',
+                // Approvals so far, then the vault's rule (t of n), so a 2-of-3 vault never
+                // reads as "2 of 2".
+                '${p.approvals.length} approved · needs ${p.threshold} of ${members.length}',
                 style: AppTypography.labelMedium.copyWith(
                   color: colors.text.secondary,
                 ),
