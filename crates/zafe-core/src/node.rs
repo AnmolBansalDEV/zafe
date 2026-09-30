@@ -1372,13 +1372,25 @@ fn frost_id_of(material: &VaultMaterial, sig_pk: &[u8; 32]) -> Result<Identifier
 
 // --- One-tap signing: nonce pools and sending ---------------------------------------------
 
-/// Commitments this member keeps available for one-tap signing: enough for a few
-/// proposals (each takes C(n-1, t-1) per spend). At least 8.
+/// Single-spend proposals a full pool covers. Every proposal takes commitments from
+/// **every** member's pool when it enters the log (one per signing group the member is in,
+/// per spend), approving or not, so a member who is offline for a while drains too; a
+/// deep pool keeps one-tap working until their next background check tops it up.
+pub const POOL_PROPOSALS: usize = 16;
+
+/// Smallest pool target (commitments are 64 bytes on the log; small vaults can afford it).
+pub const MIN_POOL_TARGET: usize = 32;
+
+/// Commitments this member keeps available for one-tap signing: [`POOL_PROPOSALS`]
+/// single-spend proposals' worth (each takes C(n-1, t-1)), at least [`MIN_POOL_TARGET`] and
+/// at most one `Commitments` batch. Refilled when below half (see [`top_up_pool`]).
 pub fn pool_target(descriptor: &crate::vault::VaultDescriptor) -> usize {
-    let n = descriptor.members.len();
-    let t = usize::from(descriptor.threshold);
+    pool_target_for(descriptor.members.len(), usize::from(descriptor.threshold))
+}
+
+fn pool_target_for(n: usize, t: usize) -> usize {
     let per_proposal = binomial(n.saturating_sub(1), t.saturating_sub(1));
-    (4 * 2 * per_proposal).clamp(8, crate::vault::MAX_COMMITMENT_BATCH)
+    (POOL_PROPOSALS * per_proposal).clamp(MIN_POOL_TARGET, crate::vault::MAX_COMMITMENT_BATCH)
 }
 
 fn binomial(n: usize, k: usize) -> usize {
@@ -2243,6 +2255,23 @@ pub fn decode_used_commitments(bytes: &[u8]) -> Result<BTreeSet<[u8; 32]>, NodeE
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn pool_covers_sixteen_proposals_within_one_batch() {
+        use super::pool_target_for;
+        assert_eq!(
+            pool_target_for(3, 2),
+            32,
+            "2-of-3: 2 per proposal, 16 proposals"
+        );
+        assert_eq!(pool_target_for(2, 2), 32, "the floor");
+        assert_eq!(pool_target_for(5, 3), 96);
+        assert_eq!(pool_target_for(7, 5), 240);
+        assert_eq!(
+            pool_target_for(8, 3),
+            256,
+            "capped at one batch (12 proposals)"
+        );
+    }
 
     #[test]
     fn sent_transactions_are_kept_until_removed() {
