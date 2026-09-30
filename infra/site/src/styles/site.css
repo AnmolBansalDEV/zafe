@@ -244,10 +244,40 @@ code { font-size: 0.95em; }
   margin: 0 auto 36px;
 }
 
-/* The story (src/scripts/story-scene.js draws it). Static by default: the ending as two
-   phones on the dark and light halves. With the script: a tall section whose pinned
-   screen holds the background canvas (the moving seam) and the WebGL canvas (phones,
-   swirl, vault, coins). Captions follow data-beat, set by the timeline. */
+/* The world (src/scripts/world.js): one fixed canvas behind the page. The hero and the
+   story section are transparent over it; later sections are opaque. html.world-on is
+   set when it runs; html.world-off once the story has scrolled away. */
+.world { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; display: none; pointer-events: none; }
+html.world-on .world { display: block; }
+html.world-off .world { visibility: hidden; }
+.home .nav, .home main, .home .foot { position: relative; z-index: 1; }
+/* With the world running, the hero is asymmetric: the headline on the left, the diorama
+   framed to the right (world.js frameX); on phones the world sits below the text. */
+html.world-on .home .hero {
+  min-height: calc(100vh - 80px);
+  max-width: 76rem;
+  padding: 0 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  text-align: left;
+}
+html.world-on .home .hero h1 { max-width: 8.5em; font-size: clamp(44px, 5.4vw, 78px); }
+html.world-on .home .hero .sub { margin-left: 0; max-width: 23em; }
+@media (max-width: 760px) {
+  html.world-on .home .hero { justify-content: flex-start; padding: 56px 20px 0; }
+}
+html.world-on .home main > section:not(.hero):not(.story):not(.panel) { background: var(--window); }
+
+/* Lenis (from lenis/dist/lenis.css). */
+html.lenis, html.lenis body { height: auto; }
+.lenis:not(.lenis-autoToggle).lenis-stopped { overflow: clip; }
+.lenis [data-lenis-prevent] { overscroll-behavior: contain; }
+.lenis.lenis-smooth iframe { pointer-events: none; }
+
+/* The story: tall and pinned over the world; captions follow data-beat. Without the
+   world: a still of the ending. */
 .story { position: relative; }
 .story-pin { position: relative; height: 100vh; min-height: 620px; overflow: hidden; }
 .story-static { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr 1fr; }
@@ -262,20 +292,17 @@ code { font-size: 0.95em; }
   box-shadow: 0 50px 100px -40px rgba(0, 0, 0, 0.6);
 }
 .static-half.light img { border-color: #CBD3D2; }
-.story-bg, .story-gl { position: absolute; inset: 0; width: 100%; height: 100%; display: none; }
-
-.story.story-live { height: 900vh; }
-.story-live .story-pin { position: sticky; top: 0; }
-.story-live .story-static { display: none; }
-.story-live .story-bg, .story-live .story-gl { display: block; }
+html.world-on .story { height: 1100vh; }
+html.world-on .story-pin { position: sticky; top: 0; }
+html.world-on .story-static { display: none; }
 
 .story-captions {
   position: absolute;
   left: 50%;
-  bottom: 32px;
+  bottom: 36px;
   transform: translateX(-50%);
-  width: min(520px, 90vw);
-  height: 50px;
+  width: min(560px, 92vw);
+  height: 52px;
   pointer-events: none;
 }
 .cap {
@@ -285,17 +312,19 @@ code { font-size: 0.95em; }
   place-items: center;
   padding: 0 24px;
   border-radius: 999px;
-  background: rgba(14, 19, 19, 0.92);
+  background: rgba(14, 19, 19, 0.9);
   color: #F1F5F5;
-  font-size: 15px;
+  font-size: 16px;
   text-align: center;
   opacity: 0;
-  transform: translateY(10px);
-  transition: opacity 0.35s ease, transform 0.35s ease;
-  box-shadow: 0 0 0 1px #262D2D, 0 14px 30px -14px rgba(0, 0, 0, 0.6);
+  transform: translateY(12px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  box-shadow: 0 16px 34px -16px rgba(0, 0, 0, 0.55);
 }
 .story[data-beat="0"] .k0, .story[data-beat="1"] .k1, .story[data-beat="2"] .k2,
-.story[data-beat="3"] .k3, .story[data-beat="4"] .k4, .story[data-beat="5"] .k5 {
+.story[data-beat="3"] .k3, .story[data-beat="4"] .k4, .story[data-beat="5"] .k5,
+.story[data-beat="6"] .k6, .story[data-beat="7"] .k7, .story[data-beat="8"] .k8,
+.story[data-beat="9"] .k9 {
   opacity: 1;
   transform: none;
 }
@@ -303,7 +332,7 @@ code { font-size: 0.95em; }
 @media (max-width: 760px) {
   .story-static { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
   .static-half img { height: min(38vh, 360px); border-radius: 26px; border-width: 6px; }
-  .story-captions { bottom: 18px; height: 42px; }
+  .story-captions { bottom: 20px; height: 46px; }
   .cap { font-size: 13px; }
 }
 

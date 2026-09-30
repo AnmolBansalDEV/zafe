@@ -3,6 +3,37 @@
 The landing page (`infra/site/src/pages/index.astro`) follows this brief. Keep it current
 when the page changes.
 
+## Decisions (2026-10-01, seventh round): the Seam Vault world
+
+Feedback on round six: make the whole site canvas-like, bigger phones, the dark/light
+split may not make sense, the lock should be a vault, the phones should hold key shards
+that combine to open it; think like a 3D designer. Three research agents (design
+choreography with 18 reference sites, WebGL implementation incl. a CSP probe, asset and
+tooling routes) fed the plan; the user then allowed loading files (`connect-src 'self'`).
+
+- **One world, no split.** An isometric diorama on grained paper; members' app themes
+  stay (Bob dark under a warm lamp, you light in daylight). One fixed canvas behind the
+  page (`canvas.world`, src/scripts/world.js); hero and story are transparent over it.
+- **The vault door is the Seam mark**: its two pieces are the leaves (extruded from the
+  SVG paths), the Z channel is the keyhole with gold light leaking through. **The key is
+  the Z**, in two shards (top bar + upper diagonal; lower diagonal + bottom bar); each
+  phone holds one, Cara's is the spare.
+- **Beats** (captions follow): shares rise; a lone shard bounces off the lock; Bob
+  proposes (real screens); a pulse runs through Z-shaped floor channels; Bob approves, his
+  shard seats; you approve with one tap, yours seats; they fuse into the gold key ("it
+  never exists on any phone") and push in; the door splits along the Z, gold light and a
+  coin-filled interior; coins pour into your phone's sending screen; Sent!; the camera
+  pulls back, a stream of identical payments crosses behind, the door closes.
+- **Camera**: one continuous take along a curve through beat framings, in story order;
+  damped; pointer tilt. Hero is asymmetric (headline left, world right via setViewOffset);
+  portrait pulls wide shots back.
+- **Stack**: Three.js 0.186 (procedural geometry, RoomEnvironment, VSM shadows), pmndrs
+  postprocessing 6.39.5 (bloom on emissive seams and gold, grain, vignette), GSAP 3.15
+  ScrollTrigger (one scrubbed timeline), Lenis 1.3 advanced by GSAP's ticker and feeding
+  ScrollTrigger. Phone screens redraw only when their state changes.
+- **Next**: feature islands and a top-down CTA in the same world; the pointer companion
+  and text animation (research recommendations in the notes above).
+
 ## Decisions (2026-10-01, sixth round): the scroll story
 
 User feedback: the pillar-like step columns were still there, and the two-phone demo was

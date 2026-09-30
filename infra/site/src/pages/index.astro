@@ -1,6 +1,6 @@
 ---
-// Landing page, laid out after vizor.cash (centred hero, a 3D scroll story of one payment
-// between two members' phones (src/scripts/story-scene.js), a dark feature panel with live UI cards, FAQ, closing card, dark footer) with
+// Landing page, laid out after vizor.cash (centred hero over the 3D world, a scroll story
+// of one payment in it (src/scripts/world.js), a dark feature panel with live UI cards, FAQ, closing card, dark footer) with
 // Zafe's brand, art and copy. Copy: short, and "Zcash" only where it's needed. Every
 // claim must be something the app does today (docs/tracker.md); the chain card is the
 // real testnet payment from the 2026-09-30 dry run. The intro is CSS and the FAQ is <details>; the only script is the story's
@@ -37,6 +37,8 @@ const faq = [
     <div class="intro-mark"><Mark /></div>
   </div>
 
+  <canvas class="world" aria-hidden="true"></canvas>
+
   <header class="nav">
     <nav class="nav-side left" aria-label="Page">
       <a href="#features">Features</a>
@@ -57,10 +59,10 @@ const faq = [
       <a class="pill" href={downloadUrl} rel="noopener noreferrer">Get Zafe</a>
     </section>
 
-    <!-- The story: one payment between two members, in 3D, scrubbed by scrolling
-         (src/scripts/story-scene.js). Without WebGL or with reduced motion, the still
-         below (Bob approved, your payment sent) and the last caption. -->
-    <section class="story" data-beat="5" aria-label="How a shared payment works: Bob proposes and approves, you approve, and it's sent">
+    <!-- The story: scrolling through this section plays one payment in the 3D world
+         behind the page (src/scripts/world.js). Without the world (no WebGL, reduced
+         motion): a still of the ending and the last caption. -->
+    <section class="story" data-beat="9" aria-label="How a shared payment works: each phone holds a share of the key; Bob proposes, you approve, the two shares make the key, the vault opens and the payment is sent">
       <div class="story-pin">
         <div class="story-static" aria-hidden="true">
           <div class="static-half dark">
@@ -70,15 +72,17 @@ const faq = [
             <img src="/assets/screens/story_me_done_light.webp" width="780" height="1688" alt="" loading="lazy" />
           </div>
         </div>
-        <canvas class="story-bg" aria-hidden="true"></canvas>
-        <canvas class="story-gl" aria-hidden="true"></canvas>
         <div class="story-captions" aria-live="polite">
-          <p class="cap k0">Bob proposes a payment.</p>
-          <p class="cap k1">Everyone in the vault is notified.</p>
-          <p class="cap k2">Bob approves. 1 of 2.</p>
-          <p class="cap k3">You approve. That&rsquo;s 2.</p>
-          <p class="cap k4">The vault opens. Sending&hellip;</p>
-          <p class="cap k5">Sent. On-chain, it looks like any payment.</p>
+          <p class="cap k0">Every phone holds a share of the key.</p>
+          <p class="cap k1">One share can&rsquo;t open anything.</p>
+          <p class="cap k2">Bob proposes a payment.</p>
+          <p class="cap k3">Everyone in the vault is notified.</p>
+          <p class="cap k4">Bob approves. His share goes in.</p>
+          <p class="cap k5">You approve with one tap.</p>
+          <p class="cap k6">Two shares make the key. It never exists on any phone.</p>
+          <p class="cap k7">The vault opens.</p>
+          <p class="cap k8">Sending&hellip;</p>
+          <p class="cap k9">Sent. On-chain, it looks like any payment.</p>
         </div>
       </div>
     </section>

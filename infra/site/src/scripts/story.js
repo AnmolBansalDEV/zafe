@@ -1,12 +1,21 @@
-// Page motion: smooth scrolling (Lenis) and the 3D scroll story, loaded only when its
-// section comes near and only where it can run (WebGL, no reduced-motion preference).
-// Without it the story section is a still of the ending (index.astro, .story-static).
+// Page motion. One loop: Lenis (smooth scroll) is advanced by GSAP's ticker and tells
+// ScrollTrigger about every scroll, so the 3D world (world.js) and the page never drift
+// apart. The world starts right away (it's behind the hero), only where it can run
+// (WebGL, no reduced-motion preference); otherwise the story section shows its still.
 import Lenis from 'lenis';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
+gsap.registerPlugin(ScrollTrigger);
+ScrollTrigger.config({ ignoreMobileResize: true });
 
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 if (!reduced) {
-  new Lenis({ autoRaf: true, anchors: true, lerp: 0.09 });
+  const lenis = new Lenis({ autoRaf: false, anchors: true, lerp: 0.085 });
+  lenis.on('scroll', ScrollTrigger.update);
+  gsap.ticker.add((time) => lenis.raf(time * 1000));
+  gsap.ticker.lagSmoothing(0);
 }
 
 function hasWebGL() {
@@ -18,20 +27,14 @@ function hasWebGL() {
   }
 }
 
-const section = document.querySelector('.story');
-if (section && !reduced && hasWebGL()) {
-  const near = new IntersectionObserver(
-    (entries) => {
-      if (!entries.some((e) => e.isIntersecting)) return;
-      near.disconnect();
-      import('./story-scene.js')
-        .then((m) => m.start(section))
-        .catch((err) => {
-          section.classList.remove('story-live');
-          console.warn('story:', err);
-        });
-    },
-    { rootMargin: '150% 0px' },
-  );
-  near.observe(section);
+const canvas = document.querySelector('canvas.world');
+const story = document.querySelector('.story');
+const hero = document.querySelector('.hero');
+if (canvas && story && !reduced && hasWebGL()) {
+  import('./world.js')
+    .then((m) => m.start({ canvas, story, hero }))
+    .catch((err) => {
+      document.documentElement.classList.remove('world-on');
+      console.warn('world:', err);
+    });
 }

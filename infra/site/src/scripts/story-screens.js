@@ -19,6 +19,10 @@ const NAMES = {
   meDone: 'story_me_done_light',
 };
 
+const NEEDS_YOU = 'Ops fund: payment needs your approval';
+const SENT = 'Ops fund: payment sent';
+const SENT_BODY = '12.50 TAZ, approved by Bob and you.';
+
 // Where things are on the renders, as fractions of the viewport (W x H).
 export const SPOT = {
   newPayment: [0.265, 0.366],
@@ -140,7 +144,7 @@ function tap(g, [fx, fy], t, dark) {
 }
 
 // The OS notification banner, dropping in from the top (b = 0..1).
-function banner(g, b) {
+function banner(g, b, title, body) {
   if (b <= 0) return;
   const y = 22 - (1 - b) * 260;
   g.save();
@@ -161,10 +165,10 @@ function banner(g, b) {
   g.textAlign = 'left';
   g.fillStyle = '#090E0E';
   g.font = '500 30px "DM Sans", sans-serif';
-  g.fillText('Ops fund: payment needs your approval', 48, y + 112);
+  g.fillText(title, 48, y + 112);
   g.fillStyle = '#55615F';
   g.font = '400 28px "DM Sans", sans-serif';
-  g.fillText('Bob proposed 12.50 TAZ.', 48, y + 152);
+  g.fillText(body, 48, y + 152);
   g.restore();
 }
 
@@ -244,6 +248,7 @@ export function drawBob(g, img, s) {
   const k = Math.min(2.999, s.aPush1 + s.aPush2 + s.aPush3);
   const i = Math.floor(k);
   push(g, layers[i], layers[i + 1], s.aPush1 + s.aPush2 + s.aPush3 >= 3 ? 1 : k - i, true);
+  banner(g, s.sentBanner, SENT, SENT_BODY);
   tap(g, SPOT.newPayment, s.tapA1, true);
   tap(g, SPOT.propose, s.tapA2, true);
   tap(g, SPOT.approve, s.tapA3, true);
@@ -286,7 +291,20 @@ export function drawMe(g, img, s, time) {
     slotCoins(g, time, clamp01((s.bPush - 0.5) * 2) * (1 - 0.6 * s.bDone));
     status(g, time, clamp01((s.bPush - 0.5) * 2), s.bDone);
   }
-  banner(g, s.banner);
+  banner(g, s.banner, NEEDS_YOU, 'Bob proposed 12.50 TAZ.');
+  banner(g, s.sentBanner * (1 - s.bDone), SENT, SENT_BODY);
   tap(g, SPOT.banner, s.tapB1, false);
   tap(g, SPOT.approve, s.tapB2, false);
+}
+
+// Cara's phone (light): Home with the same banners. She isn't needed this time.
+export function drawCara(g, img, s) {
+  g.clearRect(0, 0, W, H);
+  drawFull(g, img.meHome);
+  banner(g, s.banner, NEEDS_YOU, 'Bob proposed 12.50 TAZ.');
+  banner(g, s.sentBanner, SENT, SENT_BODY);
+  if (s.caraDim > 0) {
+    g.fillStyle = `rgba(9,14,14,${0.45 * s.caraDim})`;
+    g.fillRect(0, 0, W, H);
+  }
 }
