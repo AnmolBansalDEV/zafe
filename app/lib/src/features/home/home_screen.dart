@@ -323,8 +323,9 @@ class BalanceCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: card.background,
         borderRadius: BorderRadius.circular(AppRadii.large),
+        // Flat with a hairline, like every other card: a drop shadow under the pale
+        // light-mode card read as a grey rim.
         border: Border.all(color: card.border, width: 1),
-        boxShadow: appSurfaceShadow(colors),
       ),
       clipBehavior: Clip.antiAlias,
       child: Stack(
