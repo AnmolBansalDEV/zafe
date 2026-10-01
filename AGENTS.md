@@ -812,6 +812,8 @@ Learned while studying it:
   (quoted twice: the device shell splits it again; cold start: `adb shell am force-stop
   xyz.zafe.zafe` first).
 - **Website** (`infra/site/`, Astro 7, static): landing page `/` and invite page `/join`.
+  The whole design/build/verify/ship flow is the project skill `.claude/skills/landing-page`
+  (`frames.sh` + `sheet.py` capture a scroll section frame by frame into a contact sheet).
   Chose Astro over Next.js (Vizor's site) to keep a strict CSP with no inline code: the
   landing page bundles its motion (`src/scripts/story.js` → `world.js` Three.js world,
   `ui.js` pointer and text) as same-origin modules; `/join` loads only the hand-written
