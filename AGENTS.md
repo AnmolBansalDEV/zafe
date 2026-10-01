@@ -74,7 +74,10 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   descriptor. `reddsa` 0.5.2's `post_dkg` normalizes `ak` to even Y (orchard rejects odd).
 - **Randomizer**: the FROST randomizer for each spend is the PCZT's own `alpha` (fixed before
   round 1 because `rk` feeds the sighash). Secure per the Re-Randomized FROST paper; matches
-  frost-tools. Uses the deprecated `frost_rerandomized::sign` in one wrapper (frost#1094).
+  frost-tools' `zcash-sign`. **Deviates from ZIP 312**, which says the Coordinator MUST
+  derive the randomizer after round 1 from fresh bytes + the commitment list (a hedge, per
+  its rationale); ZF asked (U5, spec §9.5.1). Uses the deprecated
+  `frost_rerandomized::sign` in one wrapper (frost#1094: an external-randomizer API stays).
 - **What to sign**: every Ironwood action whose `spend_auth_sig` is `None` — never filter by
   value (zero-value vault spends exist). True dummy spends are already signed by the IO
   Finalizer. Reject any unsigned Orchard-pool spend (vaults never hold Orchard funds, ZIP 326).
@@ -154,7 +157,7 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   `list_proposals` runs on every refresh (app poll, after approving/proposing, and each
   background check). Pools drain when a proposal **enters the log**, for every member,
   approving or not. Security reading of ePrint 2024/436 is in
-  spec §9.5.1; ZF confirmation pending (U5 / upstream-asks Q7).
+  spec §9.5.1; ZF confirmation pending (U5 in `upstream-asks.md`).
 - **Sweeps**: a `Proposal` with **no payments** spends a cancelled proposal's notes back
   to the vault (`node::invalidate`, `VaultWallet::propose_sweep`) so a fully signed
   cancelled transaction can never be mined. UI code must handle `payments.isEmpty`
@@ -919,10 +922,16 @@ Toolchain (installed by `~/android/install-toolchain.sh`; `source ~/android/env.
 
 ## Upstream status (check before relying on it)
 
-- **Mainnet gate (U1)**: ZF has not yet confirmed that Zafe's ZIP 2005 derivation stays
-  recoverable whatever `sk`-agreement zips#895 standardizes (frost#1094). Testnet/regtest only
-  until then; small capped amounts at most.
+- **Mainnet gates (U1, U5)**: ZF hasn't confirmed that vaults derived per ZIP 2005 § 4.2.3
+  from an agreed `sk` are recoverable as they are (frost#1094 says FROST FVK derivation is
+  "blocked on zips#895"; ZIP 2005's "Usage with FROST" only requires a privately agreed
+  `sk`), nor that a builder-chosen `alpha` is fine for one-tap signing (U5). Testnet/regtest
+  only until then; small capped amounts at most. Questions: `upstream-asks.md` (re-checked
+  2026-10-01).
 - COCKTAIL-DKG (frost#1033) not production-ready; Zafe uses frost-core DKG + own echo/transcript.
+  The zips#895 draft specifies `sk` agreement as COCKTAIL-DKG payloads,
+  `sk = H(n ‖ len(payload_1) ‖ payload_1 ‖ …)`; Zafe's own scheme differs. Align when
+  COCKTAIL-DKG ships with Pallas (the WIP frost#1032 has none).
 - RedPallas FROST ciphersuite moving out of `reddsa` (frost#963); stay on 0.5.2 until then.
 
 ## Machine hygiene

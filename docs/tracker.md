@@ -453,13 +453,22 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 
 ## Upstream and waiting on others
 
-- [ ] **(you)** Send the ZF questions in `upstream-asks.md` (Q1 is the mainnet gate U1)
+- [ ] Send the ZF questions in `upstream-asks.md` (U5, U1, U3; re-checked and rewritten
+      2026-10-01): one comment on frost#1094, then the Discord pointer **(you: approve)**
 - [ ] U1: ZF confirms the ZIP 2005 derivation stays recoverable under zips#895; get our
       `test-vectors/zip2005_use_qsk.json` cross-checked upstream
-- [ ] U2: non-deprecated external-randomizer API in frost-rerandomized (frost#1094)
+- [x] U2: answered on frost#1094 (2026-09-21): an external-randomizer API will always
+      exist (`sign()` may be un-deprecated). Keep the one `#[allow(deprecated)]` wrapper
 - [ ] U3: redpallas ciphersuite home + reddsa 0.5.x security-fix policy (frost#963)
-- [ ] U4: COCKTAIL-DKG Pallas + ZIP 312 keygen spec (zips#895, frost#1033)
-- [ ] U5: ZF confirms one-tap signing (pre-published commitments, PCZT-fixed alpha) is within the Re-Randomized FROST model — `upstream-asks.md` Q7 **(you: send with Q1)**
+- [ ] U4: COCKTAIL-DKG Pallas (frost#1033; WIP frost#1032 has no Pallas). The ZIP 312
+      keygen spec exists in the zips#895 draft ("Contributory Generation of sk"): align
+      Zafe's `sk` agreement with it when COCKTAIL-DKG is usable
+- [ ] FROST book `book/src/zcash/technical-details.md` still says to throw `sk` away and
+      that the key share is the only secret (against ZIP 2005): send a docs PR
+- [ ] U5: ZF confirms one-tap signing (pre-published commitments, PCZT-fixed alpha) is
+      within the Re-Randomized FROST model, and whether ZIP 312 will allow it (it says the
+      randomizer MUST come from the commitments after round 1). If not: derive `alpha` from
+      the assigned commitments before building the PCZT (needs a way to set `alpha`)
 - [ ] thus-spoke-zakura PR #124 (Ironwood fix, targets `main`; replaces #119, auto-closed when `dev` was deleted on 2026-09-30): rebased onto `main` aee7880 2026-10-01, all CI steps + all 3 Docker recovery tests pass locally; CI waits on maintainer approval. Follow up until merged
 - [ ] Zakura's faster prover once it supports Ironwood (V7)
 
