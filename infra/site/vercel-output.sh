@@ -77,7 +77,9 @@ cat > "$output/config.json" <<EOF
   "routes": [
 $redirects    { "src": "^/(.*)$", "headers": { $headers_json }, "continue": true }$asset_routes,
     { "src": "^/\\\\.well-known/(.*)$", "headers": { "Cache-Control": "public, max-age=300" }, "continue": true },
-    { "handle": "filesystem" }
+    { "handle": "filesystem" },
+    { "handle": "error" },
+    { "status": 404, "src": "^/(.*)$", "dest": "/404" }
   ],
   "overrides": { $overrides }
 }

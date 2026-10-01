@@ -177,8 +177,9 @@ Open
   - [x] SEO pass (2026-10-01, `docs/seo.md`): canonical/OG/Twitter tags, JSON-LD,
         sitemap.xml + robots.txt from `site`, favicons + manifest
   - [ ] SEO follow-ups (`docs/seo.md` "Open"): change `site` with the domain and add it
-        to Search Console; `/assets/og.png`; a heading for the story section; LCP
-        (intro delays the hero; lazy story still); chain-card label contrast; a 404 page
+        to Search Console. Done 2026-10-01: home LCP (was none; now 2.0 s, Lighthouse
+        99/100/100), /showcase CLS 0.384 → 0, a 404 page; the story heading, contrast and
+        og.png were already fixed. /showcase still reports no LCP (its fade-in entrance)
   - [ ] Check on a device: `pm get-app-links` shows the host verified; a link opens Join
         cold and warm; with Zafe uninstalled it opens the page
   - [ ] iOS: Associated Domains entitlement (`applinks:<host>`) and the team's app ID in

@@ -32,11 +32,11 @@ the result looks, **medium** = missed signal, **low** = polish.
 | 11 | `/join/` and `/join.html` | ok | 308 to `/join` |
 | 12 | `http://` | ok | 308 to https, HSTS preload |
 | 13 | `lang`, viewport, charset, one H1 | ok | Present |
-| 14 | Story section (the 3D payment) has no heading; crawlers see ten caption paragraphs under the hero's H1 | medium | **Open** (caller's markup): add an H2 such as "How it works" (can be visually hidden) |
-| 15 | LCP: on a GPU the hero text appears only after the ~1.8 s CSS intro (`.home .hero > *` starts at opacity 0); without a GPU the LCP is the lazy story still (`loading="lazy"` on an image in the first viewport). Lighthouse mobile: LCP 3.2 s, FCP 1.8 s, performance 91 | medium | **Open** (caller's CSS/markup): start the hero visible or shorten the delay; drop `loading="lazy"` (or add `fetchpriority="high"`) on the still that shows first |
-| 16 | Contrast: `.chain-mini dt` (#7e8987 on #fdfefe, 3.57:1) | low | **Open** (caller's CSS): darken to ≥ 4.5:1 |
+| 14 | Story section (the 3D payment) has no heading; crawlers see ten caption paragraphs under the hero's H1 | medium | Fixed in the redesign: `/showcase` has an H2 "How it works" |
+| 15 | LCP: on a GPU the hero text appears only after the ~1.8 s CSS intro (`.home .hero > *` starts at opacity 0); without a GPU the LCP is the lazy story still (`loading="lazy"` on an image in the first viewport). Lighthouse mobile: LCP 3.2 s, FCP 1.8 s, performance 91 | medium | Home fixed 2026-10-01: after the redesign the hero still faded in from opacity 0, so Lighthouse found no LCP at all (`NO_LCP`); the H1 is no longer faded (the closing veil reveals it), desktop performance 99, LCP 2.0 s. /showcase CLS 0.384 (the title card changed size when story.js chose world or stills) fixed to 0. **Open**: /showcase has no LCP (its title card fades in over the world, tuned in round 12a); its lazy hero still is on purpose, so world visitors never fetch it |
+| 16 | Contrast: `.chain-mini dt` (#7e8987 on #fdfefe, 3.57:1) | low | Fixed in the redesign (`--text-secondary` #55615F); Lighthouse accessibility 100 on both pages |
 | 17 | Live site still sends `max-age=0` for hashed bundles | low | Fixed in `537851b` (`_headers`), not deployed yet |
-| 18 | No HTML 404 page (Vercel answers a plain-text 404, status correct) | low | **Open**: optional `404.astro` + a Vercel `handle: error` route in `vercel-output.sh` |
+| 18 | No HTML 404 page (Vercel answers a plain-text 404, status correct) | low | Fixed 2026-10-01: `404.astro` (noindex), Vercel `handle: error` route in `vercel-output.sh` |
 | 19 | Heading text "Questions?" | low | Fine as is |
 | 20 | Link text | ok | "Get Zafe", "Source", "Spec", "Support": descriptive enough; all external links `rel="noopener noreferrer"` |
 | 21 | No third-party requests | ok | Unchanged: no analytics, fonts and images same-origin |

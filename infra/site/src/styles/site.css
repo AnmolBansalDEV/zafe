@@ -252,8 +252,9 @@ html.world-on .world { display: block; }
 html.world-off .world { visibility: hidden; }
 .home .nav, .home main, .home .foot { position: relative; z-index: 1; }
 /* With the world running, the hero is asymmetric: the headline on the left, the diorama
-   framed to the right (world.js frameX); on phones the world sits below the text. */
-:is(html.world-on, html.stills, html:not(.js)) .home .hero {
+   framed to the right (world.js frameX); on phones the world sits below the text. The
+   same box before story.js decides, so the page doesn't shift (CLS) when it does. */
+.home .hero {
   min-height: calc(100vh - 80px);
   max-width: 76rem;
   padding: 0 40px;
@@ -263,10 +264,10 @@ html.world-off .world { visibility: hidden; }
   align-items: flex-start;
   text-align: left;
 }
-:is(html.world-on, html.stills, html:not(.js)) .home .hero h1 { max-width: 8.5em; font-size: clamp(44px, 5.4vw, 78px); }
-:is(html.world-on, html.stills, html:not(.js)) .home .hero .sub { margin-left: 0; max-width: 23em; }
+.home .hero h1 { max-width: 8.5em; font-size: clamp(44px, 5.4vw, 78px); }
+.home .hero .sub { margin-left: 0; max-width: 23em; }
 @media (max-width: 760px) {
-  :is(html.world-on, html.stills, html:not(.js)) .home .hero { justify-content: flex-start; padding: 56px 20px 0; }
+  .home .hero { justify-content: flex-start; padding: 56px 20px 0; }
 }
 html.world-on .home .faq { background: var(--window); max-width: none; padding-left: max(16px, calc((100vw - var(--width)) / 2)); padding-right: max(16px, calc((100vw - var(--width)) / 2)); }
 
@@ -1216,6 +1217,9 @@ html.still-page .home .nav-side { visibility: hidden !important; }
 .landing .lp-hero-copy > :nth-child(2) { animation-delay: 1.55s; }
 .landing .lp-hero-copy > :nth-child(3) { animation-delay: 1.65s; }
 .landing .lp-hero-copy > :nth-child(4) { animation-delay: 1.75s; }
+/* The headline isn't hidden: the closing veil reveals it. Starting it at opacity 0 left
+   the page with no Largest Contentful Paint at all (Lighthouse NO_LCP). */
+.landing .lp-hero-copy > h1 { animation: none; }
 .landing .lp-phone-front { animation: rise 1s var(--rise) 1.7s both; }
 .landing .lp-phone-back { animation: rise 1s var(--rise) 1.85s both; }
 .landing .lp-dial { animation: fade 1.2s ease 1.6s both; }
@@ -1307,14 +1311,15 @@ html.still-page .home .nav-side { visibility: hidden !important; }
 /* The world fades up from the paper. */
 html.world-on .showcase .world { animation: fade 1.4s ease both; }
 
-/* The title card: bottom left, large, with a scroll cue. */
-:is(html.world-on, html.stills, html:not(.js)) .showcase .hero {
+/* The title card: bottom left, large, with a scroll cue. Same box in every state (world,
+   stills, no JS, and before story.js decides), so the page doesn't shift when it decides. */
+.showcase .hero {
   min-height: 100vh;
   justify-content: flex-end;
   padding: 0 40px 72px;
   position: relative;
 }
-.showcase .hero h1 { font-size: clamp(48px, 6.4vw, 96px); line-height: 0.98; letter-spacing: -0.035em; margin: 16px 0 20px; }
+.showcase .hero h1 { line-height: 0.98; letter-spacing: -0.035em; margin: 16px 0 20px; }
 .sc-kicker { font-family: var(--mono); font-size: 14px; letter-spacing: 0.04em; color: var(--brand); }
 .showcase .hero .sub { margin-bottom: 0; }
 .showcase .hero > * { animation-duration: 1s; }
@@ -1364,8 +1369,7 @@ html.world-on .foot-slim { background: var(--window); max-width: none; padding-l
 
 @media (max-width: 760px) {
   .nav-light { padding: 16px 20px 24px; }
-  :is(html.world-on, html.stills, html:not(.js)) .showcase .hero { justify-content: center; padding: 70px 20px 34vh; }
-  .showcase .hero h1 { font-size: clamp(40px, 11.5vw, 56px); }
+  .showcase .hero { justify-content: center; padding: 70px 20px 34vh; }
   .scroll-cue { display: none; }
   .foot-slim { padding: 24px 20px 28px; }
   .foot-slim p { display: none; }
@@ -1375,3 +1379,8 @@ html.world-on .foot-slim { background: var(--window); max-width: none; padding-l
   .scroll-cue i::after { animation: none; }
 }
 .nowrap { white-space: nowrap; }
+
+/* 404 (404.astro): one calm line and the way home. */
+.nf { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 120px 20px 80px; }
+.nf h1 { font-size: clamp(40px, 5vw, 64px); line-height: 1.02; margin: 24px 0 16px; }
+.nf .sub { font-size: 18px; color: var(--text-secondary); margin-bottom: 32px; }
