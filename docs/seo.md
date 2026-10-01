@@ -71,6 +71,7 @@ data so it can't close the element, and `build.sh` checks every such block parse
 
 ## Open questions
 
-- Custom domain: then change `site`, verify it in Google Search Console and submit the
-  sitemap (verification by DNS TXT record keeps the page free of extra meta tags).
+- Custom domain: `zafe.cash` (bought 2026-10-01, `site` changed). Still to do: verify it
+  in Google Search Console and submit the sitemap (verification by DNS TXT record keeps
+  the page free of extra meta tags); keep `zafe-pink.vercel.app` redirecting to it.
 - Play Store listing: its URL goes into `downloadUrl` and `sameAs`.

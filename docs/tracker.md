@@ -184,8 +184,12 @@ Open
         screen, pieces lock, it ripples up into the nav logo); much shorter copy
   - *(idea)* Show a second real payment (with a memo) once one is made; add a changelog
         or "last updated" to the site
-  - [ ] **(you)** Pick and own the domain, deploy `infra/site` there with the release
-        certificate fingerprint, set the `ZAFE_LINK_HOST` repository variable
+  - [x] Domain: **zafe.cash** (Spaceship, registered 2026-10-01, expires 2027-10-01;
+        move to Cloudflare Registrar after the 60-day lock for the cheaper renewal);
+        `site` points at it
+  - [ ] **(you)** Point zafe.cash at the Vercel project (apex + www), email (hello@,
+        security@), then the release certificate fingerprint
+        (`ZAFE_ANDROID_CERT_SHA256`) and `ZAFE_LINK_HOST=zafe.cash` repository variables
   - [x] SEO pass (2026-10-01, `docs/seo.md`): canonical/OG/Twitter tags, JSON-LD,
         sitemap.xml + robots.txt from `site`, favicons + manifest
   - [ ] SEO follow-ups (`docs/seo.md` "Open"): change `site` with the domain and add it

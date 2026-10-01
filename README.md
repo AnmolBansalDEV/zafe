@@ -13,8 +13,8 @@ nothing that says "multisig".
 > The mainnet gate is an upstream confirmation about the key derivation (see
 > [`upstream-asks.md`](upstream-asks.md), U1).
 
-Website: <https://zafe-pink.vercel.app> (the 3D walkthrough is at
-[`/showcase`](https://zafe-pink.vercel.app/showcase)).
+Website: <https://zafe.cash> (the 3D walkthrough is at
+[`/showcase`](https://zafe.cash/showcase)).
 
 ## How it works
 
