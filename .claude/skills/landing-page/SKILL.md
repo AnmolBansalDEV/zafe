@@ -5,10 +5,16 @@ description: Design, build and ship the product's landing page (or redesign it) 
 
 # Landing page
 
-How Zafe's site (`infra/site/`, Astro) went from a plain page to "the Seam Vault": one 3D
-world behind the whole page (docs/site.md has every decision round). Read `docs/site.md`,
+How Zafe's site (`infra/site/`, Astro) went from a plain page to "the Seam Vault", a 3D
+world behind a scroll story (docs/site.md has every decision round). Read `docs/site.md`,
 `docs/brand.md` and the website notes in `AGENTS.md` first; the user's standing taste is
 in memory (Vizor-like layout, light only, few words, logo motion).
+
+**Where motion goes** (the user's call, round eleven): the home page `/` stays calm, like
+safe.global (no JS, CSS reveals, stills of the world as pictures, honest security and
+testnet status, no invented stats or logos); the 3D story lives on `/showcase`, linked
+as "Watch it in 3D". Sections 3-4 below describe the showcase; build new home sections
+from the `lp-*` patterns in `index.astro`.
 
 ## 1. Brief: product, audience, the one idea
 
@@ -77,8 +83,15 @@ emissive/gold only, grain, vignette), GSAP ScrollTrigger, Lenis.
   `cursor: none` only after the first draw. No labels on the cursor.
 - **Text**: masked word rise (own splitter, no plugin), a scramble "unshield" at most
   twice, a rolling counter for the threshold ("2 of 2 approvals").
-- **Fallbacks**: no WebGL or reduced motion → static images + stacked cards; the world
-  must never be required to read the page.
+- **Fallbacks**: no GPU, reduced motion or no JavaScript (Tor Browser "Safest": a real
+  share of a privacy audience) → the same layout over **stills rendered from the world**
+  (`infra/site/stills.sh`, capture mode `/?still`; also renders the social image). Gate
+  them with a blocking `boot.js` (`html.js`) so the world's visitors never fetch them;
+  fallback-only rules go under `:is(html:not(.js), html.stills)`. Re-render the stills
+  whenever the world or the story changes. The world must never be required to read
+  the page.
+- **SEO**: canonical/OG/JSON-LD come from `Base.astro` props and `site` in
+  `astro.config.mjs`; keep every heading level meaningful (crawlers see only the DOM).
 
 ## 5. Verify every change by looking
 

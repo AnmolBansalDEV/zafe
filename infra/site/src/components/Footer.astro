@@ -1,0 +1,23 @@
+---
+// The footer every page shares: the mark and line, links, and what the site doesn't do.
+import { downloadUrl, sourceUrl, specUrl } from '../config';
+---
+
+<footer class="foot">
+  <div class="foot-top">
+    <p class="foot-brand"><img src="/assets/zafe.svg" alt="" width="52" height="52" /><span>Privacy,<br />held together.</span></p>
+    <ul>
+      <li><a href={downloadUrl} rel="noopener noreferrer">Android</a></li>
+      <li><a href="/showcase">Showcase</a></li>
+      <li><a href={sourceUrl} rel="noopener noreferrer">Source</a></li>
+      <li><a href={specUrl} rel="noopener noreferrer">Spec</a></li>
+      <li><a href="/#security">Security</a></li>
+      <li><a href={`${sourceUrl}/issues`} rel="noopener noreferrer">Support</a></li>
+    </ul>
+  </div>
+  <div class="foot-bottom">
+    <p>No cookies. No analytics.</p>
+    <p>Zafe, 2026</p>
+  </div>
+  <p class="ghost" aria-hidden="true">zafe</p>
+</footer>

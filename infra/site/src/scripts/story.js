@@ -22,8 +22,13 @@ if (!reduced) {
 }
 
 // ?world=always keeps the world on where it would be skipped (headless checks render
-// WebGL in software).
-const forceWorld = new URLSearchParams(location.search).get('world') === 'always';
+// WebGL in software). ?still is the capture mode for the fallback stills (stills.sh):
+// the world at full quality, the camera landing at once, the page's text hidden
+// (?still=page keeps it, for the social image).
+const params = new URLSearchParams(location.search);
+const still = params.has('still');
+const forceWorld = still || params.get('world') === 'always';
+if (still) document.documentElement.classList.add(params.get('still') === 'page' ? 'still-page' : 'still-capture');
 
 // WebGL on a GPU. A software renderer (no GPU, or hardware acceleration off) takes
 // seconds per frame here and freezes scrolling, so those visitors get the stills.
@@ -48,13 +53,21 @@ const hero = document.querySelector('.hero');
 const features = document.querySelector('.islands');
 const cta = document.querySelector('.cta-world');
 const covers = [...document.querySelectorAll('.faq, .foot')];
+// html.stills shows the fallback (rendered stills of the world); boot.js hides it on
+// every page with JS until this decides, so the world's visitors never fetch them.
+const showStills = () => {
+  document.documentElement.classList.remove('world-on');
+  document.documentElement.classList.add('stills');
+};
 if (canvas && story && features && cta && !reduced && hasGpuWebGL()) {
   // Fetch the app screens in parallel with the world's module, not after it.
   const screens = loadScreens();
   import('./world.js')
-    .then((m) => m.start({ canvas, story, hero, features, cta, covers, screens, forceWorld }))
+    .then((m) => m.start({ canvas, story, hero, features, cta, covers, screens, forceWorld, still, showStills }))
     .catch((err) => {
-      document.documentElement.classList.remove('world-on');
+      showStills();
       console.warn('world:', err);
     });
+} else {
+  showStills();
 }

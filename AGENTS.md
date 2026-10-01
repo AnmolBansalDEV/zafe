@@ -811,7 +811,10 @@ Learned while studying it:
   `adb shell "am start -a android.intent.action.VIEW -d 'zafe://join?invite=zafe-invite-v1:...'"`
   (quoted twice: the device shell splits it again; cold start: `adb shell am force-stop
   xyz.zafe.zafe` first).
-- **Website** (`infra/site/`, Astro 7, static): landing page `/` and invite page `/join`.
+- **Website** (`infra/site/`, Astro 7, static): a calm home page `/` (no JS; structured
+  like safe.global, `lp-*` classes), the 3D story on `/showcase` (keep heavy motion off
+  the home page: the user's call, a treasury product should feel sober), and the invite
+  page `/join`.
   The whole design/build/verify/ship flow is the project skill `.claude/skills/landing-page`
   (`frames.sh` + `sheet.py` capture a scroll section frame by frame into a contact sheet).
   Chose Astro over Next.js (Vizor's site) to keep a strict CSP with no inline code: the
@@ -824,7 +827,12 @@ Learned while studying it:
   the world on software renderers (and gives up at runtime if it stays under ~20 fps at
   its lowest quality), so screenshots of the world need `/?world=always`.
   Cache headers live in `public/_headers` (`/assets/...` blocks; `vercel-output.sh`
-  turns each into a Vercel route).
+  turns each into a Vercel route). The **static fallback** (no GPU, reduced motion, no
+  JS) shows stills of the world rendered by `infra/site/stills.sh` (capture mode
+  `/?still`; also writes the social image `og.png`); re-run it after changing the world
+  or the story. `public/assets/boot.js` adds `html.js` before the first paint so the
+  world's visitors never fetch the stills; anything only for the fallback goes under
+  `:is(html:not(.js), html.stills)`.
   **SEO** (`docs/seo.md`): the public origin is one value, `site` in `astro.config.mjs`
   (now the Vercel URL; change it with the custom domain); canonical, og:url/og:image,
   `sitemap.xml` and `robots.txt` (Astro endpoints in `src/pages/*.ts`) derive from it.

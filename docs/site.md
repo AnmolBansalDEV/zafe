@@ -3,6 +3,62 @@
 The landing page (`infra/site/src/pages/index.astro`) follows this brief. Keep it current
 when the page changes.
 
+## Decisions (2026-10-01, eleventh round): a calm home page, the 3D on /showcase
+
+The user, mid-way through the fallback work: "for a multisig website having such
+animations looks a bit odd", then "migrate the 3d animation to another page like showcase
+or something, so that it doesn't mess with the main page. then build the website like
+safe tailored to our rules here". Reasoning agreed on: treasurers judge trust (sober,
+honest about security, fast); the 3D story still explains multisig best, so it stays,
+one click away.
+- **`/showcase`** (`showcase.astro`) is the 3D page as it was (world, story, islands,
+  call to action from above, stills fallback), with its own hero ("One payment, start to
+  finish"), no FAQ or JSON-LD, nav back home. In the sitemap.
+- **`/` (index.astro, `body.home.landing`, `lp-*` classes)** follows safe.global's
+  order, to our rules: hero (headline left over the rendered vault still, "Get Zafe" +
+  "Watch it in 3D"); a facts strip instead of stats we don't have (shielded on Zcash,
+  FROST, open source, Tor built in); how it works in three steps (beat stills); four
+  feature cards (one tap, checked on every phone, invisible on-chain with the real tx,
+  private all the way); security in four plain pillars, the last saying "testnet only,
+  not audited"; a comparison (Zafe / on-chain multisig / single-key wallet, three
+  factual rows); FAQ; the call to action over the view from above; a shared footer.
+  No partner logos, testimonials or numbers: we have none.
+- **No JavaScript** on the home page (the JSON-LD block is data); motion is the CSS logo
+  intro and reveals on scroll timelines (none with reduced motion).
+- Shared pieces became components: `Nav.astro` (left links per page), `Footer.astro`;
+  `specUrl` lives in `config.ts`.
+- `vercel-output.sh` now serves every top-level page at its clean path (it only knew
+  `/join`; `/showcase` would have 404'd on Vercel).
+
+## Decisions (2026-10-01, tenth round): the static fallback in the new design, and SEO
+
+"Update the static fallback to match the new design." Visitors without the world (no
+GPU, reduced motion, **no JavaScript**: Tor Browser "Safest", a real share of this
+audience) saw the old dark/light phone split.
+- **Stills of the world itself**: `infra/site/stills.sh` renders the built site in a
+  capture mode (`/?still`: best quality, the camera lands at once, the page's text
+  hidden; `?still=page` keeps it) into `public/assets/stills/*.webp`: the hero (wide,
+  and tall for phones), five story beats, the three islands (rendered 1920 wide so the
+  whole island fits, then cropped) and the view from above. Re-run it when the world or
+  the story changes.
+- **Same layout**: the hero is asymmetric over its still (the same rules as the world);
+  the story becomes "How it works" with the five beats as rounded pictures, each caption
+  pill on its picture's lower edge; the island cards carry their island on top, in three
+  columns; the call to action sits over the view from above.
+- **Never fetched by the world's visitors**: `public/assets/boot.js` (blocking, in the
+  head) adds `html.js` before the first paint; `.still` shows only with
+  `:is(html:not(.js), html.stills)`, and `story.js` adds `stills` when it picks the
+  fallback (also on a load error or when the world gives up). Lazy images that stay
+  hidden are never requested.
+- **SEO** (side agent; `docs/seo.md`): canonical, Open Graph and Twitter tags,
+  JSON-LD (Organization, WebSite, MobileApplication, FAQPage from the page's own FAQ
+  list), sitemap and robots endpoints, favicons and manifest, title with search terms
+  (the tagline stays the H1 and the share title). The social image `public/assets/og.png`
+  is rendered by `stills.sh` too. The story got a heading ("How it works"; visually
+  hidden over the world) and the chain card's labels reach 4.5:1 contrast.
+- **Open**: the hero still appears only after the CSS intro (~1.5 s), which delays LCP;
+  a custom domain (then change `site` in `astro.config.mjs`).
+
 ## Decisions (2026-10-01, ninth round): performance
 
 The user asked to "optimize the website a bit for performance". Measured first (bundle

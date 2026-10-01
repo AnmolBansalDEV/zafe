@@ -2,8 +2,9 @@
 # Turns infra/site/dist (from build.sh) into Vercel's prebuilt output
 # (.vercel/output, Build Output API v3) for `vercel deploy --prebuilt`, so Vercel serves
 # exactly what build.sh made and never builds anything itself. Carries over what other
-# hosts get from public/_headers: the same response headers, /join served from
-# join.html, and JSON content types for .well-known.
+# hosts get from public/_headers: the same response headers, each page served at its
+# clean path (/join from join.html, /showcase from showcase.html), and JSON content types
+# for .well-known.
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -52,7 +53,18 @@ mkdir -p "$output"
 cp -R "$dist" "$output/static"
 rm -f "$output/static/_headers" "$output/static/.nojekyll"
 
-overrides='"join.html": { "path": "join", "contentType": "text/html; charset=utf-8" }'
+# Every top-level page but the home page is served at its clean path (/join, /showcase:
+# build.format 'file' writes join.html), with /name/ and /name.html redirecting there.
+overrides=''
+redirects=''
+for page in "$output"/static/*.html; do
+  name="$(basename "$page" .html)"
+  [[ "$name" == index ]] && continue
+  overrides+="${overrides:+, }\"$name.html\": { \"path\": \"$name\", \"contentType\": \"text/html; charset=utf-8\" }"
+  redirects+="    { \"src\": \"^/$name/\$\", \"status\": 308, \"headers\": { \"Location\": \"/$name\" } },
+    { \"src\": \"^/$name\\\\.html\$\", \"status\": 308, \"headers\": { \"Location\": \"/$name\" } },
+"
+done
 for f in assetlinks.json apple-app-site-association; do
   if [[ -f "$output/static/.well-known/$f" ]]; then
     overrides+=", \".well-known/$f\": { \"contentType\": \"application/json\" }"
@@ -63,9 +75,7 @@ cat > "$output/config.json" <<EOF
 {
   "version": 3,
   "routes": [
-    { "src": "^/join/$", "status": 308, "headers": { "Location": "/join" } },
-    { "src": "^/join\\\\.html$", "status": 308, "headers": { "Location": "/join" } },
-    { "src": "^/(.*)$", "headers": { $headers_json }, "continue": true }$asset_routes,
+$redirects    { "src": "^/(.*)$", "headers": { $headers_json }, "continue": true }$asset_routes,
     { "src": "^/\\\\.well-known/(.*)$", "headers": { "Cache-Control": "public, max-age=300" }, "continue": true },
     { "handle": "filesystem" }
   ],

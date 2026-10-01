@@ -148,7 +148,7 @@ function zBars(segments, material) {
 
 // ---------------------------------------------------------------------------- scene
 
-export async function start({ canvas, story, hero, features, cta, covers, screens, forceWorld = false }) {
+export async function start({ canvas, story, hero, features, cta, covers, screens, forceWorld = false, still = false, showStills = () => {} }) {
   // story.js starts fetching the screens while this module downloads.
   const images = await (screens ?? loadScreens());
 
@@ -164,7 +164,7 @@ export async function start({ canvas, story, hero, features, cta, covers, screen
     { dpr: 1, msaa: 0 },
     { dpr: 0.75, msaa: 0 },
   ];
-  let level = mobile ? 2 : 0;
+  let level = still || !mobile ? 0 : 2;
   canvas.dataset.quality = String(level);
   let settleUntil = performance.now() + 2000; // adapt() ignores frames until then
   renderer.setPixelRatio(LEVELS[level].dpr);
@@ -688,6 +688,7 @@ export async function start({ canvas, story, hero, features, cta, covers, screen
     settleUntil = performance.now() + 1000;
   });
   function adapt(now, ms) {
+    if (still) return; // capture mode keeps the best quality however slow
     if (now < settleUntil) {
       winMs = 0;
       winFrames = 0;
@@ -723,6 +724,7 @@ export async function start({ canvas, story, hero, features, cta, covers, screen
     const now = performance.now();
     adapt(now, now - last);
     const dt = Math.min(0.05, (now - last) / 1000);
+    const camDt = still ? 1 : dt; // capture mode: the camera lands at once
     last = now;
     const time = (now - t0) / 1000;
 
@@ -730,12 +732,12 @@ export async function start({ canvas, story, hero, features, cta, covers, screen
     const u = clamp01(S.cam / (CAM.length - 1));
     camPos.getPoint(u, vA);
     camTarget.getPoint(u, vB);
-    cur.pos.x = damp(cur.pos.x, vA.x, 5, dt);
-    cur.pos.y = damp(cur.pos.y, vA.y, 5, dt);
-    cur.pos.z = damp(cur.pos.z, vA.z, 5, dt);
-    cur.target.x = damp(cur.target.x, vB.x, 5, dt);
-    cur.target.y = damp(cur.target.y, vB.y, 5, dt);
-    cur.target.z = damp(cur.target.z, vB.z, 5, dt);
+    cur.pos.x = damp(cur.pos.x, vA.x, 5, camDt);
+    cur.pos.y = damp(cur.pos.y, vA.y, 5, camDt);
+    cur.pos.z = damp(cur.pos.z, vA.z, 5, camDt);
+    cur.target.x = damp(cur.target.x, vB.x, 5, camDt);
+    cur.target.y = damp(cur.target.y, vB.y, 5, camDt);
+    cur.target.z = damp(cur.target.z, vB.z, 5, camDt);
     tilt.x = damp(tilt.x, px, 3, dt);
     tilt.y = damp(tilt.y, py, 3, dt);
     camera.position.copy(cur.pos);
@@ -743,8 +745,8 @@ export async function start({ canvas, story, hero, features, cta, covers, screen
     camera.position.y -= tilt.y * 0.6;
     camera.lookAt(cur.target);
     // The hero leaves the top of the screen to the headline: shift the frame down.
-    cur.frameY = damp(cur.frameY, portrait ? S.frameY + 0.26 * S.frameX / 0.2 + S.portraitY : S.frameY, 4, dt);
-    cur.frameX = damp(cur.frameX, portrait ? 0 : S.frameX, 4, dt);
+    cur.frameY = damp(cur.frameY, portrait ? S.frameY + 0.26 * S.frameX / 0.2 + S.portraitY : S.frameY, 4, camDt);
+    cur.frameX = damp(cur.frameX, portrait ? 0 : S.frameX, 4, camDt);
     const fw = renderer.domElement.clientWidth;
     const fh = renderer.domElement.clientHeight;
     camera.setViewOffset(fw, fh, -fw * cur.frameX, -fh * cur.frameY, fw, fh);
@@ -1016,7 +1018,7 @@ export async function start({ canvas, story, hero, features, cta, covers, screen
     }
     composer.dispose();
     renderer.dispose();
-    document.documentElement.classList.remove('world-on');
+    showStills();
     canvas.dataset.quality = 'off';
     ScrollTrigger.refresh();
   }

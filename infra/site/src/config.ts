@@ -3,6 +3,7 @@ const repo = 'https://github.com/AnmolBansalDEV/zafe';
 
 export const downloadUrl = process.env.ZAFE_DOWNLOAD_URL || `${repo}/releases`;
 export const sourceUrl = process.env.ZAFE_SOURCE_URL || repo;
+export const specUrl = `${sourceUrl}/blob/main/spec.md`;
 
 // Shared by every page's social tags (Base.astro). The image is 1200x630, same-origin.
 export const siteName = 'Zafe';

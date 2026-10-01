@@ -1,0 +1,22 @@
+---
+// The nav: page links either side of the mark, the mark exactly centred (the intro lands
+// on it). `links` are the left-hand ones, which differ per page.
+import Mark from './Mark.astro';
+import { downloadUrl, sourceUrl } from '../config';
+
+interface Props {
+  links: { href: string; label: string }[];
+}
+const { links } = Astro.props;
+---
+
+<header class="nav">
+  <nav class="nav-side left" aria-label="Page">
+    {links.map((l) => <a href={l.href}>{l.label}</a>)}
+  </nav>
+  <a class="nav-logo" href="/" aria-label="Zafe home"><Mark /></a>
+  <nav class="nav-side right" aria-label="Links">
+    <a href={sourceUrl} rel="noopener noreferrer">Source</a>
+    <a href={downloadUrl} rel="noopener noreferrer">Get Zafe</a>
+  </nav>
+</header>

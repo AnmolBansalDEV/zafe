@@ -2,7 +2,7 @@
 // noindex (invite page) and stays out. Add a page here when one is added to the site.
 import type { APIRoute } from 'astro';
 
-const pages = ['/'];
+const pages = ['/', '/showcase'];
 
 export const GET: APIRoute = ({ site }) => {
   if (!site) throw new Error('set `site` in astro.config.mjs');
