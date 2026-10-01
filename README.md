@@ -1,6 +1,6 @@
 # Zafe
 
-**A Safe-style multisig for shielded Zcash.** A group of members jointly controls one
+**A shared vault for shielded Zcash.** A group of members jointly controls one
 shielded address; any member can see the balance, propose a payment and approve it, and
 a payment goes out only when **t of the N** members sign.
 

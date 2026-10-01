@@ -187,9 +187,15 @@ Open
   - [x] Domain: **zafe.cash** (Spaceship, registered 2026-10-01, expires 2027-10-01;
         move to Cloudflare Registrar after the 60-day lock for the cheaper renewal);
         `site` points at it
-  - [ ] **(you)** Point zafe.cash at the Vercel project (apex + www), email (hello@,
-        security@), then the release certificate fingerprint
-        (`ZAFE_ANDROID_CERT_SHA256`) and `ZAFE_LINK_HOST=zafe.cash` repository variables
+  - [x] zafe.cash serves the Vercel project (www → apex); Cloudflare Email Routing
+        forwards every `@zafe.cash` address; `/.well-known/security.txt`
+  - [x] Release upload key made 2026-10-01 (RSA 4096, alias `zafe`, cert SHA-256
+        `D8:A2:F2:C1:…:F6:9C`); repository variables `ZAFE_ANDROID_CERT_SHA256` and
+        `ZAFE_LINK_HOST=zafe.cash` set; zafe.cash serves `assetlinks.json` (Google's
+        statements API returns it)
+  - [ ] **(you)** Back up the upload key and its password in a password manager, set
+        the four `ANDROID_*` signing secrets (`docs/releasing.md`), and add Play's
+        app-signing fingerprint to `ZAFE_ANDROID_CERT_SHA256` if the app goes on Play
   - [x] SEO pass (2026-10-01, `docs/seo.md`): canonical/OG/Twitter tags, JSON-LD,
         sitemap.xml + robots.txt from `site`, favicons + manifest
   - [ ] SEO follow-ups (`docs/seo.md` "Open"): change `site` with the domain and add it
