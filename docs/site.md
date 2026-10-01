@@ -3,6 +3,28 @@
 The landing page (`infra/site/src/pages/index.astro`) follows this brief. Keep it current
 when the page changes.
 
+## Decisions (2026-10-01, eighth round): islands, the view from above, pointer and text
+
+- **Features are islands in the same world** (the dark feature panel, the "idea" line
+  and the closing card are gone). After "Sent." the camera follows floor channels on to
+  three islands, one card each on the left (`.islands`, `data-island` set by the
+  timeline): *Checked on every phone* (the review screen, a scan beam, badges),
+  *Invisible on-chain* (glass blocks of identical tokens; a gold coin turns grey inside;
+  the real testnet record on the card), *Private all the way* (arches lit by a passing
+  packet, a sealed backup).
+- **The call to action looks down on the vault**; a big Z lights in the floor around it
+  and the card sits low so the mark reads above it. The world pauses only while the FAQ
+  or footer covers the whole screen.
+- **Pointer companion** (src/scripts/ui.js): the native cursor stays; on fine pointers
+  without reduced motion the upper half of the Seam follows it, with a "Scroll" label
+  over the scenes. On a "Get Zafe" pill the lower half slides in and the mark is whole,
+  and the pill leans toward the pointer. `?pointer=fine` forces it on for headless
+  checks.
+- **Text**: headings rise word by word from a mask; two "unshield" scrambles only (the
+  proposal caption, the encrypted chain fields); an approvals counter (0, 1, 2 "of 2
+  approvals") rolls as the shards seat. Custom splitter, not SplitText: no plugin, and
+  it only sets transforms and text through the DOM, which the CSP allows.
+
 ## Decisions (2026-10-01, seventh round): the Seam Vault world
 
 Feedback on round six: make the whole site canvas-like, bigger phones, the dark/light
@@ -31,8 +53,6 @@ tooling routes) fed the plan; the user then allowed loading files (`connect-src 
   postprocessing 6.39.5 (bloom on emissive seams and gold, grain, vignette), GSAP 3.15
   ScrollTrigger (one scrubbed timeline), Lenis 1.3 advanced by GSAP's ticker and feeding
   ScrollTrigger. Phone screens redraw only when their state changes.
-- **Next**: feature islands and a top-down CTA in the same world; the pointer companion
-  and text animation (research recommendations in the notes above).
 
 ## Decisions (2026-10-01, sixth round): the scroll story
 

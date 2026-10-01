@@ -31,6 +31,7 @@ const S = {
   cam: 0, // position along the camera path (0 .. CAM.length - 1)
   frameY: 0.02, // how far down the frame the world sits
   frameX: 0.25, // how far right (the hero's headline is on the left)
+  portraitY: 0, // portrait only: extra shift (negative lifts the world above bottom cards)
   ghost: 0, lone: 0, leak: 0.8,
   shardsUp: 0, // shards rise out of the phones
   pulse: 0, // the floor pulse from Bob to the others
@@ -579,9 +580,10 @@ export async function start({ canvas, story, hero, features, cta, covers }) {
   let camPos = null;
   let camTarget = null;
   function buildCamera(portrait) {
-    const pos = CAM.map(([p, t]) => {
+    // Portrait pulls the wide shots back, and the islands (12-14), which are wide.
+    const pos = CAM.map(([p, t], i) => {
       const d = p.distanceTo(t);
-      return d > 14 && portrait ? t.clone().add(p.clone().sub(t).multiplyScalar(1.55)) : p;
+      return portrait && (d > 14 || (i >= 12 && i <= 14)) ? t.clone().add(p.clone().sub(t).multiplyScalar(i >= 12 && i <= 14 ? 1.7 : 1.55)) : p;
     });
     camPos = new THREE.CatmullRomCurve3(pos, false, 'centripetal');
     camTarget = new THREE.CatmullRomCurve3(CAM.map((c) => c[1]), false, 'centripetal');
@@ -685,11 +687,15 @@ export async function start({ canvas, story, hero, features, cta, covers }) {
     camera.position.y -= tilt.y * 0.6;
     camera.lookAt(cur.target);
     // The hero leaves the top of the screen to the headline: shift the frame down.
-    cur.frameY = damp(cur.frameY, portrait ? S.frameY + 0.26 * S.frameX / 0.2 : S.frameY, 4, dt);
+    cur.frameY = damp(cur.frameY, portrait ? S.frameY + 0.26 * S.frameX / 0.2 + S.portraitY : S.frameY, 4, dt);
     cur.frameX = damp(cur.frameX, portrait ? 0 : S.frameX, 4, dt);
     const fw = renderer.domElement.clientWidth;
     const fh = renderer.domElement.clientHeight;
     camera.setViewOffset(fw, fh, -fw * cur.frameX, -fh * cur.frameY, fw, fh);
+    // Haze relative to what the camera looks at, so far framings (from above) aren't fogged out.
+    const look = cur.pos.distanceTo(cur.target);
+    scene.fog.near = Math.max(30, look + 5);
+    scene.fog.far = scene.fog.near + 30;
 
     // Phones face the camera (yaw only), float a little.
     for (const [i, p] of [bob, me, cara, checker].entries()) {
@@ -895,11 +901,13 @@ export async function start({ canvas, story, hero, features, cta, covers }) {
   story.dataset.beat = '0';
 
   // Features: on to the islands, the cards follow data-island.
+  // One timeline from the islands through the call to action, so a single scrub writes
+  // the camera (two scrubbed triggers on the same props race after a fast scroll).
   const ft = gsap.timeline({
     defaults: { ease: 'power2.inOut', immediateRender: false },
-    scrollTrigger: { trigger: features, start: 'top bottom', end: 'bottom bottom', scrub: 1 },
+    scrollTrigger: { trigger: features, start: 'top bottom', endTrigger: cta, end: 'bottom bottom', scrub: 1 },
   });
-  ft.fromTo(S, { cam: 11, frameX: 0 }, { cam: 12, frameX: 0.2, duration: 6 }, 0);
+  ft.fromTo(S, { cam: 11, frameX: 0, portraitY: 0 }, { cam: 12, frameX: 0.2, portraitY: -0.5, duration: 6 }, 0);
   ft.fromTo(S, { fpulse: 0 }, { fpulse: 0.36, duration: 6 }, 0);
   ft.fromTo(S, { i1: 0 }, { i1: 1, duration: 4 }, 4);
   ft.fromTo(S, { cam: 12 }, { cam: 13, duration: 6 }, 12);
@@ -921,13 +929,10 @@ export async function start({ canvas, story, hero, features, cta, covers }) {
     }
   });
 
-  // The call to action: up above the vault; the floor Z lights.
-  const ct = gsap.timeline({
-    defaults: { ease: 'power2.inOut', immediateRender: false },
-    scrollTrigger: { trigger: cta, start: 'top bottom', end: 'bottom bottom', scrub: 1 },
-  });
-  ct.fromTo(S, { cam: 14, frameX: 0.2, frameY: 0.02, ctaZ: 0 }, { cam: 15, frameX: 0, frameY: -0.16, ctaZ: 1, duration: 6 }, 0);
-  ct.to({}, { duration: 2 }, 6);
+  // The call to action: up above the vault; the floor Z lights. Islands take 34 units
+  // over 520vh, so the CTA's 220vh is 14.4: the move, then a hold.
+  ft.fromTo(S, { cam: 14, frameX: 0.2, frameY: 0.02, portraitY: -0.5, ctaZ: 0 }, { cam: 15, frameX: 0, frameY: -0.1, portraitY: -0.06, ctaZ: 1, duration: 10.8 }, 34);
+  ft.to({}, { duration: 3.6 }, 44.8);
 
   // Render unless an opaque section (FAQ, footer) covers the whole screen.
   const covered = () =>
