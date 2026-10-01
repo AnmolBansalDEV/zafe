@@ -24,7 +24,7 @@ use std::{
 
 use axum::{
     body::Bytes,
-    extract::{ConnectInfo, DefaultBodyLimit, Request, State},
+    extract::{ConnectInfo, DefaultBodyLimit, Extension, Request, State},
     http::StatusCode,
     middleware::{self, Next},
     response::{IntoResponse, Response},
@@ -87,10 +87,15 @@ pub struct Relay {
     notifier: Arc<dyn Notifier>,
     per_key: Option<Arc<Buckets<[u8; 32]>>>,
     per_ip: Option<Arc<Buckets<std::net::IpAddr>>>,
+    creates_per_ip: Option<Arc<Buckets<std::net::IpAddr>>>,
     client_ip_header: Option<String>,
     quotas: Quotas,
     waiters: Arc<Waiters>,
 }
+
+/// The client address `limit_ip` found for a request (None: unknown, e.g. in tests).
+#[derive(Clone, Copy)]
+struct ClientIp(Option<std::net::IpAddr>);
 
 #[derive(Debug, thiserror::Error)]
 pub enum RelayError {
@@ -205,6 +210,7 @@ CREATE TABLE IF NOT EXISTS deliveries (
     PRIMARY KEY (mailbox, cursor)
 );
 CREATE INDEX IF NOT EXISTS deliveries_by_recipient ON deliveries (mailbox, recipient, cursor);
+CREATE INDEX IF NOT EXISTS mailboxes_by_creator ON mailboxes (creator);
 CREATE TABLE IF NOT EXISTS sender_seqs (
     mailbox BLOB NOT NULL,
     sender BLOB NOT NULL,
@@ -289,6 +295,7 @@ impl Relay {
             notifier: Arc::new(LogNotifier),
             per_key: None,
             per_ip: None,
+            creates_per_ip: None,
             client_ip_header: None,
             quotas: Quotas::none(),
             waiters: Arc::new(Waiters::new(
@@ -338,6 +345,7 @@ impl Relay {
     pub fn with_limits(mut self, limits: Limits) -> Self {
         self.per_key = limits.per_key.map(|r| Arc::new(Buckets::new(r)));
         self.per_ip = limits.per_ip.map(|r| Arc::new(Buckets::new(r)));
+        self.creates_per_ip = limits.creates_per_ip.map(|r| Arc::new(Buckets::daily(r)));
         self.client_ip_header = limits.client_ip_header;
         self
     }
@@ -390,6 +398,9 @@ impl Relay {
             b.prune(self.now());
         }
         if let Some(b) = &self.per_ip {
+            b.prune(self.now());
+        }
+        if let Some(b) = &self.creates_per_ip {
             b.prune(self.now());
         }
         let cutoff = self.now().saturating_sub(DELIVERY_RETENTION_SECS) as i64;
@@ -552,20 +563,20 @@ where
     Ok(signed)
 }
 
-/// Per-IP limit on every route (health checks included).
-async fn limit_ip(State(relay): State<Relay>, request: Request, next: Next) -> Response {
-    if let Some(buckets) = &relay.per_ip {
-        let peer = request
-            .extensions()
-            .get::<ConnectInfo<std::net::SocketAddr>>()
-            .map(|c| c.0.ip());
-        let ip = limits::client_ip(request.headers(), relay.client_ip_header.as_deref(), peer);
-        if let Some(ip) = ip {
-            if let Err(secs) = buckets.take(ip, relay.now()) {
-                return RelayError::RateLimited(secs).into_response();
-            }
+/// Per-IP limit on every route (health checks included). Also hands the address to the
+/// handlers ([`ClientIp`]) for the mailbox creation limit.
+async fn limit_ip(State(relay): State<Relay>, mut request: Request, next: Next) -> Response {
+    let peer = request
+        .extensions()
+        .get::<ConnectInfo<std::net::SocketAddr>>()
+        .map(|c| c.0.ip());
+    let ip = limits::client_ip(request.headers(), relay.client_ip_header.as_deref(), peer);
+    if let (Some(buckets), Some(ip)) = (&relay.per_ip, ip) {
+        if let Err(secs) = buckets.take(ip, relay.now()) {
+            return RelayError::RateLimited(secs).into_response();
         }
     }
+    request.extensions_mut().insert(ClientIp(ip));
     next.run(request).await
 }
 
@@ -575,11 +586,20 @@ fn ok<T: serde::Serialize>(value: &T) -> RelayResult {
 
 // --- Handlers ----------------------------------------------------------------------------
 
-async fn create(State(relay): State<Relay>, body: Bytes) -> RelayResult {
+async fn create(
+    State(relay): State<Relay>,
+    Extension(ClientIp(ip)): Extension<ClientIp>,
+    body: Bytes,
+) -> RelayResult {
     let req = verified::<CreateMailbox>(&relay, &body)?;
     let p = &req.payload;
     if p.max_members < 2 {
         return Err(RelayError::BadRequest);
+    }
+    if let (Some(buckets), Some(ip)) = (&relay.creates_per_ip, ip) {
+        buckets
+            .take(ip, relay.now())
+            .map_err(RelayError::RateLimited)?;
     }
     let mut db = relay.db.lock().expect("lock");
     let tx = db.transaction()?;
@@ -596,6 +616,18 @@ async fn create(State(relay): State<Relay>, body: Bytes) -> RelayResult {
     )?;
     if inserted == 0 {
         return Err(RelayError::Exists);
+    }
+    // Counted after the insert, so retrying an existing mailbox still answers Exists;
+    // over the cap, dropping the transaction undoes the insert.
+    if let Some(max) = relay.quotas.mailboxes_per_key {
+        let created: i64 = tx.query_row(
+            "SELECT COUNT(*) FROM mailboxes WHERE creator = ?1",
+            params![&req.signer.sig_pk[..]],
+            |r| r.get(0),
+        )?;
+        if created as u64 > max {
+            return Err(RelayError::QuotaExceeded(Quota::Mailboxes));
+        }
     }
     tx.execute(
         "INSERT INTO members (mailbox, sig_pk, enc_pk) VALUES (?1, ?2, ?3)",

@@ -3,6 +3,8 @@
 //! Keys are only charged after their signature verified, so nobody can drain another
 //! member's bucket. The IP limit catches floods of unauthenticated requests; behind a proxy
 //! it uses the client address the proxy reports (see [`Limits::client_ip_header`]).
+//! Creating a mailbox is free and keys cost nothing to make, so creations have their own,
+//! much slower per-IP bucket ([`Limits::creates_per_ip`]).
 
 use std::{collections::HashMap, hash::Hash, net::IpAddr, sync::Mutex};
 
@@ -19,6 +21,19 @@ impl Rate {
     }
 }
 
+/// Events per day and burst size of one bucket (for rare actions such as creating a mailbox).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DailyRate {
+    pub per_day: u32,
+    pub burst: u32,
+}
+
+impl DailyRate {
+    pub const fn new(per_day: u32, burst: u32) -> Self {
+        Self { per_day, burst }
+    }
+}
+
 /// Relay limits. `None` rates are unlimited (tests, self-hosting on a trusted network).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Limits {
@@ -27,6 +42,8 @@ pub struct Limits {
     pub per_key: Option<Rate>,
     /// Per client IP (many members can share one address behind NAT).
     pub per_ip: Option<Rate>,
+    /// Mailboxes (vaults) created per client IP. Each vault is created once, by one member.
+    pub creates_per_ip: Option<DailyRate>,
     /// Header holding the client address when the relay runs behind a proxy (e.g.
     /// `fly-client-ip`, or `x-forwarded-for` behind Caddy, whose rightmost entry is the
     /// one the proxy added). `None`: the TCP peer address. Never trust a header a client
@@ -40,6 +57,7 @@ impl Limits {
         Self {
             per_key: None,
             per_ip: None,
+            creates_per_ip: None,
             client_ip_header: None,
         }
     }
@@ -49,6 +67,7 @@ impl Limits {
         Self {
             per_key: Some(Rate::new(300, 150)),
             per_ip: Some(Rate::new(1200, 600)),
+            creates_per_ip: Some(DailyRate::new(20, 10)),
             client_ip_header: None,
         }
     }
@@ -56,14 +75,24 @@ impl Limits {
 
 /// Token buckets keyed by `K`, refilled from a clock in seconds.
 pub(crate) struct Buckets<K> {
-    rate: Rate,
+    per_sec: f64,
+    burst: f64,
     state: Mutex<HashMap<K, (f64, u64)>>,
 }
 
 impl<K: Eq + Hash> Buckets<K> {
     pub(crate) fn new(rate: Rate) -> Self {
+        Self::with(f64::from(rate.per_minute) / 60.0, rate.burst)
+    }
+
+    pub(crate) fn daily(rate: DailyRate) -> Self {
+        Self::with(f64::from(rate.per_day) / 86_400.0, rate.burst)
+    }
+
+    fn with(per_sec: f64, burst: u32) -> Self {
         Self {
-            rate,
+            per_sec,
+            burst: f64::from(burst.max(1)),
             state: Mutex::new(HashMap::new()),
         }
     }
@@ -71,8 +100,7 @@ impl<K: Eq + Hash> Buckets<K> {
     /// Takes one token for `key` at time `now` (seconds). On `Err`, the seconds until one
     /// token is available again.
     pub(crate) fn take(&self, key: K, now: u64) -> Result<(), u64> {
-        let per_sec = f64::from(self.rate.per_minute) / 60.0;
-        let burst = f64::from(self.rate.burst.max(1));
+        let (per_sec, burst) = (self.per_sec, self.burst);
         let mut state = self.state.lock().expect("lock");
         let (tokens, last) = state.entry(key).or_insert((burst, now));
         *tokens = (*tokens + now.saturating_sub(*last) as f64 * per_sec).min(burst);
@@ -89,8 +117,7 @@ impl<K: Eq + Hash> Buckets<K> {
 
     /// Drops buckets that have refilled completely (idle keys), so memory stays bounded.
     pub(crate) fn prune(&self, now: u64) {
-        let per_sec = f64::from(self.rate.per_minute) / 60.0;
-        let burst = f64::from(self.rate.burst.max(1));
+        let (per_sec, burst) = (self.per_sec, self.burst);
         self.state
             .lock()
             .expect("lock")
@@ -146,6 +173,18 @@ mod tests {
             assert!(b.take("k", 10_000).is_ok());
         }
         assert!(b.take("k", 10_000).is_err());
+    }
+
+    #[test]
+    fn daily_bucket_refills_slowly() {
+        let b = Buckets::daily(DailyRate::new(24, 2));
+        assert!(b.take("ip", 0).is_ok());
+        assert!(b.take("ip", 0).is_ok());
+        // 24 a day is one an hour.
+        assert!(matches!(b.take("ip", 0), Err(3600..=3601)));
+        assert!(matches!(b.take("ip", 1800), Err(1800..=1801)));
+        assert!(b.take("ip", 3600).is_ok());
+        assert!(b.take("ip", 3600).is_err());
     }
 
     #[test]

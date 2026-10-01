@@ -1,7 +1,7 @@
 //! Storage quotas for the hosted relay: how much one mailbox (vault) may keep.
 //!
 //! Rate limits ([`crate::limits`]) bound how fast a member can write; quotas bound how
-//! much a vault can accumulate. Three caps, each `None` = unlimited:
+//! much a vault can accumulate. Four caps, each `None` = unlimited:
 //!
 //! - **Undelivered envelopes per recipient** (count). Deliveries stay until
 //!   [`crate::Relay::prune`] drops them after [`crate::DELIVERY_RETENTION_SECS`], so this
@@ -11,6 +11,8 @@
 //! - **Log bytes per mailbox**: the vault log is kept forever, so this cap is generous and
 //!   only stops a runaway or hostile member; each entry is already at most
 //!   [`crate::MAX_BODY_BYTES`].
+//! - **Mailboxes per signing key**: creating a mailbox is free, so one key can't create
+//!   more than a few (an indexed count on `mailboxes.creator`).
 //!
 //! A write that would go over a cap is refused whole with
 //! [`crate::RelayError::QuotaExceeded`] (HTTP 507 Insufficient Storage): nothing is
@@ -31,6 +33,8 @@ pub enum Quota {
     Deliveries,
     /// The mailbox's vault log takes too many bytes.
     Log,
+    /// The signing key already created too many mailboxes.
+    Mailboxes,
 }
 
 impl Quota {
@@ -39,6 +43,7 @@ impl Quota {
             Quota::Inbox => "a member's inbox is full",
             Quota::Deliveries => "the vault's undelivered messages are over the size limit",
             Quota::Log => "the vault log is over the size limit",
+            Quota::Mailboxes => "this key has created too many vaults on this relay",
         }
     }
 }
@@ -58,6 +63,10 @@ pub struct Quotas {
     pub delivery_bytes: Option<u64>,
     /// Total bytes of one mailbox's vault log.
     pub log_bytes: Option<u64>,
+    /// Mailboxes one signing key may create (counted from the table, so it holds across
+    /// restarts). The app uses a fresh key per vault, so one is the norm; the per-IP
+    /// creation limit ([`crate::limits::Limits::creates_per_ip`]) bounds new keys.
+    pub mailboxes_per_key: Option<u64>,
 }
 
 const MIB: u64 = 1024 * 1024;
@@ -69,6 +78,7 @@ impl Quotas {
             envelopes_per_recipient: None,
             delivery_bytes: None,
             log_bytes: None,
+            mailboxes_per_key: None,
         }
     }
 
@@ -82,6 +92,7 @@ impl Quotas {
             envelopes_per_recipient: Some(10_000),
             delivery_bytes: Some(256 * MIB),
             log_bytes: Some(512 * MIB),
+            mailboxes_per_key: Some(8),
         }
     }
 }

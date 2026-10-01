@@ -32,6 +32,10 @@ Runtime contract (both paths):
   `fly-client-ip`, already in `fly.toml`; Caddy: `x-forwarded-for`, in the systemd unit),
   or every client shares the proxy's address. Never point it at a header clients can set
   directly.
+- Creating a vault (mailbox) is free, so creations are capped too: 20 a day per client
+  IP (burst 10; `429`), and 8 per signing key (`507`; the app uses a fresh key per
+  vault, so one is normal). Tune with `ZAFE_RELAY_CREATES_PER_DAY` and
+  `ZAFE_RELAY_MAX_VAULTS_PER_KEY` (`0` = off).
 - Request bodies are capped at 1 MiB (`413` above it).
 - Long polls (`POST /v1/wait`): an open app holds one request for up to **25 s** so other
   members' activity reaches it at once. Any proxy in front must let a response take

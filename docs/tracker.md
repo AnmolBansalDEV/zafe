@@ -152,11 +152,12 @@ Open
       `zafe-core/tests/relay_wait.rs`, `app/rust/tests/vault_watch.rs`,
       `app/test/live_vault_watch_test.dart`. Not yet checked on a device. *(idea)* the
       leader's share collection (inbox polled twice a second) could use the same wait
-- [ ] Relay follow-ups: off-site backups (Litestream) *(idea)*; a cap on mailboxes
-      created per key/IP (creation is free, so quotas per mailbox don't bound the whole
-      DB). Done: dead FCM tokens (404 `UNREGISTERED`) are deleted
-      (`FcmNotifier::on_unregistered` → `Relay::forget_push_token`); storage quotas (see
-      below)
+- [ ] Relay follow-ups: off-site backups (Litestream) *(idea)*. Done: dead FCM tokens
+      (404 `UNREGISTERED`) are deleted (`FcmNotifier::on_unregistered` →
+      `Relay::forget_push_token`); storage quotas (see below); a cap on mailboxes created
+      (2026-10-01): 20/day per client IP (`Limits::creates_per_ip`, 429) and 8 per signing
+      key (`Quotas::mailboxes_per_key`, 507, counted on an index of `mailboxes.creator`);
+      env `ZAFE_RELAY_CREATES_PER_DAY` / `ZAFE_RELAY_MAX_VAULTS_PER_KEY`
 - [x] Invite by link: `zafe://join?invite=...` custom scheme (see Next up 5)
 - [x] Universal/App Links (`https://…/join#invite`) so a link works for people without
       Zafe installed (2026-10-01): build-time `ZAFE_LINK_HOST` (unset → invites stay

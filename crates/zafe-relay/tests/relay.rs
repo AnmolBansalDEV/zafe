@@ -645,6 +645,100 @@ async fn client_addresses_are_rate_limited() {
     );
 }
 
+fn create_request(who: &Identity, mailbox: [u8; 16]) -> Vec<u8> {
+    Signed::new(
+        who,
+        CreateMailbox {
+            mailbox,
+            join_token_hash: join_token_hash(&[3; 32]),
+            max_members: 3,
+        },
+    )
+    .unwrap()
+    .to_bytes()
+    .unwrap()
+}
+
+#[tokio::test]
+async fn mailbox_creation_is_limited_per_address() {
+    use zafe_relay::limits::{DailyRate, Limits};
+    let app = limited(Limits {
+        creates_per_ip: Some(DailyRate::new(24, 2)),
+        client_ip_header: Some("fly-client-ip".into()),
+        ..Limits::none()
+    });
+    let mut rng = StdRng::seed_from_u64(11);
+    let mut create = |ip: &'static str, n: u8| {
+        // A fresh key each time, as the app makes per vault.
+        let who = Identity::generate(&mut rng);
+        app.clone().oneshot(
+            Request::post("/v1/mailbox/create")
+                .header("fly-client-ip", ip)
+                .body(Body::from(create_request(&who, [n; 16])))
+                .unwrap(),
+        )
+    };
+    assert_eq!(
+        create("203.0.113.1", 1).await.unwrap().status(),
+        StatusCode::OK
+    );
+    assert_eq!(
+        create("203.0.113.1", 2).await.unwrap().status(),
+        StatusCode::OK
+    );
+    let refused = create("203.0.113.1", 3).await.unwrap();
+    assert_eq!(refused.status(), StatusCode::TOO_MANY_REQUESTS);
+    // 24 a day: the next one is about an hour away.
+    let retry: u64 = refused.headers()["retry-after"]
+        .to_str()
+        .unwrap()
+        .parse()
+        .unwrap();
+    assert!((3600..=3601).contains(&retry), "retry after {retry}");
+    // Another address has its own allowance; other requests aren't affected.
+    assert_eq!(
+        create("203.0.113.2", 4).await.unwrap().status(),
+        StatusCode::OK
+    );
+    let health = app
+        .clone()
+        .oneshot(
+            Request::get("/health")
+                .header("fly-client-ip", "203.0.113.1")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(health.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn one_key_can_create_only_a_few_mailboxes() {
+    use zafe_relay::quota::Quotas;
+    let app = Relay::with_clock(Arc::new(|| NOW))
+        .with_quotas(Quotas {
+            mailboxes_per_key: Some(2),
+            ..Quotas::none()
+        })
+        .router();
+    let alice = Identity::generate(&mut StdRng::seed_from_u64(12));
+    for n in 1..=2 {
+        let (status, _) = call(&app, "/v1/mailbox/create", create_request(&alice, [n; 16])).await;
+        assert_eq!(status, StatusCode::OK);
+    }
+    // Retrying an existing mailbox still says it exists, not over quota.
+    let (status, _) = call(&app, "/v1/mailbox/create", create_request(&alice, [1; 16])).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    let (status, body) = call(&app, "/v1/mailbox/create", create_request(&alice, [3; 16])).await;
+    assert_eq!(status, StatusCode::INSUFFICIENT_STORAGE);
+    assert!(String::from_utf8_lossy(&body).contains("too many vaults"));
+    // The refused mailbox wasn't kept: another key can create it.
+    let bob = Identity::generate(&mut StdRng::seed_from_u64(13));
+    let (status, _) = call(&app, "/v1/mailbox/create", create_request(&bob, [3; 16])).await;
+    assert_eq!(status, StatusCode::OK);
+}
+
 #[tokio::test]
 async fn oversized_bodies_are_refused() {
     let app = Relay::with_clock(Arc::new(|| NOW)).router();
