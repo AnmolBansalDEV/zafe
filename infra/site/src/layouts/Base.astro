@@ -1,17 +1,30 @@
 ---
-// Every page: CSP meta, fonts, the one stylesheet. Pages add their own scripts through
-// the "head" slot, only as same-origin files (`is:inline src=...`).
+// Every page: CSP meta, SEO and social tags, icons, fonts, the one stylesheet. Pages add
+// their own scripts through the "head" slot, only as same-origin files (`is:inline src=...`).
+// URLs derive from `site` in astro.config.mjs. See docs/seo.md.
 import '../styles/site.css';
-import { csp } from '../config';
+import { csp, siteName, socialImage } from '../config';
 
 interface Props {
   title: string;
   description?: string;
   bodyClass?: string;
   noindex?: boolean;
+  /** og:title / twitter:title when it should differ from <title>. */
+  socialTitle?: string;
+  /** schema.org JSON-LD, rendered as data (build.sh allows exactly this script type). */
+  jsonLd?: object;
 }
 
-const { title, description, bodyClass, noindex = false } = Astro.props;
+const { title, description, bodyClass, noindex = false, socialTitle, jsonLd } = Astro.props;
+
+// build.format 'file' gives "/join.html" here; the hosts serve it at "/join".
+const path = Astro.url.pathname.replace(/\.html$/, '').replace(/\/index$/, '/');
+const pageUrl = new URL(path, Astro.site).href;
+const imageUrl = new URL(socialImage.path, Astro.site).href;
+const shareTitle = socialTitle ?? title;
+// "<" escaped so the data can never close its <script> element.
+const ld = jsonLd && JSON.stringify(jsonLd).replace(/</g, '\\u003c');
 ---
 
 <!doctype html>
@@ -21,13 +34,35 @@ const { title, description, bodyClass, noindex = false } = Astro.props;
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="Content-Security-Policy" content={csp} />
     <meta name="referrer" content="no-referrer" />
-    {noindex && <meta name="robots" content="noindex" />}
     <title>{title}</title>
     {description && <meta name="description" content={description} />}
+    {noindex ? <meta name="robots" content="noindex" /> : <link rel="canonical" href={pageUrl} />}
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={siteName} />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:url" content={pageUrl} />
+    <meta property="og:title" content={shareTitle} />
+    {description && <meta property="og:description" content={description} />}
+    <meta property="og:image" content={imageUrl} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content={String(socialImage.width)} />
+    <meta property="og:image:height" content={String(socialImage.height)} />
+    <meta property="og:image:alt" content={socialImage.alt} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={shareTitle} />
+    {description && <meta name="twitter:description" content={description} />}
+    <meta name="twitter:image" content={imageUrl} />
+    <meta name="twitter:image:alt" content={socialImage.alt} />
+
     <meta name="theme-color" content="#F1F5F5" />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" href="/assets/zafe.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
     <link rel="preload" href="/assets/fonts/SpaceGrotesk-SemiBold.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/assets/fonts/DMSans-Regular.woff2" as="font" type="font/woff2" crossorigin />
+    {ld && <script is:inline type="application/ld+json" set:html={ld} />}
     <slot name="head" />
   </head>
   <body class={bodyClass}>

@@ -30,8 +30,11 @@ build the app with `ZAFE_LINK_HOST`.
 ```
 src/
   pages/index.astro        landing page
-  pages/join.astro         invite page (built to join.html, served at /join)
-  layouts/Base.astro       <head>: CSP meta, fonts, stylesheet
+  pages/join.astro         invite page (built to join.html, served at /join; noindex)
+  pages/sitemap.xml.ts     sitemap and robots.txt, from `site` in astro.config.mjs
+  pages/robots.txt.ts
+  layouts/Base.astro       <head>: CSP meta, SEO/social tags, JSON-LD, icons, fonts,
+                           stylesheet (docs/seo.md)
   components/              Phone (app screen in a frame), Actions (download / source)
   styles/site.css          Verdigris tokens, light and dark
   config.ts                download / source URLs, CSP

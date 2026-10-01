@@ -825,6 +825,16 @@ Learned while studying it:
   its lowest quality), so screenshots of the world need `/?world=always`.
   Cache headers live in `public/_headers` (`/assets/...` blocks; `vercel-output.sh`
   turns each into a Vercel route).
+  **SEO** (`docs/seo.md`): the public origin is one value, `site` in `astro.config.mjs`
+  (now the Vercel URL; change it with the custom domain); canonical, og:url/og:image,
+  `sitemap.xml` and `robots.txt` (Astro endpoints in `src/pages/*.ts`) derive from it.
+  Head tags live in `Base.astro` (props `title`, `description`, `socialTitle`, `jsonLd`,
+  `noindex`); social image `/assets/og.png` (1200×630) in `config.ts`. `/join` stays
+  `noindex`, out of the sitemap and **not** disallowed in robots.txt (Google must fetch
+  it to see the noindex). JSON-LD on `/` (Organization, WebSite, MobileApplication,
+  FAQPage from the same `faq` array as the page) is the one inline `<script>`
+  `build.sh` allows: exactly `type="application/ld+json"`, no other attribute, contents
+  must parse as JSON. Raster icons + manifest: `icons.sh` (CSP has `manifest-src 'self'`).
   `astro.config.mjs` sets `inlineStylesheets: 'never'` and `build.format: 'file'`;
   `build.sh` greps the output and fails on any inline script/style/handler. Phone shots
   are the app's own renders (`tool/screens/*_render_test.dart` → `infra/site/assets.py`

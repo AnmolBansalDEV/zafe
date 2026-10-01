@@ -20,11 +20,58 @@ const faq = [
   { q: 'Can we remove a member?', a: 'Not yet. Make a new vault and move the funds.' },
   { q: 'Which platforms?', a: 'Android. iPhone later.' },
 ];
+
+// SEO (docs/seo.md): <title> carries the search terms, the share cards the tagline.
+const description =
+  'A private multisig wallet for Zcash teams and DAOs. Nothing moves until enough of you approve, and on-chain it looks like any payment.';
+const home = Astro.site!.href;
+// schema.org data for search engines; every value must match what the page says.
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${home}#org`,
+      name: 'Zafe',
+      url: home,
+      logo: new URL('/assets/icons/icon-512.png', home).href,
+      sameAs: [sourceUrl],
+    },
+    {
+      '@type': 'WebSite',
+      '@id': `${home}#website`,
+      name: 'Zafe',
+      url: home,
+      publisher: { '@id': `${home}#org` },
+    },
+    {
+      '@type': 'MobileApplication',
+      name: 'Zafe',
+      description,
+      operatingSystem: 'Android',
+      applicationCategory: 'FinanceApplication',
+      downloadUrl,
+      isAccessibleForFree: true,
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+      publisher: { '@id': `${home}#org` },
+    },
+    {
+      '@type': 'FAQPage',
+      mainEntity: faq.map(({ q, a }) => ({
+        '@type': 'Question',
+        name: q,
+        acceptedAnswer: { '@type': 'Answer', text: a },
+      })),
+    },
+  ],
+};
 ---
 
 <Base
-  title="Zafe: the multisig nobody can see"
-  description="A shielded Zcash multisig. One private vault for your team: nothing moves until enough of you approve."
+  title="Zafe: private multisig wallet for Zcash teams"
+  socialTitle="Zafe: the multisig nobody can see"
+  description={description}
+  jsonLd={jsonLd}
   bodyClass="home"
 >
   <!-- Intro (CSS only): the screen is the mark's tile, its two pieces lock, then it

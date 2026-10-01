@@ -2,11 +2,18 @@
 // The invite page: https://<host>/join#<invite>. The invite is in the fragment and is
 // handled only by public/assets/join.js, loaded as-is (never bundled or inlined): keep
 // it hand-written and dependency-free. See README.md.
+// noindex: an invite page is never a search result (and is left out of the sitemap). Its
+// description and social tags are only for chat link previews, which fetch the URL
+// without the fragment. Never add analytics or any third-party script here.
 import Base from '../layouts/Base.astro';
 import { downloadUrl } from '../config';
 ---
 
-<Base title="Join a Zafe vault" noindex>
+<Base
+  title="Join a Zafe vault"
+  description="You're invited to a shared Zafe vault. Install the app, then open the invite."
+  noindex
+>
   <script is:inline slot="head" src="/assets/join.js" defer></script>
   <main>
     <header class="brand">

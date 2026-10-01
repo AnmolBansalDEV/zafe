@@ -59,9 +59,20 @@ touch "$out/.nojekyll" # GitHub Pages: serve .well-known
 
 # The CSP allows only same-origin files: refuse a build that inlined any script or style.
 # A <script> must have a src (Astro's bundled modules do); anything else is inline.
-if grep -l -P '<script(?![^>]*\ssrc=)[^>]*>|<style|\s(style|on[a-z]+)=' "$out"/*.html; then
+# One exception: a <script> whose only attribute is type="application/ld+json" (schema.org
+# data for search engines, Base.astro). Browsers never execute that type, so script-src
+# doesn't apply to it; any other attribute or type still fails, and its contents must
+# parse as JSON (checked below).
+if grep -l -P '<script(?![^>]*\ssrc=)(?!\s+type="?application/ld\+json"?>)[^>]*>|<style|\s(style|on[a-z]+)=' "$out"/*.html; then
   die "inline script or style in the pages above (the CSP would block it)"
 fi
+python3 - "$out"/*.html <<'PY' || die "invalid JSON-LD"
+import json, re, sys
+for page in sys.argv[1:]:
+    html = open(page, encoding='utf-8').read()
+    for block in re.findall(r'<script\s+type="?application/ld\+json"?>(.*?)</script>', html, re.S):
+        json.loads(block)
+PY
 
 if (( ${#fingerprints[@]} )); then
   mkdir -p "$out/.well-known"
