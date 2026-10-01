@@ -159,12 +159,13 @@ export async function start({ canvas, story, hero, features, cta, covers, screen
   const dpr = window.devicePixelRatio || 1;
   const LEVELS = [
     { dpr: Math.min(dpr, 2), msaa: 4 },
+    { dpr: Math.min(dpr, 2), msaa: 2 }, // phones start here: sharp on 3x screens
     { dpr: Math.min(dpr, 1.5), msaa: 2 },
-    { dpr: Math.min(dpr, 1.5), msaa: 0 }, // phones start here (as before adaptive quality)
+    { dpr: Math.min(dpr, 1.5), msaa: 0 },
     { dpr: 1, msaa: 0 },
     { dpr: 0.75, msaa: 0 },
   ];
-  let level = still || !mobile ? 0 : 2;
+  let level = still || !mobile ? 0 : 1;
   canvas.dataset.quality = String(level);
   let settleUntil = performance.now() + 2000; // adapt() ignores frames until then
   renderer.setPixelRatio(LEVELS[level].dpr);
@@ -684,8 +685,13 @@ export async function start({ canvas, story, hero, features, cta, covers, screen
   // fps) drops one level. Ignores frames for 2 s after start or a resize (shader
   // compilation, texture uploads) and 1 s after the world or the tab was hidden. Still
   // under ~20 fps at the lowest level: give up and show the stills (giveUp).
+  // A drop that doesn't make frames faster means the browser caps the frame rate
+  // (battery saver, 30 fps phones), not the GPU: go back up and stop adapting, or a
+  // capped fast phone would sink to the blurriest level for nothing.
   let winMs = 0;
   let winFrames = 0;
+  let dropped = null; // { from, avg } of the last drop, until the next window judges it
+  let capped = false;
   document.addEventListener('visibilitychange', () => {
     settleUntil = performance.now() + 1000;
   });
@@ -702,16 +708,34 @@ export async function start({ canvas, story, hero, features, cta, covers, screen
     const avg = winMs / winFrames;
     winMs = 0;
     winFrames = 0;
+    if (capped) {
+      if (avg > 50 && !forceWorld) giveUp();
+      return;
+    }
+    if (dropped) {
+      const { from, avg: before } = dropped;
+      dropped = null;
+      if (avg > before * 0.85 && avg <= 50) {
+        capped = true;
+        setLevel(from, now);
+        return;
+      }
+    }
     if (avg <= 22) return;
     if (level === LEVELS.length - 1) {
       if (avg > 50 && !forceWorld) giveUp();
       return;
     }
-    level++;
+    dropped = { from: level, avg };
+    setLevel(level + 1, now);
+  }
+
+  function setLevel(next, now) {
+    level = next;
     renderer.setPixelRatio(LEVELS[level].dpr);
     composer.multisampling = LEVELS[level].msaa;
     composer.setSize(window.innerWidth, window.innerHeight);
-    if (level >= 2 && key.shadow.mapSize.x > 1024) {
+    if (level >= 3 && key.shadow.mapSize.x > 1024) {
       // Soft (VSM) shadows hide the lower resolution; three rebuilds the map.
       key.shadow.mapSize.set(1024, 1024);
       key.shadow.map?.dispose();

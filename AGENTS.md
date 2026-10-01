@@ -835,6 +835,12 @@ Learned while studying it:
   real screens in phone frames (`.lp-phone`) and only one still of the world (the
   `/showcase` teaser); the showcase has no logo intro, a fixed `light` nav (`Nav.astro`),
   a title card and a slim footer. Nav links marked `mobile` are the only ones on phones.
+  Phones (2026-10-01 fixes): `body`'s `overflow-x: clip` doesn't stop the viewport
+  scrolling sideways, so clip wide decorations on their section (`.lp-hero`) and check
+  `scrollWidth == clientWidth` at 390 px; the viewport is `viewport-fit=cover` (Chrome
+  on Android draws edge to edge) and footers pad `env(safe-area-inset-bottom)`; the 3D
+  world starts phones at dpr 2 + MSAA 2 and stops adapting when a drop doesn't speed
+  frames up (a 30 fps cap, not the GPU).
   The whole design/build/verify/ship flow is the project skill `.claude/skills/landing-page`
   (`frames.sh` + `sheet.py` capture a scroll section frame by frame into a contact sheet).
   Chose Astro over Next.js (Vizor's site) to keep a strict CSP with no inline code: the

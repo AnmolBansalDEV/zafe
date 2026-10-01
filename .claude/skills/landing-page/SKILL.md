@@ -125,7 +125,7 @@ bash $S/frames.sh "http://127.0.0.1:8768/showcase.html?world=always" .story 390 
   stills fallback. No fine pointer either: `?pointer=fine`; move the mouse with
   `agent-browser mouse move` twice before a cursor shot.
 - **Performance** (see `docs/site.md` ninth round): keep adaptive quality, the software
-  renderer skip and the give-up path working (`canvas.world` `data-quality`: 0-4 or
+  renderer skip and the give-up path working (`canvas.world` `data-quality`: 0-5 or
   `off`); hashed bundles are cached for a year via `public/_headers` → `vercel-output.sh`.
   Measure page weight and rAF rate with a small agent-browser script in a file.
 - The sandbox refuses complex inline shell and `eval` strings: put scripts in files and

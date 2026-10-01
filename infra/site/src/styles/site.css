@@ -572,7 +572,9 @@ html.world-on .story-pin { position: sticky; top: 0; }
   background: #0A0E0E;
   color: var(--ink-muted);
   margin-top: 0;
-  padding: 96px 16px 0;
+  /* The page draws under the phone's gesture bar (viewport-fit=cover in Base.astro): the
+     dark footer runs to the bottom edge, its content stays above the bar. */
+  padding: 96px 16px env(safe-area-inset-bottom, 0px);
   border: 0;
   font-size: 15px;
   overflow: hidden;
@@ -604,6 +606,9 @@ html.world-on .story-pin { position: sticky; top: 0; }
 .ghost {
   max-width: var(--width);
   margin: 24px auto 0 !important;
+  /* The tight line box puts the letters' feet below it; the padding keeps them inside
+     the footer (which clips) so the whole word shows. */
+  padding-bottom: 0.1em;
   font-size: clamp(120px, 24vw, 340px);
   line-height: 0.74;
   color: #161C1C;
@@ -797,8 +802,10 @@ html.world-on .story-pin { position: sticky; top: 0; }
     .closing-art { animation: drift both linear; animation-timeline: view(); }
   }
 
-  /* The ghost wordmark rises out of the footer. */
-  .ghost { animation: ghost both var(--rise); animation-timeline: view(); animation-range: entry 0% cover 30%; }
+  /* The ghost wordmark rises out of the footer. It ends the page, so the rise must finish
+     by the time it is fully in view (entry 100%): a later end is never reached on short
+     screens and leaves the word half sunk. */
+  .ghost { animation: ghost both var(--rise); animation-timeline: view(); animation-range: entry 0% entry 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1244,7 +1251,9 @@ html.still-page .home .nav-side { visibility: hidden !important; }
 }
 
 @media (max-width: 900px) {
-  .lp-hero { grid-template-columns: 1fr; padding: 40px 20px 56px; min-height: 0; gap: 24px; }
+  /* The dial is wider than the screen here; clip it (body's overflow-x doesn't stop the
+     viewport from scrolling sideways in every browser). */
+  .lp-hero { grid-template-columns: 1fr; padding: 40px 20px 56px; min-height: 0; gap: 24px; overflow-x: clip; }
   .lp-hero-art { --ph: 560px; max-width: 460px; width: 100%; margin: 0 auto; }
   .lp-flow li { grid-template-columns: 1fr; padding: 48px 32px 0; gap: 8px; }
   .lp-flow li:nth-child(even) .lp-flow-copy { order: 0; }
@@ -1358,7 +1367,7 @@ html.world-on .showcase .world { animation: fade 1.4s ease both; }
   gap: 16px;
   max-width: 76rem;
   margin: 0 auto;
-  padding: 28px 40px 36px;
+  padding: 28px 40px calc(36px + env(safe-area-inset-bottom, 0px));
   font-size: 14px;
   color: var(--text-secondary);
 }
