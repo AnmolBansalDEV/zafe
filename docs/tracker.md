@@ -532,14 +532,17 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       (`scripts/app-harness.sh` covers the backend side). Model: Vizor's app-level regtest
       E2E, `integration_test/payment_uri_prefill_test.dart` driven by
       `scripts/e2e/flutter-ios-regtest-mobile-*.sh`
-- [ ] Background check ANR (2026-09-30, emulator under heavy host load): Android reported
+- [x] Background check ANR (2026-09-30, emulator under heavy host load): Android reported
       "No response to onStartJob" for the WorkManager vault check. Likely load, but check
       that the job's startup (RustLib.init, Firebase, secure storage reads) doesn't block
       the main thread before WorkManager gets its answer
       2026-09-30 analysis: "No response to onStartJob" is Android's main thread waiting
       before any Dart runs; starting the background Flutter engine in a **debug** build
-      (JIT) under heavy host load is the likely cause. Check on a release build on the
-      phone before digging further
+      (JIT) under heavy host load is the likely cause. Closed 2026-10-01: the release
+      build on the phone (testnet dry run) showed no ANR; and the main-thread part is the
+      plugin's (workmanager_android 0.10.9 `BackgroundWorker.startWork`: Flutter loader +
+      engine + plugin registration), while our check runs afterwards on the engine's
+      Dart thread. Reopen only if it shows up in a release build
 - [x] Relay: storage quotas for the hosted tier (2026-09-30): `zafe_relay::quota`, per
       mailbox: undelivered envelopes per recipient (indexed count), delivery bytes and
       log bytes (running counters on `mailboxes`, schema `RELAY_DB` 2 with a migration
