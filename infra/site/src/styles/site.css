@@ -1189,7 +1189,7 @@ html.still-page .home .nav-side { visibility: hidden !important; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* The call to action on the vault card colour, the vault's home screen rising in it. */
-.lp-cta { max-width: calc(var(--width) + 32px); margin: 40px auto 120px; padding: 0 16px; }
+.lp-cta { max-width: calc(var(--width) + 32px); margin: 40px auto 0; padding: 0 16px; }
 .lp-cta-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
@@ -1271,7 +1271,7 @@ html.still-page .home .nav-side { visibility: hidden !important; }
   .lp-card { padding: 28px 24px; border-radius: 28px; }
   .lp-card-shot { padding: 32px 24px 0; }
   .lp-crop { height: 340px; padding-top: 24px; }
-  .lp-cta { margin-bottom: 72px; }
+  .lp-cta { margin-top: 24px; }
   .lp-cta-card { border-radius: 28px; padding: 0 24px; }
   .lp-cta-art { height: 300px; }
   .lp-cta-art .lp-phone { width: 240px; }
@@ -1320,8 +1320,9 @@ html.world-on .showcase .world { animation: fade 1.4s ease both; }
 .showcase .hero > :nth-child(4) { animation-delay: 1s; }
 .scroll-cue {
   position: absolute;
-  right: 40px;
-  bottom: 72px;
+  left: calc(50% - 28px);
+  width: 56px;
+  bottom: 32px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1359,7 +1360,7 @@ html.world-on .foot-slim { background: var(--window); max-width: none; padding-l
 
 @media (max-width: 760px) {
   .nav-light { padding: 16px 20px 24px; }
-  :is(html.world-on, html.stills, html:not(.js)) .showcase .hero { justify-content: flex-start; padding: 104px 20px 0; }
+  :is(html.world-on, html.stills, html:not(.js)) .showcase .hero { justify-content: center; padding: 70px 20px 34vh; }
   .showcase .hero h1 { font-size: clamp(40px, 11.5vw, 56px); }
   .scroll-cue { display: none; }
   .foot-slim { padding: 24px 20px 28px; }

@@ -3,6 +3,16 @@
 The landing page (`infra/site/src/pages/index.astro`) follows this brief. Keep it current
 when the page changes.
 
+## Round 12a (critique pass): spacing and the showcase entrance
+
+Found (ranked): the showcase's scroll cue sat on the right phone's pedestal; on phones
+the showcase title hugged the nav with a ~250 px hole above the world; ~170 px of dead
+paper between the home call to action and the footer; the cue was 28 px off centre
+(`.home p { margin: 0 }` beat its `margin-left`). Fixed: the cue sits bottom centre
+(`left: calc(50% - 28px)`, measured at 720 of 1440); the phone title is centred in the
+space above the world; the call to action ends the page with only the footer's lip
+below. Minor, left: `og.png` still has the old showcase copy (needs Pillow for `stills.sh`).
+
 ## Decisions (2026-10-01, twelfth round): two pages that don't look alike
 
 The user: "their is no showcase in the top nav, the home doesn't take me to / route, same
