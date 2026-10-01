@@ -71,3 +71,4 @@ shardtree.workspace = true
 rcgen = "0.13"
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
 tempfile = "3"
+futures = "0.3"

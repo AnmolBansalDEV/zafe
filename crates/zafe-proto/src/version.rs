@@ -23,7 +23,9 @@ pub const LOG_ENTRY: u16 = 1;
 /// decode (their variants keep their postcard index).
 /// 3 (2026-10-01): backup attestations (`VaultEvent::BackupVerified`), appended the same way.
 /// 4 (2026-10-01): moving a lost member's seat (`VaultEvent::ReplaceApproval`), appended.
-pub const VAULT_EVENT: u16 = 4;
+/// 5 (2026-10-01): retrying a stalled key repair and marking it done (`RepairRetry`,
+/// `RepairDone`), appended.
+pub const VAULT_EVENT: u16 = 5;
 /// The vault descriptor (`VaultDescriptor::version`, covered by every member's signature).
 pub const DESCRIPTOR: u16 = 1;
 /// Relay API request and response bodies (signed into every request).
@@ -57,8 +59,9 @@ pub const BACKUP: u16 = 2;
 /// `mailboxes` (migrated from 1 at startup). 3: `mailboxes.threshold` for moving a lost
 /// member's seat (migrated from 1 and 2).
 pub const RELAY_DB: u16 = 3;
-/// Share repair envelope payloads (RTS deltas and sigmas).
-pub const REPAIR: u16 = 1;
+/// Share repair envelope payloads (RTS deltas and sigmas). 2 (2026-10-01): both carry the
+/// repair attempt.
+pub const REPAIR: u16 = 2;
 /// A recovering device's request to take over a lost member's seat (`zafe-recover-v1:`).
 pub const RECOVERY_REQUEST: u16 = 1;
 

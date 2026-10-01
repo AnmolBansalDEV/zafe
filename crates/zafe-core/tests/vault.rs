@@ -439,6 +439,61 @@ fn a_seat_moves_at_the_threshold() {
     ));
 }
 
+/// After a seat moves, any member can restart its key repair with other helpers (the
+/// threshold of current members, itself among them, never the new key), and only the new
+/// key can mark it done; nothing changes a finished repair.
+#[test]
+fn a_stalled_repair_restarts_and_finishes() {
+    let mut log = Log::new();
+    log.push(0, &log.created(&[0, 1, 2]));
+    log.replace(1, 0, 3);
+    log.replace(2, 0, 3);
+    let pk: Vec<_> = log.ids.iter().map(|i| i.public().sig_pk).collect();
+    let state = log.replay().unwrap();
+    let index = state.replacements[0].index;
+    assert_eq!(state.replacements[0].helpers, vec![pk[1], pk[2]]);
+    let retry = |helpers: Vec<[u8; 32]>| VaultEvent::RepairRetry {
+        replacement: index,
+        helpers,
+    };
+    let done = VaultEvent::RepairDone { replacement: index };
+
+    log.push(3, &retry(vec![pk[3], pk[1]])); // 3: the new key can't help itself
+    log.push(1, &retry(vec![pk[1], pk[0]])); // 4: the old key isn't a member
+    log.push(1, &retry(vec![pk[1]])); // 5: one helper short
+    log.push(1, &retry(vec![pk[2], pk[3]])); // 6: the author must help
+    log.push(1, &retry(vec![pk[1], pk[1]])); // 7: twice the same helper
+    log.push(2, &retry(vec![pk[2], pk[1]])); // 8: valid
+    log.push(1, &done); // 9: only the new key says it's done
+    let state = log.replay().unwrap();
+    let r = &state.replacements[0];
+    assert_eq!(
+        (r.attempt, r.helpers.clone(), r.done),
+        (1, vec![pk[2], pk[1]], false)
+    );
+    assert_eq!(
+        state.ignored.iter().map(|(i, _)| *i).collect::<Vec<_>>(),
+        vec![3, 4, 5, 6, 7, 9]
+    );
+
+    log.push(3, &done);
+    log.push(2, &retry(vec![pk[2], pk[1]])); // 11: too late
+    log.push(3, &done); // 12: once
+    let state = log.replay().unwrap();
+    assert!(state.replacements[0].done);
+    assert_eq!(state.replacements[0].attempt, 1);
+    assert_eq!(
+        state
+            .ignored
+            .iter()
+            .map(|(i, _)| *i)
+            .rev()
+            .take(2)
+            .collect::<Vec<_>>(),
+        vec![12, 11]
+    );
+}
+
 /// Interactive approvals of the lost device carry commitments whose nonces were on it:
 /// the move voids them, so a proposal approved at exactly the threshold reopens.
 #[test]

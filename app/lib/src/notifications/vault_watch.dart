@@ -183,6 +183,7 @@ Future<void> recordSeen(
   String vaultId,
   List<rust.ProposalInfo>? proposals, {
   List<rust_received.ReceivedInfo>? received,
+  List<rust.SeatMove>? seatMoves,
 }) {
   final write = _seenWrites.then((_) async {
     final f = await _seenFile(vaultId);
@@ -192,7 +193,12 @@ Future<void> recordSeen(
       final previous = await _readSeen(vaultId) ?? const {};
       await tmp.writeAsString(
         jsonEncode(
-          snapshotOf(proposals, received: received, previous: previous),
+          snapshotOf(
+            proposals,
+            received: received,
+            seatMoves: seatMoves,
+            previous: previous,
+          ),
         ),
       );
       await tmp.rename(f.path);
@@ -330,6 +336,10 @@ Future<void> _checkVault(
       tipHeight: height,
     );
     var proposals = list.items;
+    // A signer's seat moved: keep this device's copy of the membership current.
+    if (list.updatedMaterial case final updated?) {
+      await ZafeSecureStore.instance.writeMaterial(v.id, updated);
+    }
     try {
       await rust.answerSigningRequests(
         relayUrl: endpoints.relayUrl,
@@ -386,6 +396,8 @@ Future<void> _checkVault(
       vaultName: VaultName.display(summary.name, await VaultName.read(v.id)),
       hideAmounts: hideAmounts,
       received: received ?? const [],
+      seatMoves: list.seatMoves,
+      me: rust_vault.identityPublicKey(seeds: seeds),
       // Read here: this may run in a background isolate without the app's providers.
       names: MemberNames.merge({
         for (final n in list.sharedNames) n.keyHex: n.name,
@@ -413,7 +425,12 @@ Future<void> _checkVault(
         payload: notificationPayload(v.id, u.proposalId),
       );
     }
-    await recordSeen(v.id, proposals, received: received);
+    await recordSeen(
+      v.id,
+      proposals,
+      received: received,
+      seatMoves: list.seatMoves,
+    );
     debugPrint(
       'vault check: ${summary.name}: ${updates.length} notification(s)',
     );

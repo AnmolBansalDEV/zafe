@@ -435,8 +435,9 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 - [x] Repair a lost device's share (2026-10-01; §10.1, §10.4.2): seat moves with t
       approvals in the log and on the relay, RTS repair by the first t approvers, the new
       phone checks the share against the public key package, the group key and the UFVK.
-      Follow-ups: re-run a stalled repair with other helpers; scan the recovery code by QR;
-      notify members of a pending move; test on devices
+      Follow-ups done 2026-10-01: a member can take over from a stalled helper (new
+      attempt), QR scanning of the recovery code, notifications for pending moves,
+      background checks keep the membership current. Left: a device run of these three
 - [ ] Transparent / TEX recipients with a warning (spec allows; verify.rs is
       Ironwood-only today)
 - [ ] External security audit of zafe-core and the protocol

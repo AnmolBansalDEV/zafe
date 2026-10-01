@@ -13,6 +13,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_icon.dart';
 import '../../rust/api/proposals.dart' as rust_proposals;
+import '../../rust/api/repair.dart' as rust_repair;
 import '../../rust/api/vault.dart' as rust;
 import '../onboarding/invite_link.dart';
 
@@ -35,6 +36,30 @@ class ScanInviteScreen extends StatelessWidget {
       try {
         rust.parseInvite(invite: invite);
         return invite;
+      } catch (_) {
+        return null;
+      }
+    },
+  );
+}
+
+/// Scans the recovery code on a signer's new phone (spec §10.1). Pops the code.
+class ScanRecoveryScreen extends StatelessWidget {
+  const ScanRecoveryScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => QrScanScreen(
+    title: 'Scan recovery code',
+    prompt:
+        'Point the camera at the code on the new phone of the signer who lost '
+        'theirs.',
+    rejected:
+        'That QR code isn\'t a Zafe recovery code. Scan the one on the "Recover your '
+        'seat" screen.',
+    accept: (raw) {
+      try {
+        rust_repair.parseRecoveryCode(code: raw);
+        return raw.trim();
       } catch (_) {
         return null;
       }

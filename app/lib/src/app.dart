@@ -34,7 +34,7 @@ import 'features/settings/viewing_key_screen.dart';
 import 'providers/tor_provider.dart';
 import 'providers/mempool_watch_provider.dart';
 import 'providers/theme_mode_provider.dart';
-import 'notifications/vault_updates.dart' show kReceivedPrefix;
+import 'notifications/vault_updates.dart' show kReceivedPrefix, kSeatMovePrefix;
 import 'notifications/vault_watch.dart';
 import 'providers/vault_provider.dart';
 import 'services/invite_links.dart';
@@ -63,6 +63,10 @@ final _routerProvider = Provider<GoRouter>((ref) {
     if (vaults.activeId != vaultId || vaults.isAdding) {
       await ref.read(vaultProvider.notifier).switchTo(vaultId);
       router.go('/home');
+    }
+    if (proposalId.startsWith(kSeatMovePrefix)) {
+      router.go('/signers'); // a tab: go, never push
+      return;
     }
     router.push(
       proposalId.startsWith(kReceivedPrefix)
@@ -125,6 +129,7 @@ final _routerProvider = Provider<GoRouter>((ref) {
         '/activity',
         '/backup-prompt',
         '/scan-recipient',
+        '/scan-recovery',
       ].any(loc.startsWith);
       if (vault.hasVault && !inVault) return '/home';
       if (!vault.hasVault && inVault) {
@@ -154,6 +159,10 @@ final _routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/scan-invite',
         pageBuilder: (_, _) => page(const ScanInviteScreen()),
+      ),
+      GoRoute(
+        path: '/scan-recovery',
+        pageBuilder: (_, _) => page(const ScanRecoveryScreen()),
       ),
       GoRoute(
         path: '/scan-recipient',
@@ -214,9 +223,7 @@ final _routerProvider = Provider<GoRouter>((ref) {
         path: '/replace-signer',
         pageBuilder: (_, state) {
           final args = state.extra as (String, String)?;
-          return page(
-            ReplaceSignerScreen(signer: args?.$1, code: args?.$2),
-          );
+          return page(ReplaceSignerScreen(signer: args?.$1, code: args?.$2));
         },
       ),
       GoRoute(

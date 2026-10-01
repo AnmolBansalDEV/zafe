@@ -113,6 +113,8 @@ enum SeatCmd {
     List,
     /// Do this member's part in repairing a moved seat's key (and save the new membership).
     Repair,
+    /// Take over from a helper who stalled the repair of the seat moved at `replacement`.
+    Retry { replacement: u64, stalled: String },
 }
 
 #[derive(Subcommand)]
@@ -494,6 +496,27 @@ async fn main() -> Result<()> {
                             state.descriptor.threshold
                         );
                     }
+                    for r in state.replacements.iter().filter(|r| !r.done) {
+                        let helpers: Vec<String> = r.helpers.iter().map(hex::encode).collect();
+                        println!(
+                            "repairing {} (move {}, attempt {}): helpers {}",
+                            hex::encode(r.new.sig_pk),
+                            r.index,
+                            r.attempt,
+                            helpers.join(", ")
+                        );
+                    }
+                }
+                SeatCmd::Retry {
+                    replacement,
+                    stalled,
+                } => {
+                    let stalled: [u8; 32] = hex::decode(stalled.trim())?
+                        .try_into()
+                        .map_err(|_| anyhow!("stalled must be a 32-byte hex key"))?;
+                    repair::retry_repair(&relay, &me, &material, replacement, stalled, &mut rng)
+                        .await?;
+                    println!("retrying with you as a helper");
                 }
                 SeatCmd::Repair => {
                     let (_, state) = node::load_state(&relay, &me, &material).await?;
@@ -533,6 +556,7 @@ async fn main() -> Result<()> {
                     RecoveryStatus::Done { material, invite } => {
                         fs::write(home.path("vault.bin"), material.to_bytes()?)?;
                         fs::write(home.path("invite.txt"), invite.encode())?;
+                        repair::mark_repair_done(&relay, &me, &material, &mut rng).await?;
                         println!("recovered {}", material.descriptor.name);
                         break;
                     }

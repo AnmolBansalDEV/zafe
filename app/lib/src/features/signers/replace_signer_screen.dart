@@ -66,6 +66,11 @@ class _ReplaceSignerScreenState extends ConsumerState<ReplaceSignerScreen> {
     }
   }
 
+  Future<void> _scan() async {
+    final code = await context.push<String>('/scan-recovery');
+    if (code != null && mounted) setState(() => _code.text = code);
+  }
+
   Future<void> _paste() async {
     final data = await Clipboard.getData(Clipboard.kTextPlain);
     if (data?.text == null) return;
@@ -188,25 +193,47 @@ class _ReplaceSignerScreenState extends ConsumerState<ReplaceSignerScreen> {
           onChanged: (_) => setState(() {}),
           trailing: widget.code != null
               ? null
-              : GestureDetector(
-                  onTap: _paste,
-                  child: Container(
-                    height: 36,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.sm,
-                    ),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: colors.background.neutralSubtleOpacity,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      'Paste',
-                      style: AppTypography.labelLarge.copyWith(
-                        color: colors.text.accent,
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: _paste,
+                      child: Container(
+                        height: 36,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                        ),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: colors.background.neutralSubtleOpacity,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          'Paste',
+                          style: AppTypography.labelLarge.copyWith(
+                            color: colors.text.accent,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    Semantics(
+                      button: true,
+                      label: 'Scan QR code',
+                      child: GestureDetector(
+                        onTap: _scan,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.xs,
+                          ),
+                          child: AppIcon(
+                            AppIcons.qr,
+                            size: 22,
+                            color: colors.icon.accent,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
         ),
         if (invalid) ...[

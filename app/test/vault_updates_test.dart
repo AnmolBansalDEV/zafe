@@ -228,4 +228,62 @@ void main() {
       expect(receivedOnly.containsKey('rx:t1'), isFalse);
     });
   });
+
+  group('seat moves', () {
+    SeatMove move({List<String> approvals = const ['bb']}) => SeatMove(
+      oldKeyHex: 'aa',
+      newKeyHex: 'ff',
+      safetyCode: '1234 5678',
+      approvals: approvals,
+      needed: 2,
+      code: 'zafe-recover-v1:00',
+    );
+    List<VaultUpdate> moves(
+      SeenSnapshot previous,
+      List<SeatMove> now, {
+      String me = 'cc',
+    }) => vaultUpdates(
+      previous: previous,
+      proposals: const [],
+      vaultName: 'Grants',
+      hideAmounts: false,
+      seatMoves: now,
+      me: me,
+      names: const {'aa': 'Alice'},
+    );
+
+    test('a new pending move is announced once, by name', () {
+      final before = snapshotOf(const [], seatMoves: const []);
+      final u = moves(before, [move()]);
+      expect(u.single.title, 'Grants: a signer lost their phone');
+      expect(u.single.body, startsWith('Alice is moving to a new phone.'));
+      expect(u.single.proposalId, startsWith(kSeatMovePrefix));
+      final after = snapshotOf(const [], seatMoves: [move()], previous: before);
+      expect(moves(after, [move()]), isEmpty);
+    });
+
+    test('not to the lost seat, nor to members who already approved', () {
+      final before = snapshotOf(const [], seatMoves: const []);
+      expect(moves(before, [move()], me: 'aa'), isEmpty);
+      expect(moves(before, [move()], me: 'bb'), isEmpty);
+    });
+
+    test('snapshots from before moves were tracked announce none', () {
+      expect(moves(snapshotOf(const []), [move()]), isEmpty);
+    });
+
+    test('recording proposals keeps the moves, and the other way round', () {
+      final both = snapshotOf(const [], seatMoves: [move()]);
+      final proposalsOnly = snapshotOf([proposal('p1')], previous: both);
+      expect(proposalsOnly.keys, containsAll(['p1', kSeatMoveMarker]));
+      expect(proposalsOnly.keys.any((k) => k.startsWith('mv:aa')), isTrue);
+      final movesOnly = snapshotOf(
+        null,
+        seatMoves: const [],
+        previous: proposalsOnly,
+      );
+      expect(movesOnly.keys, containsAll(['p1', kSeatMoveMarker]));
+      expect(movesOnly.keys.any((k) => k.startsWith('mv:aa')), isFalse);
+    });
+  });
 }

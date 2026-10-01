@@ -568,7 +568,9 @@ The member keeps their seat. Two ways back in (§12): restore from an encrypted 
 
 **The FROST identifier stays the same** (repair recreates the share at the member's existing identifier), even though the identity key changes. So in this one case the `Identifier` is not re-derived from the new `sigPk` (an exception to §5.1). The replayed state records the mapping (`Replacement::frost_id`).
 
-**Limits:** if a helper never finishes, the move stalls (no re-run with other helpers yet). A backup made by the lost phone still holds the old identity: restoring it gives a key share that works but an identity the relay no longer accepts.
+**Stalled repairs (2026-10-01, event version 5):** any member who isn't helping can take over from a helper who never does its part: `RepairRetry { replacement, helpers }` (the threshold of current members, the author among them, the new key not) starts a new attempt; repair messages carry the attempt, so a stalled attempt's never mix in. The new phone logs `RepairDone` once its key checked out (on its first refresh), which ends the repair for everyone.
+
+**Limits:** a backup made by the lost phone still holds the old identity: restoring it gives a key share that works but an identity the relay no longer accepts.
 
 ### 10.2 Rotate (keep the vault address)
 

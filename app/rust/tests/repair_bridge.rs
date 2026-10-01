@@ -152,8 +152,16 @@ fn a_lost_phone_is_replaced_through_the_bridge() {
         assert_eq!(s.address, summary.address);
     }
 
-    // The new phone works like any member.
+    // Until the new phone checks in, members see the repair in progress.
+    let repairs = list(1, &seeds[1], &updated[0]).repairs;
+    assert_eq!(repairs.len(), 1);
+    assert_eq!(repairs[0].new_key_hex, fresh.public_key_hex);
+    assert_eq!((repairs[0].helpers.len(), repairs[0].attempt), (2, 0));
+
+    // The new phone works like any member; its first refresh marks the repair done.
     let mine = list(3, &fresh.seeds, &done.material);
     assert!(mine.updated_material.is_none());
+    assert!(mine.repairs.is_empty());
+    assert!(list(1, &seeds[1], &updated[0]).repairs.is_empty());
     let _ = std::fs::remove_dir_all(&tmp);
 }

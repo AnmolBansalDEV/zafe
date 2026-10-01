@@ -62,6 +62,8 @@ pub enum VaultError {
     BadBackup(u64),
     #[error("entry {0}: not a valid approval to move a member's seat")]
     BadReplacement(u64),
+    #[error("entry {0}: not a valid change to a seat's key repair")]
+    BadRepair(u64),
 }
 
 /// Most commitments one `Commitments` event may carry.
@@ -310,6 +312,19 @@ pub enum VaultEvent {
         new: IdentityPublic,
         signature: Vec<u8>,
     },
+    /// The repair of a moved seat's key stalled (a helper never did its part): the author
+    /// replaces the helpers with `helpers` (the threshold of current members, the author
+    /// among them, the new key not), starting a new attempt. Event version 5.
+    RepairRetry {
+        /// The move ([`Replacement::index`]).
+        replacement: u64,
+        helpers: Vec<[u8; 32]>,
+    },
+    /// The moved seat's new device has its repaired key (checked): helpers stop. Only the
+    /// new key may log it. Event version 5.
+    RepairDone {
+        replacement: u64,
+    },
 }
 
 /// Approvals collected so far for moving `old`'s seat to `new`.
@@ -332,12 +347,20 @@ pub struct Replacement {
     pub frost_id: Vec<u8>,
     /// The threshold of approvals that moved it, in log order (also sent to the relay).
     pub approvals: Vec<([u8; 32], Vec<u8>)>,
+    /// The members repairing the share in the current attempt: the approvers at first, then
+    /// whoever a `RepairRetry` named.
+    pub helpers: Vec<[u8; 32]>,
+    /// 0 for the approvers' attempt, +1 per `RepairRetry`. Repair messages carry it, so a
+    /// stalled attempt's messages never mix with the new one's.
+    pub attempt: u32,
+    /// The new device logged `RepairDone`.
+    pub done: bool,
 }
 
 impl Replacement {
-    /// The members who repair the share: the approvers, in log order.
+    /// The members who repair the share in the current attempt.
     pub fn helpers(&self) -> Vec<[u8; 32]> {
-        self.approvals.iter().map(|(pk, _)| *pk).collect()
+        self.helpers.clone()
     }
 }
 
@@ -772,6 +795,42 @@ impl VaultState {
                     self.move_seat(index, old, new, approvals);
                 }
             }
+            VaultEvent::RepairRetry {
+                replacement,
+                helpers,
+            } => {
+                let bad = || VaultError::BadRepair(index);
+                let mut distinct = helpers.clone();
+                distinct.sort();
+                distinct.dedup();
+                let r = self
+                    .replacements
+                    .iter()
+                    .position(|r| r.index == replacement && !r.done)
+                    .ok_or_else(bad)?;
+                let new = self.replacements[r].new.sig_pk;
+                if author == new
+                    || !helpers.contains(&author)
+                    || distinct.len() != helpers.len()
+                    || helpers.len() != threshold
+                    || helpers
+                        .iter()
+                        .any(|h| *h == new || self.descriptor.member(h).is_none())
+                {
+                    return Err(bad());
+                }
+                let r = &mut self.replacements[r];
+                r.helpers = helpers;
+                r.attempt += 1;
+            }
+            VaultEvent::RepairDone { replacement } => {
+                let r = self
+                    .replacements
+                    .iter_mut()
+                    .find(|r| r.index == replacement && !r.done && r.new.sig_pk == author)
+                    .ok_or(VaultError::BadRepair(index))?;
+                r.done = true;
+            }
         }
         Ok(())
     }
@@ -844,18 +903,26 @@ impl VaultState {
             self.names.insert(new.sig_pk, name);
         }
         self.backups.remove(&old);
+        // A helper of another seat's unfinished repair keeps helping under its new key.
+        for r in self.replacements.iter_mut().filter(|r| !r.done) {
+            r.helpers.iter_mut().for_each(rekey);
+        }
         // Other moves of this seat are moot; the old key's approvals of others' moves go
         // (the relay no longer counts that key).
         self.pending_replacements.retain(|(o, _), _| *o != old);
         for p in self.pending_replacements.values_mut() {
             p.approvals.retain(|(pk, _)| *pk != old);
         }
+        let helpers = approvals.iter().map(|(pk, _)| *pk).collect();
         self.replacements.push(Replacement {
             index,
             old,
             new,
             frost_id,
             approvals,
+            helpers,
+            attempt: 0,
+            done: false,
         });
     }
 

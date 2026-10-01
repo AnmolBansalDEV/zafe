@@ -7575,6 +7575,7 @@ dependencies = [
  "chacha20poly1305",
  "ff",
  "frost-rerandomized",
+ "futures",
  "group",
  "hex",
  "http-body-util",

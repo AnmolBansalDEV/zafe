@@ -35,6 +35,17 @@ const kReceivedMarker = 'rx:*';
 
 String receivedKey(String txid) => '$kReceivedPrefix$txid';
 
+/// Snapshot keys of pending seat moves (a signer replacing a lost phone) start with this,
+/// and so does the [VaultUpdate.proposalId] of their notification (opens Signers).
+const kSeatMovePrefix = 'mv:';
+
+/// Present once seat moves are part of the snapshot (older snapshots lack it: moves
+/// already pending then aren't announced).
+const kSeatMoveMarker = 'mv:*';
+
+String seatMoveKey(rust.SeatMove m) =>
+    '$kSeatMovePrefix${m.oldKeyHex}:${m.newKeyHex}';
+
 /// Present while this member has to approve a proposal again (its signature went into an
 /// unfinished signing round), so the request is announced once.
 String reapprovalKey(String proposalId) => 're:$proposalId';
@@ -57,6 +68,8 @@ List<VaultUpdate> vaultUpdates({
   required bool hideAmounts,
   List<rust.ReceivedInfo> received = const [],
   Map<String, String> names = const {},
+  List<rust.SeatMove> seatMoves = const [],
+  String? me,
 }) {
   String? nameOf(String keyHex) {
     final n = names[keyHex]?.trim();
@@ -78,6 +91,27 @@ List<VaultUpdate> vaultUpdates({
           title:
               '$vaultName: ${r.isCoinbase ? 'mining reward' : 'payment'} received',
           body: hideAmounts ? 'Open Zafe to see it.' : '+$amount',
+        ),
+      );
+    }
+  }
+  if (previous.containsKey(kSeatMoveMarker)) {
+    for (final m in seatMoves) {
+      final key = seatMoveKey(m);
+      // The lost seat's own (old) key and members who already approved needn't act.
+      if (previous.containsKey(key) ||
+          m.oldKeyHex == me ||
+          m.approvals.contains(me)) {
+        continue;
+      }
+      final who = nameOf(m.oldKeyHex) ?? 'A signer';
+      out.add(
+        VaultUpdate(
+          proposalId: key,
+          title: '$vaultName: a signer lost their phone',
+          body:
+              '$who is moving to a new phone. Check the safety code with them, then '
+              'approve in Signers.',
         ),
       );
     }
@@ -170,11 +204,21 @@ List<VaultUpdate> vaultUpdates({
 SeenSnapshot snapshotOf(
   List<rust.ProposalInfo>? proposals, {
   List<rust.ReceivedInfo>? received,
+  List<rust.SeatMove>? seatMoves,
   SeenSnapshot previous = const {},
 }) => {
   if (proposals == null)
     for (final e in previous.entries)
-      if (!e.key.startsWith(kReceivedPrefix)) e.key: e.value,
+      if (!e.key.startsWith(kReceivedPrefix) &&
+          !e.key.startsWith(kSeatMovePrefix))
+        e.key: e.value,
+  if (seatMoves == null)
+    for (final e in previous.entries)
+      if (e.key.startsWith(kSeatMovePrefix)) e.key: e.value,
+  if (seatMoves != null) ...{
+    kSeatMoveMarker: '',
+    for (final m in seatMoves) seatMoveKey(m): '',
+  },
   if (proposals != null)
     for (final p in proposals) p.id: seenKey(p),
   if (proposals != null)

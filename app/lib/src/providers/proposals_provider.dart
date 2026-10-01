@@ -45,6 +45,7 @@ class ProposalsState {
     this.sharedNames = const {},
     this.backedUp = const {},
     this.seatMoves = const [],
+    this.repairs = const [],
   });
 
   final List<rust.ProposalInfo> items;
@@ -71,6 +72,9 @@ class ProposalsState {
   /// Signers moving to a new phone, waiting for approvals.
   final List<rust.SeatMove> seatMoves;
 
+  /// Moved seats whose key isn't rebuilt on the new phone yet.
+  final List<rust.RepairInfo> repairs;
+
   rust.ProposalInfo? byId(String id) {
     for (final p in items) {
       if (p.id == id) return p;
@@ -89,6 +93,7 @@ class ProposalsState {
     Map<String, String>? sharedNames,
     Set<String>? backedUp,
     List<rust.SeatMove>? seatMoves,
+    List<rust.RepairInfo>? repairs,
   }) => ProposalsState(
     items: items ?? this.items,
     loaded: loaded ?? this.loaded,
@@ -99,6 +104,7 @@ class ProposalsState {
     sharedNames: sharedNames ?? this.sharedNames,
     backedUp: backedUp ?? this.backedUp,
     seatMoves: seatMoves ?? this.seatMoves,
+    repairs: repairs ?? this.repairs,
   );
 }
 
@@ -179,6 +185,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
         sharedNames: {for (final n in list.sharedNames) n.keyHex: n.name},
         backedUp: list.backedUp.toSet(),
         seatMoves: list.seatMoves,
+        repairs: list.repairs,
       );
       // A signer's seat moved to a new phone: keep this device's copy of the
       // membership current.
@@ -194,7 +201,9 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
       // Seen on screen: never announced from the background. Only while the app is in
       // the foreground; a refresh running in the background must not swallow news.
       if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
-        unawaited(recordSeen(vault.activeId!, items));
+        unawaited(
+          recordSeen(vault.activeId!, items, seatMoves: list.seatMoves),
+        );
       }
       unawaited(
         VaultSummaries.write(
@@ -371,6 +380,20 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
     );
     await refresh();
     return moved;
+  }
+
+  /// Takes over from `stalledKeyHex`, a helper not doing its part in rebuilding the key of
+  /// the seat moved at `replacement`.
+  Future<void> retryRepair(BigInt replacement, String stalledKeyHex) async {
+    final vault = _vault;
+    await rust.retryRepair(
+      relayUrl: _endpoints.relayUrl,
+      seeds: vault.identity!,
+      material: vault.material!,
+      replacement: replacement,
+      stalledKeyHex: stalledKeyHex,
+    );
+    await refresh();
   }
 
   /// Sets this member's name for the other members (empty clears it).

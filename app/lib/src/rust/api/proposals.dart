@@ -8,7 +8,7 @@ import 'error.dart';
 import 'names.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `backed_up`, `info`, `leader_dir`, `local_tip`, `memo_bytes`, `memo_text`, `nonce_store`, `parse_id`, `pool_store`, `request_file`, `seat_moves`, `shared_names`
+// These functions are ignored because they are not marked as `pub`: `backed_up`, `info`, `leader_dir`, `local_tip`, `memo_bytes`, `memo_text`, `nonce_store`, `parse_id`, `pool_store`, `repairs`, `request_file`, `seat_moves`, `shared_names`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `send_with_progress`
 
@@ -56,6 +56,22 @@ Future<ProposalList> listProposals({
   seeds: seeds,
   material: material,
   tipHeight: tipHeight,
+);
+
+/// Takes over from `stalled_key_hex`, a helper not doing its part in rebuilding a moved
+/// seat's key: a new attempt starts with this member in its place.
+Future<void> retryRepair({
+  required String relayUrl,
+  required List<int> seeds,
+  required List<int> material,
+  required BigInt replacement,
+  required String stalledKeyHex,
+}) => RustLib.instance.api.crateApiProposalsRetryRepair(
+  relayUrl: relayUrl,
+  seeds: seeds,
+  material: material,
+  replacement: replacement,
+  stalledKeyHex: stalledKeyHex,
 );
 
 /// Syncs, builds the transaction from the vault's notes, and logs it as a proposal. Returns
@@ -496,6 +512,9 @@ class ProposalList {
   /// Seat moves waiting for approvals (a signer who lost their phone, spec §10.1).
   final List<SeatMove> seatMoves;
 
+  /// Moved seats whose key isn't rebuilt yet (a helper may have stalled).
+  final List<RepairInfo> repairs;
+
   /// This member's vault material with the current membership, when a seat moved since
   /// the stored copy: save it in place of the old one.
   final Uint8List? updatedMaterial;
@@ -506,6 +525,7 @@ class ProposalList {
     required this.sharedNames,
     required this.backedUp,
     required this.seatMoves,
+    required this.repairs,
     this.updatedMaterial,
   });
 
@@ -516,6 +536,7 @@ class ProposalList {
       sharedNames.hashCode ^
       backedUp.hashCode ^
       seatMoves.hashCode ^
+      repairs.hashCode ^
       updatedMaterial.hashCode;
 
   @override
@@ -528,6 +549,7 @@ class ProposalList {
           sharedNames == other.sharedNames &&
           backedUp == other.backedUp &&
           seatMoves == other.seatMoves &&
+          repairs == other.repairs &&
           updatedMaterial == other.updatedMaterial;
 }
 
@@ -540,6 +562,45 @@ enum ProposalStage {
   rejected,
   cancelled,
   sent,
+}
+
+/// A moved seat whose key the helpers are still rebuilding on the new phone.
+class RepairInfo {
+  /// The move (pass to `retry_repair`).
+  final BigInt replacement;
+
+  /// The new phone's key (hex).
+  final String newKeyHex;
+
+  /// The members rebuilding it in the current attempt (hex keys).
+  final List<String> helpers;
+
+  /// 0 for the approvers' attempt, +1 per retry.
+  final int attempt;
+
+  const RepairInfo({
+    required this.replacement,
+    required this.newKeyHex,
+    required this.helpers,
+    required this.attempt,
+  });
+
+  @override
+  int get hashCode =>
+      replacement.hashCode ^
+      newKeyHex.hashCode ^
+      helpers.hashCode ^
+      attempt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RepairInfo &&
+          runtimeType == other.runtimeType &&
+          replacement == other.replacement &&
+          newKeyHex == other.newKeyHex &&
+          helpers == other.helpers &&
+          attempt == other.attempt;
 }
 
 /// This device's independent check of a proposal (spec §9.3).

@@ -363,9 +363,23 @@ pub struct ProposalList {
     pub backed_up: Vec<String>,
     /// Seat moves waiting for approvals (a signer who lost their phone, spec §10.1).
     pub seat_moves: Vec<SeatMove>,
+    /// Moved seats whose key isn't rebuilt yet (a helper may have stalled).
+    pub repairs: Vec<RepairInfo>,
     /// This member's vault material with the current membership, when a seat moved since
     /// the stored copy: save it in place of the old one.
     pub updated_material: Option<Vec<u8>>,
+}
+
+/// A moved seat whose key the helpers are still rebuilding on the new phone.
+pub struct RepairInfo {
+    /// The move (pass to `retry_repair`).
+    pub replacement: u64,
+    /// The new phone's key (hex).
+    pub new_key_hex: String,
+    /// The members rebuilding it in the current attempt (hex keys).
+    pub helpers: Vec<String>,
+    /// 0 for the approvers' attempt, +1 per retry.
+    pub attempt: u32,
 }
 
 /// A signer moving to a new phone, waiting for approvals.
@@ -408,6 +422,17 @@ pub fn list_proposals(
         {
             eprintln!("share repair: {e}");
         }
+        // A recovered phone tells the others its key is back (once).
+        if state
+            .replacement_to(&me.public().sig_pk)
+            .is_some_and(|r| !r.done)
+        {
+            if let Err(e) = repair::mark_repair_done(&relay, &me, &m, &mut OsRng).await {
+                eprintln!("repair done: {e}");
+            }
+            let (_, fresh) = node::load_state(&relay, &me, &m).await?;
+            return Ok::<_, ZafeError>(fresh);
+        }
         Ok::<_, ZafeError>(state)
     })?;
     node::forget_closed(&state, &me.public().sig_pk, tip_height, &mut pool);
@@ -418,11 +443,52 @@ pub fn list_proposals(
         shared_names: shared_names(&state),
         backed_up: backed_up(&state),
         seat_moves: seat_moves(&state),
+        repairs: repairs(&state),
         updated_material: repair::current_material(&m, &state)
             .map(|m| m.to_bytes())
             .transpose()
             .map_err(|e| ZafeError::new(ZafeErrorKind::Other, e.to_string()))?,
     })
+}
+
+fn repairs(state: &VaultState) -> Vec<RepairInfo> {
+    state
+        .replacements
+        .iter()
+        .filter(|r| !r.done)
+        .map(|r| RepairInfo {
+            replacement: r.index,
+            new_key_hex: hex::encode(r.new.sig_pk),
+            helpers: r.helpers.iter().map(hex::encode).collect(),
+            attempt: r.attempt,
+        })
+        .collect()
+}
+
+/// Takes over from `stalled_key_hex`, a helper not doing its part in rebuilding a moved
+/// seat's key: a new attempt starts with this member in its place.
+pub fn retry_repair(
+    relay_url: String,
+    seeds: Vec<u8>,
+    material: Vec<u8>,
+    replacement: u64,
+    stalled_key_hex: String,
+) -> Result<(), ZafeError> {
+    let me = identity(&seeds)?;
+    let m = self::material(&material)?;
+    let stalled: [u8; 32] = hex::decode(stalled_key_hex.trim())
+        .ok()
+        .and_then(|b| b.try_into().ok())
+        .ok_or_else(|| ZafeError::invalid("not a signer key"))?;
+    runtime().block_on(repair::retry_repair(
+        &RelayClient::new(relay_url),
+        &me,
+        &m,
+        replacement,
+        stalled,
+        &mut OsRng,
+    ))?;
+    Ok(())
 }
 
 fn seat_moves(state: &VaultState) -> Vec<SeatMove> {

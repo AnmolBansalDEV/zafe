@@ -92,6 +92,13 @@ void main() {
             ),
             SizedBox(height: AppSpacing.md),
             SafetyCodeCard(safetyCode: '4817 0263', who: 'Alice'),
+            SizedBox(height: AppSpacing.md),
+            RepairCard(
+              who: 'Alice',
+              helpers: [('b', 'Bob'), ('c', 'Cara')],
+              meHelping: false,
+              onTakeOver: _takeOver,
+            ),
           ],
         ),
       ),
@@ -144,3 +151,5 @@ void main() {
 }
 
 void _noop() {}
+
+void _takeOver(String key, String name) {}

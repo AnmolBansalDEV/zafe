@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../core/layout/mobile/mobile_top_nav.dart';
 import '../../core/layout/mobile/mobile_top_scroll_fade.dart';
 import '../../core/formatting/member_label.dart';
+import '../../core/widgets/app_toast.dart';
+import '../../core/security/unlock_gate.dart';
+import '../../core/errors/zafe_error_copy.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_icon.dart';
@@ -85,6 +88,25 @@ class SignersScreen extends ConsumerWidget {
                             ),
                     ),
                   ],
+                  for (final r in proposals.repairs)
+                    if (r.newKeyHex != me) ...[
+                      const SizedBox(height: AppSpacing.md),
+                      RepairCard(
+                        who: memberLabel(r.newKeyHex, me: me, names: names),
+                        helpers: [
+                          for (final h in r.helpers)
+                            (h, memberLabel(h, me: me, names: names)),
+                        ],
+                        meHelping: r.helpers.contains(me),
+                        onTakeOver: (stalled, name) => _takeOver(
+                          context,
+                          ref,
+                          r.replacement,
+                          stalled,
+                          name,
+                        ),
+                      ),
+                    ],
                   if (backedUp != null) ...[
                     const SizedBox(height: AppSpacing.md),
                     BackupHealthCard(
@@ -144,6 +166,61 @@ class SignersScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+/// Asks, then takes over from a helper who isn't rebuilding a moved seat's key.
+Future<void> _takeOver(
+  BuildContext context,
+  WidgetRef ref,
+  BigInt replacement,
+  String stalled,
+  String name,
+) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (c) => AlertDialog(
+      title: Text('Help instead of $name?'),
+      content: Text(
+        'Your phone takes $name\'s place in rebuilding the key, and the rebuild starts '
+        'over. Do this only if $name can\'t open Zafe for a while.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(c, false),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(c, true),
+          child: const Text('Help instead'),
+        ),
+      ],
+    ),
+  );
+  if (ok != true || !context.mounted) return;
+  if (!await confirmUnlock(
+    context,
+    ref,
+    reason: 'Unlock to help rebuild a key',
+  )) {
+    return;
+  }
+  try {
+    await ref
+        .read(proposalsProvider.notifier)
+        .retryRepair(replacement, stalled);
+    if (context.mounted) {
+      showAppToast(context, 'Your phone helps rebuild the key now.');
+    }
+  } catch (e) {
+    if (context.mounted) {
+      showAppToast(
+        context,
+        zafeErrorMessage(e, fallback: 'Couldn\'t start over. Try again.'),
+        iconName: AppIcons.warningCircle,
+        tone: AppToastTone.destructive,
+      );
+    }
   }
 }
 
@@ -298,6 +375,78 @@ class SeatMoveCard extends StatelessWidget {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// A moved seat whose key the helpers' phones are still rebuilding on the new phone. A
+/// member who isn't helping can take over from a helper who can't.
+class RepairCard extends StatelessWidget {
+  const RepairCard({
+    super.key,
+    required this.who,
+    required this.helpers,
+    required this.meHelping,
+    this.onTakeOver,
+  });
+
+  final String who;
+
+  /// `(key hex, label)` of the helpers in the current attempt.
+  final List<(String, String)> helpers;
+  final bool meHelping;
+  final void Function(String stalled, String name)? onTakeOver;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final names = helpers.map((h) => h.$2).join(' and ');
+    return MobileSurfaceCard(
+      cornerRadius: AppRadii.large,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              AppIcon(AppIcons.key, size: 22, color: colors.icon.accent),
+              const SizedBox(width: AppSpacing.s),
+              Expanded(
+                child: Text(
+                  'Rebuilding $who\'s key',
+                  style: AppTypography.labelLarge.copyWith(
+                    color: colors.text.accent,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            meHelping
+                ? 'Your phone is one of the helpers ($names). It does its part '
+                      'whenever Zafe is open or checks in the background.'
+                : 'The phones of $names rebuild it on $who\'s new phone when they open '
+                      'Zafe. If one of them can\'t for a while, help in their place.',
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.text.secondary,
+            ),
+          ),
+          if (!meHelping && onTakeOver != null)
+            for (final (key, name) in helpers) ...[
+              const SizedBox(height: AppSpacing.s),
+              SizedBox(
+                width: double.infinity,
+                child: AppButton(
+                  expand: true,
+                  variant: AppButtonVariant.secondary,
+                  size: AppButtonSize.medium,
+                  onPressed: () => onTakeOver!(key, name),
+                  child: Text('Help instead of $name'),
+                ),
+              ),
+            ],
         ],
       ),
     );

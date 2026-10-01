@@ -249,6 +249,8 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   `RELAY_DB` 2 → 3 (`mailboxes.threshold`, migrated from 1 and 2). New formats `REPAIR`
   (delta/sigma payloads) and `RECOVERY_REQUEST` (`zafe-recover-v1:`); new envelope kinds
   `RepairDelta`/`RepairSigma` were appended (older apps drop envelopes they can't decode).
+  `VAULT_EVENT` 4 → 5 (2026-10-01, `RepairRetry`, `RepairDone`) and `REPAIR` 1 → 2 (deltas
+  and sigmas carry the attempt); same gate as 4.
   **Pre-release: nothing reads the unversioned bytes from before 2026-09-30**; reset
   test devices (`adb shell pm clear xyz.zafe.zafe`), the harness
   (`scripts/app-harness.sh stop`) and relay DBs after pulling this change.
@@ -733,8 +735,15 @@ Learned while studying it:
   `SeatMoveCard`s. Tests: `crates/zafe-core/tests/repair.rs` (creator replaced, same share,
   signs with a co-signer), `tests/vault.rs` replay rules, `app/rust/tests/repair_bridge.rs`
   (bridge calls, no Docker). Preview: `flutter test tool/screens/repair_render_test.dart`.
-  Not done: re-running a stalled repair with other helpers, QR scanning of the code (paste
-  or share only), a notification for pending moves. Live-tested on the emulator
+  Stalled repairs: `Replacement { helpers, attempt, done }`; any non-helper member can
+  `repair::retry_repair` (bridge `retry_repair`, CLI `zafe seat retry`, Signers tab
+  `RepairCard` "Help instead of X") to start attempt + 1 with itself in a helper's place;
+  helper state files are `<index>-<attempt>.{delta,done}`; the new phone logs `RepairDone`
+  from the bridge's `list_proposals` (CLI `zafe recover`), and `ProposalList.repairs` lists
+  unfinished ones. QR: `/scan-recovery` (`ScanRecoveryScreen`) from the Replace screen.
+  Notifications: pending moves are announced once (`mv:<old>:<new>` keys + `mv:*` marker in
+  `seen.json`; not to the old key or members who approved; tap opens Signers), and
+  background checks save `updatedMaterial`. Live-tested on the emulator
   2026-10-01 both ways (app as helper, app as the new phone) with CLI members
   (`zafe recover`, `zafe seat approve|repair`). Tips: `/recover` is a SecureScreen
   (screenshots are black: read it with `agent-device snapshot`); the code is not shown as

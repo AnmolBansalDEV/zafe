@@ -153,8 +153,9 @@ pub async fn push_seat_moves(
 
 #[derive(Serialize, Deserialize)]
 struct DeltaMsg {
-    /// The seat move ([`Replacement::index`]).
+    /// The seat move ([`Replacement::index`]) and the repair attempt.
     replacement: u64,
+    attempt: u32,
     delta: Vec<u8>,
 }
 
@@ -169,6 +170,7 @@ struct VaultData {
 #[derive(Serialize, Deserialize)]
 struct SigmaMsg {
     replacement: u64,
+    attempt: u32,
     sigma: Vec<u8>,
     data: VaultData,
 }
@@ -182,6 +184,9 @@ struct HelperState {
     sent: bool,
 }
 
+/// A received delta: (move, attempt, sender).
+type DeltaKey = (u64, u32, [u8; 32]);
+
 /// What [`help_repairs`] did this time.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct RepairReport {
@@ -193,8 +198,8 @@ pub struct RepairReport {
     pub waiting: usize,
 }
 
-fn helper_path(dir: &Path, index: u64, ext: &str) -> PathBuf {
-    dir.join(format!("{index}.{ext}"))
+fn helper_path(dir: &Path, r: &Replacement, ext: &str) -> PathBuf {
+    dir.join(format!("{}-{}.{ext}", r.index, r.attempt))
 }
 
 fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), NodeError> {
@@ -232,8 +237,8 @@ pub async fn help_repairs<R: RngCore + CryptoRng>(
     let mine: Vec<&Replacement> = state
         .replacements
         .iter()
-        .filter(|r| r.helpers().contains(&my_pk))
-        .filter(|r| !helper_path(dir, r.index, "done").exists())
+        .filter(|r| !r.done && r.helpers().contains(&my_pk))
+        .filter(|r| !helper_path(dir, r, "done").exists())
         .collect();
     let mut report = RepairReport::default();
     if mine.is_empty() {
@@ -246,8 +251,8 @@ pub async fn help_repairs<R: RngCore + CryptoRng>(
     let members = members_by_pk(state);
     let mut seq = SeqCounter::default();
 
-    // Deltas other helpers sent us, by move and sender.
-    let mut received: BTreeMap<(u64, [u8; 32]), (u64, Vec<u8>)> = BTreeMap::new();
+    // Deltas other helpers sent us, by move, attempt and sender.
+    let mut received: BTreeMap<DeltaKey, (u64, Vec<u8>)> = BTreeMap::new();
     for (cursor, from, env) in read_inbox(relay, me, mailbox, &members, 0).await? {
         if env.header.kind != Kind::RepairDelta {
             continue;
@@ -259,14 +264,14 @@ pub async fn help_repairs<R: RngCore + CryptoRng>(
             continue;
         };
         received
-            .entry((msg.replacement, from.sig_pk))
+            .entry((msg.replacement, msg.attempt, from.sig_pk))
             .or_insert((cursor, msg.delta));
     }
 
     for r in mine {
         let (helper_ids, participant) = repair_ids(state, r)?;
         let helpers = r.helpers();
-        let state_path = helper_path(dir, r.index, "delta");
+        let state_path = helper_path(dir, r, "delta");
         let mut hs: HelperState = match std::fs::read(&state_path) {
             Ok(bytes) => version::decode(Format::Repair, &bytes)?,
             Err(_) => {
@@ -303,6 +308,7 @@ pub async fn help_repairs<R: RngCore + CryptoRng>(
                     .ok_or_else(|| NodeError::Protocol("a helper is no longer a member".into()))?;
                 let msg = DeltaMsg {
                     replacement: r.index,
+                    attempt: r.attempt,
                     delta: hs.deltas[pk].clone(),
                 };
                 let env = Envelope::sealed(
@@ -326,7 +332,7 @@ pub async fn help_repairs<R: RngCore + CryptoRng>(
         let mut deltas = vec![Delta::deserialize(&hs.deltas[&my_pk]).map_err(proto)?];
         let mut cursors = Vec::new();
         for pk in helpers.iter().filter(|pk| **pk != my_pk) {
-            match received.get(&(r.index, *pk)) {
+            match received.get(&(r.index, r.attempt, *pk)) {
                 Some((cursor, bytes)) => {
                     deltas.push(Delta::deserialize(bytes).map_err(proto)?);
                     cursors.push(*cursor);
@@ -341,6 +347,7 @@ pub async fn help_repairs<R: RngCore + CryptoRng>(
         let sigma = repairable::repair_share_part2(&deltas);
         let msg = SigmaMsg {
             replacement: r.index,
+            attempt: r.attempt,
             sigma: sigma.serialize(),
             data: VaultData {
                 public_key_package: material.public_key_package.clone(),
@@ -360,7 +367,7 @@ pub async fn help_repairs<R: RngCore + CryptoRng>(
         )
         .map_err(proto)?;
         relay.send(&env).await?;
-        write_atomic(&helper_path(dir, r.index, "done"), b"")?;
+        write_atomic(&helper_path(dir, r, "done"), b"")?;
         let _ = std::fs::remove_file(&state_path);
         let _ = relay.ack_inbox(me, mailbox, &cursors).await;
         report.sigmas_sent += 1;
@@ -409,7 +416,7 @@ async fn recover_from(
         .into_iter()
         .map(|m| (m.sig_pk, m))
         .collect();
-    let mut messages: BTreeMap<[u8; 32], (u64, SigmaMsg)> = BTreeMap::new();
+    let mut messages: BTreeMap<([u8; 32], u32), (u64, SigmaMsg)> = BTreeMap::new();
     for (cursor, from, env) in read_inbox(relay, me, mailbox, &on_relay, 0).await? {
         if env.header.kind != Kind::RepairSigma {
             continue;
@@ -418,10 +425,12 @@ async fn recover_from(
             continue;
         };
         if let Ok(msg) = version::decode::<SigmaMsg>(Format::Repair, &bytes) {
-            messages.entry(from.sig_pk).or_insert((cursor, msg));
+            messages
+                .entry((from.sig_pk, msg.attempt))
+                .or_insert((cursor, msg));
         }
     }
-    let Some((_, first)) = messages.values().next() else {
+    let Some((_, first)) = messages.values().last() else {
         return Ok(RecoveryStatus::SeatMoved {
             received: 0,
             needed: 0,
@@ -437,8 +446,8 @@ async fn recover_from(
     let helpers = r.helpers();
     let from_helpers: Vec<&SigmaMsg> = helpers
         .iter()
-        .filter_map(|pk| messages.get(pk).map(|(_, m)| m))
-        .filter(|m| m.replacement == r.index)
+        .filter_map(|pk| messages.get(&(*pk, r.attempt)).map(|(_, m)| m))
+        .filter(|m| m.replacement == r.index && m.attempt == r.attempt)
         .collect();
     if from_helpers.len() < helpers.len() {
         return Ok(RecoveryStatus::SeatMoved {
@@ -504,13 +513,70 @@ async fn recover_from(
     };
     let cursors: Vec<u64> = helpers
         .iter()
-        .filter_map(|pk| messages.get(pk).map(|(c, _)| *c))
+        .filter_map(|pk| messages.get(&(*pk, r.attempt)).map(|(c, _)| *c))
         .collect();
     let _ = relay.ack_inbox(me, mailbox, &cursors).await;
     Ok(RecoveryStatus::Done {
         material: Box::new(material),
         invite,
     })
+}
+
+/// Member: takes over from `stalled`, a helper who isn't doing its part in repairing the
+/// key of the seat moved at `replacement`, starting a new attempt with this member in its
+/// place (spec §10.4.2).
+pub async fn retry_repair<R: RngCore + CryptoRng>(
+    relay: &RelayClient,
+    me: &Identity,
+    material: &VaultMaterial,
+    replacement: u64,
+    stalled: [u8; 32],
+    rng: &mut R,
+) -> Result<(), NodeError> {
+    let (mut chain, mut state) = load_state(relay, me, material).await?;
+    let r = state
+        .replacements
+        .iter()
+        .find(|r| r.index == replacement && !r.done)
+        .ok_or_else(|| NodeError::NotReady("that key repair is already finished".into()))?;
+    let my_pk = me.public().sig_pk;
+    if !r.helpers.contains(&stalled) || r.helpers.contains(&my_pk) {
+        return Err(NodeError::NotReady(
+            "you are already helping, or that signer isn't".into(),
+        ));
+    }
+    let helpers = r
+        .helpers
+        .iter()
+        .map(|h| if *h == stalled { my_pk } else { *h })
+        .collect();
+    let event = VaultEvent::RepairRetry {
+        replacement,
+        helpers,
+    };
+    append_event(relay, me, material, &mut chain, &mut state, &event, rng).await?;
+    Ok(())
+}
+
+/// New device, once its key checked out: tells the others the repair is finished.
+pub async fn mark_repair_done<R: RngCore + CryptoRng>(
+    relay: &RelayClient,
+    me: &Identity,
+    material: &VaultMaterial,
+    rng: &mut R,
+) -> Result<(), NodeError> {
+    let (mut chain, mut state) = load_state(relay, me, material).await?;
+    let Some(r) = state.replacement_to(&me.public().sig_pk) else {
+        return Ok(());
+    };
+    if r.done {
+        return Ok(());
+    }
+    let event = VaultEvent::RepairDone {
+        replacement: r.index,
+    };
+    append_event(relay, me, material, &mut chain, &mut state, &event, rng).await?;
+    Ok(())
 }
 
 /// The member's material with the vault's current membership, when seats moved since it
