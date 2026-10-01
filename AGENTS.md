@@ -723,6 +723,9 @@ Learned while studying it:
   (name renames locally), signer key,
   hide amounts, theme (`themeModeProvider`, persisted), endpoints (editable, see above),
   open-source licenses (fonts + NOTICE registered in `main.dart`).
+  "How it's protected" (`/vault-protection`, `VaultProtectionBody` takes plain data;
+  preview `flutter test tool/screens/protection_render_test.dart`): the approval rule, full
+  view access, what losing too many keys means, and the post-quantum caveat (spec §2.3).
 - **Sync failures** (`core/errors/sync_failure.dart`, pure, `test/sync_failure_test.dart`):
   `homeSyncFailure(syncError:, relayError:)` combines the last wallet sync error
   (`VaultState.syncError`, kept while the next attempt runs so the label doesn't flicker)

@@ -124,6 +124,12 @@ class SettingsScreen extends ConsumerWidget {
                       title: 'Security',
                       rows: [
                         row(
+                          icon: AppIcons.shieldKeyhole,
+                          label: 'How it\'s protected',
+                          chevron: true,
+                          onTap: () => context.push('/vault-protection'),
+                        ),
+                        row(
                           icon: AppIcons.lock,
                           label: 'Back up vault',
                           chevron: true,

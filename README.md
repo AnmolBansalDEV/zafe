@@ -11,7 +11,7 @@ nothing that says "multisig".
 
 > **Status: pre-release, testnet/regtest only, not audited.** Do not use with real funds.
 > The Zcash Foundation has answered our key-derivation and signing questions (see
-> [`upstream-asks.md`](upstream-asks.md)); mainnet waits on an external audit.
+> [`upstream-asks.md`](upstream-asks.md)); mainnet waits on an external audit and a hosted relay.
 
 Website: <https://zafe.cash> (the 3D walkthrough is at
 [`/showcase`](https://zafe.cash/showcase)).

@@ -27,6 +27,7 @@ import 'features/receive/receive_screen.dart';
 import 'features/received/received_screen.dart';
 import 'features/send/send_screen.dart';
 import 'features/settings/settings_screen.dart';
+import 'features/settings/vault_protection_screen.dart';
 import 'features/settings/viewing_key_screen.dart';
 import 'providers/tor_provider.dart';
 import 'providers/mempool_watch_provider.dart';
@@ -116,6 +117,7 @@ final _routerProvider = Provider<GoRouter>((ref) {
         '/settings',
         '/signers',
         '/viewing-key',
+        '/vault-protection',
         '/export',
         '/activity',
         '/backup-prompt',
@@ -200,6 +202,10 @@ final _routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/restore',
         pageBuilder: (_, _) => page(const SecureScreen(child: RestoreScreen())),
+      ),
+      GoRoute(
+        path: '/vault-protection',
+        pageBuilder: (_, _) => page(const VaultProtectionScreen()),
       ),
       GoRoute(
         path: '/viewing-key',

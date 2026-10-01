@@ -436,8 +436,11 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 - [ ] Transparent / TEX recipients with a warning (spec allows; verify.rs is
       Ironwood-only today)
 - [ ] External security audit of zafe-core and the protocol
-- [x] Mainnet gate U1: answered by ZF on frost#1094 (2026-10-01). The audit above is now
-      the mainnet gate
+- [x] Mainnet gate U1: answered by ZF on frost#1094 (2026-10-01)
+- [ ] **(you)** Mainnet musts: the audit above, a hosted relay (OVH VPS) with its URL in
+      `kMainnetRelayUrl`, and a small end-to-end mainnet dry run (create, receive,
+      propose, sign, send, restore) incl. `zec.rocks:443` with the app
+- [ ] Capped mainnet beta (per-vault limit, "beta" label) before full launch
 
 ## M3 / M4 — later (spec §16)
 

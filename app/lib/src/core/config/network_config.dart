@@ -44,7 +44,8 @@ const NetworkPreset kTestnetPreset = NetworkPreset(
 const String kTestnetRelayUrl = kPlaceholderRelayUrl;
 const String kTestnetLightwalletdUrl = 'https://testnet.zec.rocks:443';
 
-/// Mainnet is gated (AGENTS.md, U1); endpoints are listed for completeness only.
+/// Mainnet waits on the audit and a hosted relay (docs/tracker.md, M2); the relay here is
+/// still the placeholder.
 const NetworkPreset kMainnetPreset = NetworkPreset(
   network: 'main',
   relayUrl: kMainnetRelayUrl,

@@ -1,7 +1,8 @@
 # Releasing the Android app
 
 Releases are testnet APKs on GitHub Releases, built and signed by
-`.github/workflows/release.yml`. Mainnet builds wait for the U1 gate (`docs/tracker.md`).
+`.github/workflows/release.yml`. Mainnet builds wait for the external audit, a hosted relay and a small mainnet dry run
+(`docs/tracker.md`, M2).
 
 ## One-time setup (you)
 
