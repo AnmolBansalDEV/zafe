@@ -594,10 +594,12 @@ export async function start({ canvas, story, hero, features, cta, covers, screen
   let camPos = null;
   let camTarget = null;
   function buildCamera(portrait) {
-    // Portrait pulls the wide shots back, and the islands (12-14), which are wide.
+    // Portrait pulls the wide shots back just enough for the diorama to fit the width
+    // (1.55 left it at half the screen on phones, 1.3 cut the edge phones), and the islands (12-14) further, as
+    // their cards sit below them.
     const pos = CAM.map(([p, t], i) => {
       const d = p.distanceTo(t);
-      return portrait && (d > 14 || (i >= 12 && i <= 14)) ? t.clone().add(p.clone().sub(t).multiplyScalar(i >= 12 && i <= 14 ? 1.7 : 1.55)) : p;
+      return portrait && (d > 14 || (i >= 12 && i <= 14)) ? t.clone().add(p.clone().sub(t).multiplyScalar(i >= 12 && i <= 14 ? 1.7 : 1.42)) : p;
     });
     camPos = new THREE.CatmullRomCurve3(pos, false, 'centripetal');
     camTarget = new THREE.CatmullRomCurve3(CAM.map((c) => c[1]), false, 'centripetal');

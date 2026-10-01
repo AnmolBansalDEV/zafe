@@ -97,6 +97,10 @@ emissive/gold only, grain, vignette), GSAP ScrollTrigger, Lenis.
   the page.
 - **SEO**: canonical/OG/JSON-LD come from `Base.astro` props and `site` in
   `astro.config.mjs`; keep every heading level meaningful (crawlers see only the DOM).
+- **Details the user notices**: every home section carries the same small `.tag` label
+  above its heading (one missing one reads as a slip); compound words in narrow cells or
+  labels get `<span class="nowrap">` so phones don't split them (not U+2011: the font
+  subset lacks it, so it would render in a fallback font).
 
 ## 5. Verify every change by looking
 
@@ -104,12 +108,17 @@ emissive/gold only, grain, vignette), GSAP ScrollTrigger, Lenis.
 (cd infra/site && ./build.sh)                         # includes the inline-code guard
 python3 -m http.server 8768 --bind 127.0.0.1 --directory infra/site/dist   # background
 S=.claude/skills/landing-page
-bash $S/frames.sh "http://127.0.0.1:8768/?world=always&pointer=fine" .story 1440 900 12 "$OUT" story
+# The 3D story is on /showcase; the plain server needs the .html (Vercel serves clean paths).
+bash $S/frames.sh "http://127.0.0.1:8768/showcase.html?world=always&pointer=fine" .story 1440 900 12 "$OUT" story
 python3 $S/sheet.py "$OUT" story 3 0.36               # one contact sheet, then Read it
-bash $S/frames.sh "http://127.0.0.1:8768/?world=always" .story 390 844 12 "$OUT" story_m && python3 $S/sheet.py "$OUT" story_m 6 0.5
+bash $S/frames.sh "http://127.0.0.1:8768/showcase.html?world=always" .story 390 844 12 "$OUT" story_m && python3 $S/sheet.py "$OUT" story_m 6 0.5
 ```
 - Desktop 1440x900 **and** phone 390x844, every section you touched; open the sheet and
   the key single frames; fix, rebuild, recapture before reporting.
+- **On phones, check the wide 3D shots fill the width** without cropping a phone: the
+  portrait pull-back for wide framings is ×1.42 (`buildCamera` in world.js: ×1.55 left the
+  diorama at half the screen, ×1.3 cut the edge phones). Re-check after moving the camera
+  or the phones.
 - Headless Chrome renders WebGL in software (SwiftShader), so the page skips the world
   there: add `?world=always`. The world then runs at the lowest quality (softer) and
   ~1 fps, fine for screenshots, meaningless for frame rates; the bare URL checks the
@@ -121,6 +130,16 @@ bash $S/frames.sh "http://127.0.0.1:8768/?world=always" .story 390 844 12 "$OUT"
   Measure page weight and rAF rate with a small agent-browser script in a file.
 - The sandbox refuses complex inline shell and `eval` strings: put scripts in files and
   run them with `bash`.
+
+## Improving in rounds
+
+When asked to keep improving the site: each round, screenshot every section of both pages
+(desktop and phone), write a ranked, harsh critique against the user's taste (memory
+`website-style`: loves / rejected / cares about), fix the top issues, verify, ship to main,
+and log the round in `docs/site.md`. **Minor issues count**: the user asks for them anyway
+("fix the minor issues too"), so fix them in the round that finds them rather than
+listing them as left over. Stop when a critique finds nothing at all, or after the round
+limit you were given, and say what you'd do next.
 
 ## 6. Record and ship
 

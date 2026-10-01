@@ -9,9 +9,12 @@ threshold signatures**: members' phones jointly produce one ordinary spend signa
 chain, a Zafe vault looks exactly like a single-user wallet: no owners, no threshold,
 nothing that says "multisig".
 
-> **Status: pre-release, testnet/regtest only.** Do not use with real funds. The mainnet
-> gate is an upstream confirmation about the key derivation (see
-> [`upstream-asks.md`](upstream-asks.md), Q1). Wire formats are not versioned yet.
+> **Status: pre-release, testnet/regtest only, not audited.** Do not use with real funds.
+> The mainnet gate is an upstream confirmation about the key derivation (see
+> [`upstream-asks.md`](upstream-asks.md), Q1).
+
+Website: <https://zafe-pink.vercel.app> (the 3D walkthrough is at
+[`/showcase`](https://zafe-pink.vercel.app/showcase)).
 
 ## How it works
 
@@ -29,6 +32,11 @@ nothing that says "multisig".
   amounts or addresses, and can't spend.
 - **Backups**: each member can export an encrypted backup of their key share
   (Argon2id + XChaCha20-Poly1305). Signing nonces are never included.
+- **On the phone**: optional Tor for every connection (embedded arti, fail-closed), an
+  encrypted wallet database (SQLCipher), an unlock to approve or send, several vaults
+  per phone (a fresh identity each), invite links, and viewing keys for auditors.
+- **Versioned formats**: every envelope, log entry, event, API body and on-device file
+  carries a format version, and older apps are told to update instead of misreading.
 
 The full design is in [`spec.md`](spec.md).
 
@@ -43,8 +51,12 @@ crates/zafe-cli     `zafe`, a headless member used for tests and scripting
 app/                Flutter app (Android today; iOS not yet built) with a Rust bridge
                     (flutter_rust_bridge) in app/rust
 infra/regtest       Zakura + lightwalletd regtest with NU6.3 active (Docker)
-scripts/            end-to-end scripts, benchmarks, illustration generator
-docs/               tracker (what's next), design references, illustration guide
+infra/relay         relay Dockerfile and deploy recipes (Fly.io or a VPS); not deployed yet
+infra/site          the website (Astro, static, strict CSP): home, /showcase, /join
+scripts/            end-to-end scripts, benchmarks, brand and illustration generators
+docs/               tracker (what's next), releasing, brand, website and SEO decisions,
+                    design references, illustration guide
+.claude/skills/     project skills for agents: brand palette, logo design, landing page
 ```
 
 ## Build and test
@@ -77,6 +89,17 @@ flutter build apk --debug --target-platform android-arm64
 or emulator can go through vault creation, payments and approvals. Network endpoints are
 build-time `--dart-define`s (`ZAFE_NETWORK`, relay and lightwalletd URLs; defaults point
 at a local regtest).
+
+Website (Node 24, as in CI):
+
+```bash
+cd infra/site && npm ci && ./build.sh     # → dist/; fails on any inline script or style
+```
+
+Pushes to `main` deploy it to Vercel (`.github/workflows/site.yml`); see
+[`infra/site/README.md`](infra/site/README.md). Android releases:
+[`docs/releasing.md`](docs/releasing.md). Relay deployment:
+[`infra/relay/README.md`](infra/relay/README.md).
 
 Contributor notes, invariants and gotchas are in [`AGENTS.md`](AGENTS.md); open work is in
 [`docs/tracker.md`](docs/tracker.md).

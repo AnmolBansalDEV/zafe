@@ -1374,3 +1374,4 @@ html.world-on .foot-slim { background: var(--window); max-width: none; padding-l
   .showcase .nav-logo, .showcase .nav-side, html.world-on .showcase .world { animation: none; }
   .scroll-cue i::after { animation: none; }
 }
+.nowrap { white-space: nowrap; }

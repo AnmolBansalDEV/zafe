@@ -3,6 +3,16 @@
 The landing page (`infra/site/src/pages/index.astro`) follows this brief. Keep it current
 when the page changes.
 
+## Round 12d: the minor items too
+
+"Fix the minor issues too, also update the skill accordingly." Fixed the three 12c left:
+"Single-key" sits in a `.nowrap` span (the font subset has no U+2011, so a non-breaking
+hyphen would fall back to another font); the comparison got its `Compare` tag like every
+other section; on phones the wide 3D shots are pulled back ×1.42 instead of ×1.55
+(`buildCamera`), so the diorama fills the width (×1.3 cut the edge phones). The skill now
+says minor issues get fixed in the round that finds them, and the root README is current
+(versioned formats, phone features, website, layout, links).
+
 ## Round 12c (critique pass): nothing above minor, loop stopped
 
 Checked both pages again at 1440×900 and 390×844 (showcase with the world, its stills
