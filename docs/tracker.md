@@ -17,8 +17,9 @@ Last updated: 2026-10-01 (Verdigris + Seam brand implemented; note reservation; 
       the unrelated `colosseum-copilot` skill left the repo (now in `~/.claude/skills`);
       the site's calls to action say "View code" and link the repo until
       `ZAFE_DOWNLOAD_URL` is set.
-  - [ ] **(you)** Make `AnmolBansalDEV/zafe` public (every site link 404s until then),
-        then post the preview (Zypherpunk Discord).
+  - [x] `AnmolBansalDEV/zafe` is public (2026-10-01, rescanned first); description and
+        homepage link the site.
+  - [ ] **(you)** Post the preview (Zypherpunk Discord).
   - [ ] After the relay is deployed: testnet APK in GitHub Releases, set
         `ZAFE_DOWNLOAD_URL` in the site build ("Get Zafe" comes back), second post.
 
