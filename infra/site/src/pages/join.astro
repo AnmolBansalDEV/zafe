@@ -6,7 +6,7 @@
 // description and social tags are only for chat link previews, which fetch the URL
 // without the fragment. Never add analytics or any third-party script here.
 import Base from '../layouts/Base.astro';
-import { downloadUrl } from '../config';
+import { downloadUrl, sourceUrl } from '../config';
 ---
 
 <Base
@@ -32,7 +32,7 @@ import { downloadUrl } from '../config';
         <li>
           <h2>Install Zafe</h2>
           <p>Android 7 or newer. The iPhone app isn't available yet.</p>
-          <a class="button" href={downloadUrl} target="_blank" rel="noopener noreferrer">Download for Android</a>
+          <a class="button" href={downloadUrl || sourceUrl} target="_blank" rel="noopener noreferrer">{downloadUrl ? 'Download for Android' : 'Build from source'}</a>
         </li>
         <li>
           <h2>Open the invite</h2>

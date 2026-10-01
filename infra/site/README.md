@@ -58,7 +58,7 @@ npm run dev                                  # http://localhost:4321
 ```sh
 ZAFE_ANDROID_CERT_SHA256=<release cert SHA-256>[,<debug cert SHA-256>] \  # else no assetlinks.json
 ZAFE_IOS_APP_IDS=<TeamID>.xyz.zafe.zafe \   # optional, once there is an iOS build
-ZAFE_DOWNLOAD_URL=https://… \               # optional, default: GitHub releases
+ZAFE_DOWNLOAD_URL=https://… \               # optional; unset: "View code", no Android link
 ZAFE_SOURCE_URL=https://… \                 # optional, default: the GitHub repo
 infra/site/build.sh
 ```

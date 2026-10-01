@@ -10,7 +10,7 @@ import Icon from '../components/Icon.astro';
 import Mark from '../components/Mark.astro';
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
-import { downloadUrl, sourceUrl, specUrl } from '../config';
+import { downloadUrl, getLabel, getNote, getUrl, sourceUrl, specUrl } from '../config';
 
 const faq = [
   { q: 'Is Zafe safe to use?', a: 'It’s on testnet and not yet audited. Everything is open source. Don’t use real funds yet.' },
@@ -50,7 +50,7 @@ const jsonLd = {
       description,
       operatingSystem: 'Android',
       applicationCategory: 'FinanceApplication',
-      downloadUrl,
+      ...(downloadUrl ? { downloadUrl } : {}),
       isAccessibleForFree: true,
       offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
       publisher: { '@id': `${home}#org` },
@@ -93,7 +93,7 @@ const jsonLd = {
         <h1>The multisig<br />nobody can see</h1>
         <p class="sub">One private vault for your team. Nothing moves until enough of you approve.</p>
         <div class="lp-actions">
-          <a class="pill" href={downloadUrl} rel="noopener noreferrer">Get Zafe</a>
+          <a class="pill" href={getUrl} rel="noopener noreferrer">{getLabel}</a>
           <a class="lp-more" href="/showcase">Watch it in 3D <Icon name="chevron_forward" /></a>
         </div>
       </div>
@@ -250,8 +250,8 @@ const jsonLd = {
         <div class="lp-cta-copy">
           <p class="tag plain">Ready when you are</p>
           <h2>Open your vault</h2>
-          <p>Two phones and a few testnet coins.</p>
-          <a class="pill" href={downloadUrl} rel="noopener noreferrer">Get Zafe</a>
+          <p>{getNote}</p>
+          <a class="pill" href={getUrl} rel="noopener noreferrer">{getLabel}</a>
         </div>
         <div class="lp-cta-art" aria-hidden="true"><img class="lp-phone" src="/assets/screens/story_bob_home_dark.webp" width="780" height="1688" alt="" loading="lazy" decoding="async" /></div>
       </div>

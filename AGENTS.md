@@ -396,7 +396,7 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   same `libzafe_proto-<hash>.rlib` and a concurrent build can hand yours another
   worktree's version ("could not find `version` in `zafe_proto`"). Use a private target
   dir for verification when other agents build at the same time. Building `zafe-cli` or
-  `zafe-relay` into `/home/anmolbansal/zafe/target` also replaces the binaries
+  `zafe-relay` into the main checkout's `target/` also replaces the binaries
   `scripts/app-harness.sh` runs.
 - `propose_transfer` / `create_pczt_from_proposal` need explicit error type params
   (commitment_tree::Error, GreedyInputSelectorError, zip317::FeeError).
@@ -849,7 +849,9 @@ Learned while studying it:
   `astro.config.mjs` sets `inlineStylesheets: 'never'` and `build.format: 'file'`;
   `build.sh` greps the output and fails on any inline script/style/handler. Phone shots
   are the app's own renders (`tool/screens/*_render_test.dart` → `infra/site/assets.py`
-  → WebP); fonts are the app's, subset to WOFF2. Landing copy must only claim shipped
+  → WebP); fonts are the app's, subset to WOFF2. Calls to action go through `getUrl`/`getLabel`/`getNote` in
+  `src/config.ts`: "Get Zafe" only when the build sets `ZAFE_DOWNLOAD_URL`, otherwise
+  "View code" to the repo (no APK testers can use before the relay is hosted). Landing copy must only claim shipped
   features. Look at it with agent-browser at 1280 and 390 wide, light and dark.
   **Design** follows `docs/site.md` (now laid out after vizor.cash; decisions at the top): teal only
   for the action and "needs you", gold only for amounts, Space Grotesk only at display

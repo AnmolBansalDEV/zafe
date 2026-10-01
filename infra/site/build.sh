@@ -6,8 +6,9 @@
 #                              comma-separated (AA:BB:... or plain hex). Without them
 #                              there is no assetlinks.json, so App Links can't verify.
 #   ZAFE_IOS_APP_IDS           optional: <TeamID>.xyz.zafe.zafe, comma-separated
-#   ZAFE_DOWNLOAD_URL          optional: where "Download for Android" points
-#                              (default: the GitHub releases page)
+#   ZAFE_DOWNLOAD_URL          optional: where "Get Zafe" points. Unset until there is an
+#                              APK testers can use: the hero then links to the source and
+#                              the footer has no Android link
 #   ZAFE_SOURCE_URL            optional: where "Read the source" points
 #                              (default: the GitHub repository)
 set -euo pipefail
@@ -16,7 +17,7 @@ here="$(cd "$(dirname "$0")" && pwd)"
 out="$here/dist"
 package="xyz.zafe.zafe"
 repo="https://github.com/AnmolBansalDEV/zafe"
-download="${ZAFE_DOWNLOAD_URL:-$repo/releases}"
+download="${ZAFE_DOWNLOAD_URL:-}"
 source_url="${ZAFE_SOURCE_URL:-$repo}"
 
 die() { echo "error: $*" >&2; exit 1; }
@@ -25,7 +26,7 @@ plain_https() {
   [[ "$1" =~ ^https://[A-Za-z0-9._~:/?#@!\$\&\(\)*+,\;=%-]+$ && "$1" != *"'"* ]]
 }
 
-plain_https "$download" || die "ZAFE_DOWNLOAD_URL must be a plain https:// URL"
+[[ -z "$download" ]] || plain_https "$download" || die "ZAFE_DOWNLOAD_URL must be a plain https:// URL"
 plain_https "$source_url" || die "ZAFE_SOURCE_URL must be a plain https:// URL"
 
 # Fingerprints → "AA:BB:...", upper case, exactly 32 bytes.

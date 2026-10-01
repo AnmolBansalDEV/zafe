@@ -12,6 +12,16 @@ Last updated: 2026-10-01 (Verdigris + Seam brand implemented; note reservation; 
 
 ## Next up (proposed order)
 
+- [~] **Open source + testnet preview** (2026-10-01): history scanned with gitleaks and
+      trufflehog (0 verified secrets; the one hit is the relay's test-only RSA fixture);
+      the unrelated `colosseum-copilot` skill left the repo (now in `~/.claude/skills`);
+      the site's calls to action say "View code" and link the repo until
+      `ZAFE_DOWNLOAD_URL` is set.
+  - [ ] **(you)** Make `AnmolBansalDEV/zafe` public (every site link 404s until then),
+        then post the preview (Zypherpunk Discord).
+  - [ ] After the relay is deployed: testnet APK in GitHub Releases, set
+        `ZAFE_DOWNLOAD_URL` in the site build ("Get Zafe" comes back), second post.
+
 - [x] **Brand: Verdigris + Seam** (decided 2026-10-01, `docs/brand.md`; implemented on
       branch `worktree-agent-a762a0ef73fae7642`): palette tokens (generated,
       `scripts/brand/primitives.js`), light vault card in light mode (`colors.vaultCard`),
