@@ -36,6 +36,7 @@ const S = {
   pulse: 0, // the floor pulse from Bob to the others
   shardA: 0, shardB: 0, fuse: 0, insert: 0, open: 0,
   coins: 0, stream: 0, closeDoor: 0,
+  i1: 0, i2: 0, i3: 0, fpulse: 0, ctaZ: 0, // feature islands and the call to action
   aPush1: 0, aPush2: 0, aPush3: 0, aScroll: 0,
   tapA1: 0, tapA2: 0, tapA3: 0, tapB1: 0, tapB2: 0,
   banner: 0, sentBanner: 0, caraDim: 0,
@@ -146,7 +147,7 @@ function zBars(segments, material) {
 
 // ---------------------------------------------------------------------------- scene
 
-export async function start({ canvas, story, hero }) {
+export async function start({ canvas, story, hero, features, cta, covers }) {
   const images = await loadScreens();
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false });
@@ -397,6 +398,156 @@ export async function start({ canvas, story, hero }) {
   scene.add(stream);
   const tmp = new THREE.Object3D();
 
+  // ---------------------------------------------------------------- feature islands
+  const ISLANDS = [new THREE.Vector3(14, 0, 0.6), new THREE.Vector3(23.5, 0, -1.4), new THREE.Vector3(33, 0, 0.6)];
+  const islandBase = (pos, w, d) => {
+    const base = new THREE.Mesh(new RoundedBoxGeometry(w, 0.32, d, 4, 0.1), clay('#CFD9D7'));
+    base.position.copy(pos).setY(0.16);
+    base.castShadow = base.receiveShadow = true;
+    scene.add(base);
+    return base;
+  };
+  // A label in a white pill with a teal check (the island's badges).
+  function badge(text) {
+    const c = document.createElement('canvas');
+    c.width = 512;
+    c.height = 128;
+    const g = c.getContext('2d');
+    g.fillStyle = '#FFFFFF';
+    g.beginPath();
+    g.roundRect(8, 8, 496, 112, 56);
+    g.fill();
+    g.fillStyle = '#E0F3F1';
+    g.beginPath();
+    g.arc(64, 64, 34, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = '#00736C';
+    g.lineWidth = 9;
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    g.beginPath();
+    g.moveTo(48, 66);
+    g.lineTo(60, 78);
+    g.lineTo(82, 52);
+    g.stroke();
+    g.fillStyle = '#090E0E';
+    g.font = '500 52px "DM Sans", sans-serif';
+    g.fillText(text, 116, 82);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, toneMapped: false }));
+    sp.scale.set(1.6, 0.4, 1);
+    scene.add(sp);
+    return sp;
+  }
+
+  // 1. Checked on every phone: the review screen, a scan beam, three badges.
+  islandBase(ISLANDS[0], 3.4, 2.2);
+  const checker = makePhone('#D5DCDB', '#D8ECFF', 2);
+  checker.root.position.copy(ISLANDS[0]).setY(0.32);
+  checker.g.drawImage(images.meReview, 0, -(images.meReview.height - H) * (W / images.meReview.width) * 0.86, W, (images.meReview.height * W) / images.meReview.width);
+  checker.tex.needsUpdate = true;
+  const beam = new THREE.Mesh(
+    new THREE.PlaneGeometry(SCREEN_W, 0.12),
+    new THREE.MeshBasicMaterial({ color: new THREE.Color('#51DDD2').multiplyScalar(2), transparent: true, opacity: 0, toneMapped: false, depthWrite: false, blending: THREE.AdditiveBlending }),
+  );
+  beam.position.z = PHONE_DEPTH / 2 + 0.01;
+  checker.phone.add(beam);
+  const badges = ['Recipient', 'Amount', 'Fee'].map(badge);
+
+  // 2. Invisible on-chain: a chain of glassy blocks of identical tokens; a gold coin joins.
+  islandBase(ISLANDS[1], 7.4, 1.8);
+  const blockMat = new THREE.MeshPhysicalMaterial({ color: '#7FCFC6', roughness: 0.1, clearcoat: 1, transparent: true, opacity: 0.32, depthWrite: false });
+  const tokenMat = clay('#9FB0AD', { roughness: 0.45, metalness: 0.4 });
+  const BLOCKS = 6;
+  const blockX = (i) => ISLANDS[1].x - 2.75 + i * 1.1;
+  for (let i = 0; i < BLOCKS; i++) {
+    const block = new THREE.Mesh(new RoundedBoxGeometry(0.86, 0.86, 0.86, 4, 0.12), blockMat);
+    block.position.set(blockX(i), 0.32 + 0.45, ISLANDS[1].z);
+    scene.add(block);
+    for (let j = 0; j < 3; j++) {
+      const tok = new THREE.Mesh(coinGeo, tokenMat);
+      tok.position.set(blockX(i) - 0.2 + j * 0.2, 0.32 + 0.3 + j * 0.12, ISLANDS[1].z + (j - 1) * 0.12);
+      tok.rotation.set(Math.PI / 2 + j, 0.3 * j, 0);
+      scene.add(tok);
+    }
+    if (i < BLOCKS - 1) {
+      const link = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.3, 12), clay('#B9C7C4'));
+      link.rotation.z = Math.PI / 2;
+      link.position.set(blockX(i) + 0.55, 0.77, ISLANDS[1].z);
+      scene.add(link);
+    }
+  }
+  const traveller = new THREE.Mesh(coinGeo, coins.material);
+  traveller.scale.setScalar(2.2);
+  scene.add(traveller);
+
+  // 3. Private all the way: a tunnel of arches a packet passes through; a sealed backup.
+  islandBase(ISLANDS[2], 4.6, 2.6);
+  const archMats = [];
+  const arches = [0, 1, 2, 3].map((i) => {
+    const m = clay(['#004A46', '#00736C', '#2FA79E', '#51DDD2'][i], { roughness: 0.5, emissive: new THREE.Color('#51DDD2'), emissiveIntensity: 0 });
+    archMats.push(m);
+    const arch = new THREE.Mesh(new THREE.TorusGeometry(1.0 - i * 0.06, 0.11, 16, 48, Math.PI), m);
+    arch.rotation.y = Math.PI / 2;
+    arch.position.set(ISLANDS[2].x - 1.3 + i * 0.75, 0.32, ISLANDS[2].z - 0.2);
+    arch.castShadow = true;
+    scene.add(arch);
+    return arch;
+  });
+  const packet = new THREE.Mesh(new RoundedBoxGeometry(0.4, 0.4, 0.4, 3, 0.08), new THREE.MeshBasicMaterial({ color: new THREE.Color('#51DDD2').multiplyScalar(2.5), toneMapped: false }));
+  scene.add(packet);
+  const envelope = new THREE.Group();
+  const envBody = new THREE.Mesh(new RoundedBoxGeometry(1.1, 0.72, 0.06, 2, 0.03), clay('#FFFFFF', { roughness: 0.7 }));
+  const flapShape = new THREE.Shape();
+  flapShape.moveTo(-0.55, 0.36);
+  flapShape.lineTo(0.55, 0.36);
+  flapShape.lineTo(0, -0.05);
+  flapShape.closePath();
+  const flap = new THREE.Mesh(new THREE.ShapeGeometry(flapShape), clay('#EEF2F1', { side: THREE.DoubleSide }));
+  flap.position.z = 0.035;
+  const seal = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.04, 32), coins.material);
+  seal.rotation.x = Math.PI / 2;
+  seal.position.set(0, -0.02, 0.06);
+  envelope.add(envBody, flap, seal);
+  envelope.position.set(ISLANDS[2].x + 1.6, 0.32 + 0.5, ISLANDS[2].z + 0.6);
+  envelope.rotation.set(-0.2, -0.5, 0.08);
+  envelope.traverse((m) => m.isMesh && (m.castShadow = true));
+  scene.add(envelope);
+
+  // Floor channels from the vault on to the islands, and a pulse that runs ahead.
+  const islandPath = new THREE.CurvePath();
+  {
+    const pts = [
+      new THREE.Vector3(2.4, 0.012, -0.2),
+      new THREE.Vector3(8, 0.012, -0.2),
+      new THREE.Vector3(ISLANDS[0].x - 1.8, 0.012, ISLANDS[0].z + 1.4),
+      new THREE.Vector3(ISLANDS[1].x - 4, 0.012, ISLANDS[1].z + 1.2),
+      new THREE.Vector3(ISLANDS[1].x + 4, 0.012, ISLANDS[1].z + 1.2),
+      new THREE.Vector3(ISLANDS[2].x - 2.4, 0.012, ISLANDS[2].z + 1.6),
+    ];
+    for (let i = 0; i < pts.length - 1; i++) islandPath.add(new THREE.LineCurve3(pts[i], pts[i + 1]));
+  }
+  {
+    const groove = new THREE.Mesh(new THREE.TubeGeometry(islandPath, 160, 0.07, 6, false), channelMat);
+    groove.scale.y = 0.25;
+    groove.receiveShadow = true;
+    scene.add(groove);
+  }
+  const islandPulse = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), pulseMat);
+  scene.add(islandPulse);
+
+  // The big Z in the floor around the vault, lit for the call to action (read from above).
+  const bigZ = new THREE.CurvePath();
+  {
+    const z = [new THREE.Vector3(-5.6, 0.015, -4.6), new THREE.Vector3(5.6, 0.015, -4.6), new THREE.Vector3(-5.6, 0.015, 4.8), new THREE.Vector3(5.6, 0.015, 4.8)];
+    for (let i = 0; i < 3; i++) bigZ.add(new THREE.LineCurve3(z[i], z[i + 1]));
+  }
+  const bigZMat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#51DDD2').multiplyScalar(1.8), transparent: true, opacity: 0, toneMapped: false });
+  const bigZMesh = new THREE.Mesh(new THREE.TubeGeometry(bigZ, 200, 0.16, 8, false), bigZMat);
+  bigZMesh.scale.y = 0.2;
+  scene.add(bigZMesh);
+
   // ---------------------------------------------------------------- camera
   const camera = new THREE.PerspectiveCamera(20, 1, 0.5, 200);
   // One continuous take: positions and targets per beat, joined by curves.
@@ -419,6 +570,10 @@ export async function start({ canvas, story, hero }) {
     iso(doorCentre.clone(), 7.5, 0.12, 0.1), // 9 the door opens: in close
     iso(meFace.clone(), 10.5, 0.78, 0.28), // 10 sending
     iso(new THREE.Vector3(0, 1.1, 0), 30), // 11 sent: back to the diorama
+    iso(ISLANDS[0].clone().setY(1.3).add(new THREE.Vector3(0.6, 0, 0)), 13.5, 0.38, 0.26), // 12 island: checked
+    iso(ISLANDS[1].clone().setY(0.8), 14.5, 0.3, 0.34), // 13 island: on-chain
+    iso(ISLANDS[2].clone().setY(0.9), 13, 0.45, 0.3), // 14 island: private
+    [new THREE.Vector3(0.8, 44, 12), new THREE.Vector3(0, 0, 0.6)], // 15 from above: the Seam
   ];
   // Portrait screens: the wide shots pull back so the side phones stay in frame.
   let camPos = null;
@@ -537,7 +692,7 @@ export async function start({ canvas, story, hero }) {
     camera.setViewOffset(fw, fh, -fw * cur.frameX, -fh * cur.frameY, fw, fh);
 
     // Phones face the camera (yaw only), float a little.
-    for (const [i, p] of [bob, me, cara].entries()) {
+    for (const [i, p] of [bob, me, cara, checker].entries()) {
       p.root.getWorldPosition(vC);
       const yaw = Math.atan2(camera.position.x - vC.x, camera.position.z - vC.z);
       p.phone.rotation.y = damp(p.phone.rotation.y, yaw, 4, dt);
@@ -547,6 +702,7 @@ export async function start({ canvas, story, hero }) {
     bob.root.updateMatrixWorld(true);
     me.root.updateMatrixWorld(true);
     cara.root.updateMatrixWorld(true);
+    checker.root.updateMatrixWorld(true);
 
     // Screens: redraw only when their inputs change (yours while sending: every frame).
     const bobState = { a: S.aPush1, b: S.aPush2, c: S.aPush3, d: S.aScroll, e: S.tapA1, f: S.tapA2, g: S.tapA3, h: S.sentBanner };
@@ -640,6 +796,43 @@ export async function start({ canvas, story, hero }) {
       stream.instanceMatrix.needsUpdate = true;
     }
 
+    // Islands (time-based loops, faded in by their state).
+    const i1 = smooth(clamp01(S.i1));
+    beam.material.opacity = 0.7 * i1;
+    beam.position.y = (0.5 - ((time * 0.35) % 1)) * SCREEN_H;
+    badges.forEach((b, i) => {
+      const k = smooth(clamp01(S.i1 * 3 - i * 0.6));
+      checker.phone.localToWorld(vA.set(1.45, 0.55 - i * 0.55, 0.25));
+      b.position.copy(vA);
+      b.position.y += Math.sin(time * 1.3 + i) * 0.04;
+      b.scale.set(1.6 * k, 0.4 * k, 1);
+      b.visible = k > 0.01;
+    });
+    const i2 = clamp01(S.i2);
+    traveller.visible = i2 > 0.02;
+    if (traveller.visible) {
+      const k = (time * 0.18) % 1;
+      const x = blockX(-0.6) + k * (blockX(BLOCKS - 0.4) - blockX(-0.6));
+      traveller.position.set(x, 0.32 + 1.0 + Math.sin(k * Math.PI * 6) * 0.05, ISLANDS[1].z);
+      traveller.rotation.set(Math.PI / 2, time * 2, 0);
+      const inside = x > blockX(1.5);
+      traveller.material = inside ? tokenMat : coins.material;
+      traveller.scale.setScalar((inside ? 1 : 2.2) * (0.4 + 0.6 * i2));
+    }
+    const i3 = clamp01(S.i3);
+    packet.visible = i3 > 0.02;
+    const pk = (time * 0.22) % 1;
+    packet.position.set(arches[0].position.x - 0.8 + pk * 3.9, 0.32 + 0.5, arches[0].position.z);
+    packet.rotation.set(time, time * 1.3, 0);
+    arches.forEach((a, i) => {
+      archMats[i].emissiveIntensity = i3 * 1.4 * Math.max(0, 1 - Math.abs(packet.position.x - a.position.x) * 1.6);
+    });
+    envelope.position.y = 0.32 + 0.5 + Math.sin(time * 1.1) * 0.05;
+    const fp = clamp01(S.fpulse);
+    islandPulse.visible = fp > 0.001 && fp < 0.999;
+    if (islandPulse.visible) islandPath.getPointAt(fp, islandPulse.position);
+    bigZMat.opacity = clamp01(S.ctaZ) * (0.75 + 0.25 * Math.sin(time * 2));
+
     composer.render(dt);
   }
 
@@ -701,17 +894,51 @@ export async function start({ canvas, story, hero }) {
   });
   story.dataset.beat = '0';
 
-  // Render only while the world is on screen.
-  ScrollTrigger.create({
-    trigger: story,
-    start: 'top bottom',
-    end: 'bottom top',
-    onToggle: (self) => {
-      running = self.isActive || window.scrollY < window.innerHeight;
-      document.documentElement.classList.toggle('world-off', !running);
-    },
+  // Features: on to the islands, the cards follow data-island.
+  const ft = gsap.timeline({
+    defaults: { ease: 'power2.inOut', immediateRender: false },
+    scrollTrigger: { trigger: features, start: 'top bottom', end: 'bottom bottom', scrub: 1 },
   });
-  const loop = () => frame();
+  ft.fromTo(S, { cam: 11, frameX: 0 }, { cam: 12, frameX: 0.2, duration: 6 }, 0);
+  ft.fromTo(S, { fpulse: 0 }, { fpulse: 0.36, duration: 6 }, 0);
+  ft.fromTo(S, { i1: 0 }, { i1: 1, duration: 4 }, 4);
+  ft.fromTo(S, { cam: 12 }, { cam: 13, duration: 6 }, 12);
+  ft.fromTo(S, { fpulse: 0.36 }, { fpulse: 0.7, duration: 6 }, 12);
+  ft.fromTo(S, { i2: 0 }, { i2: 1, duration: 4 }, 15);
+  ft.fromTo(S, { cam: 13 }, { cam: 14, duration: 6 }, 23);
+  ft.fromTo(S, { fpulse: 0.7 }, { fpulse: 1, duration: 6 }, 23);
+  ft.fromTo(S, { i3: 0 }, { i3: 1, duration: 4 }, 26);
+  ft.to({}, { duration: 4 }, 30);
+  const ISL = [0, 6, 17, 28];
+  let island = -1;
+  ft.eventCallback('onUpdate', () => {
+    const t = ft.time();
+    let n = 0;
+    for (let i = 0; i < ISL.length; i++) if (t >= ISL[i]) n = i;
+    if (n !== island) {
+      island = n;
+      features.dataset.island = String(n);
+    }
+  });
+
+  // The call to action: up above the vault; the floor Z lights.
+  const ct = gsap.timeline({
+    defaults: { ease: 'power2.inOut', immediateRender: false },
+    scrollTrigger: { trigger: cta, start: 'top bottom', end: 'bottom bottom', scrub: 1 },
+  });
+  ct.fromTo(S, { cam: 14, frameX: 0.2, frameY: 0.02, ctaZ: 0 }, { cam: 15, frameX: 0, frameY: -0.16, ctaZ: 1, duration: 6 }, 0);
+  ct.to({}, { duration: 2 }, 6);
+
+  // Render unless an opaque section (FAQ, footer) covers the whole screen.
+  const covered = () =>
+    covers.some((el) => {
+      const r = el.getBoundingClientRect();
+      return r.top <= 0 && r.bottom >= window.innerHeight;
+    });
+  const loop = () => {
+    running = !covered();
+    frame();
+  };
   gsap.ticker.add(loop);
   document.documentElement.classList.add('world-on');
   ScrollTrigger.refresh();

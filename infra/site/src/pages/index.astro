@@ -87,44 +87,15 @@ const faq = [
       </div>
     </section>
 
-    <section class="vision">
-      <p class="tag plain">The idea</p>
-      <p class="statement">Money your team holds together, and nobody else can see.</p>
-    </section>
-
-    <section id="features" class="panel">
-      <header class="panel-head">
-        <p class="tag dark">Features</p>
-        <h2>Your treasury,<br />held together</h2>
-        <p>The hard parts of a multisig, handled.</p>
-      </header>
-
-      <div class="feature">
-        <div class="copy">
-          <h3>Propose and approve</h3>
-          <p>Anyone can propose. Everyone checks on their own phone and approves with a tap. The last approval sends it.</p>
-          <ul class="ticks">
-            <li><Icon name="plus" />Batch payments</li>
-            <li><Icon name="edit" />Memos</li>
-            <li><Icon name="import_wallet" />CSV import</li>
-            <li><Icon name="users" />Up to 15 members</li>
-          </ul>
-        </div>
-        <div class="widget">
-          <div class="card pay">
-            <p class="card-label">Payment</p>
-            <p class="card-amount">12.50 <span>TAZ</span></p>
-            <p class="card-to"><span>To shielded address</span><code>utest1k .... f6d8s0a</code></p>
-          </div>
-          <div class="card votes">
-            <p><span class="dots"><i class="on"></i><i></i><b></b><i></i></span><span>Needs 2 of 3</span></p>
-            <p class="approve"><Icon name="check" />Approve and sign</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="feature flip">
-        <div class="copy">
+    <!-- Features: the camera travels on to three islands in the same world (world.js);
+         one card per island, following data-island. -->
+    <section id="features" class="islands" data-island="0" aria-label="Features">
+      <div class="islands-pin">
+        <header class="islands-head">
+          <p class="tag">Features</p>
+          <h2>Your treasury,<br />held together</h2>
+        </header>
+        <article class="island-card i1">
           <h3>Checked on every phone</h3>
           <p>Your phone checks each payment against the vault&rsquo;s own keys. If anything&rsquo;s off, it won&rsquo;t sign.</p>
           <ul class="ticks">
@@ -133,37 +104,18 @@ const faq = [
             <li><Icon name="wallet" />Change</li>
             <li><Icon name="time" />Fee</li>
           </ul>
-        </div>
-        <div class="widget">
-          <div class="card light checks">
-            <p><span>Recipient</span><b>Matches</b></p>
-            <p><span>Amount and memo</span><b>Match</b></p>
-            <p><span>Change to vault</span><b>2.37485 TAZ</b></p>
-            <p><span>Fee</span><b>0.00015 TAZ</b></p>
-            <p class="verdict"><span>Checked on this device</span><b>Matches <Icon name="check_circle" /></b></p>
-          </div>
-        </div>
-      </div>
-
-      <div class="feature">
-        <div class="copy">
+        </article>
+        <article class="island-card i2">
           <h3>Invisible on-chain</h3>
           <p>The phones sign together as one. To the chain it&rsquo;s an ordinary shielded payment, like this real one from our testnet trial.</p>
-        </div>
-        <div class="widget">
-          <dl class="card mono chain">
-            <div><dt>tx</dt><dd>e6ccd6b707e8ee7e&hellip;1691e9eef0237</dd></div>
+          <dl class="chain-mini">
+            <div><dt>tx</dt><dd>e6ccd6b7&hellip;9eef0237</dd></div>
             <div><dt>block</dt><dd>4,422,289</dd></div>
-            <div><dt>size</dt><dd>9,166 bytes</dd></div>
-            <div><dt>fee</dt><dd>0.0001 TAZ</dd></div>
-            <div><dt>amount</dt><dd class="hidden">encrypted</dd></div>
-            <div><dt>to</dt><dd class="hidden">encrypted</dd></div>
+            <div><dt>amount</dt><dd>encrypted</dd></div>
+            <div><dt>to</dt><dd>encrypted</dd></div>
           </dl>
-        </div>
-      </div>
-
-      <div class="feature flip">
-        <div class="copy">
+        </article>
+        <article class="island-card i3">
           <h3>Private all the way</h3>
           <p>Tor for every connection. Encrypted backups. Viewing keys for auditors.</p>
           <ul class="ticks">
@@ -172,15 +124,7 @@ const faq = [
             <li><Icon name="eye" />Viewing keys</li>
             <li><Icon name="unlock" />Unlock to sign</li>
           </ul>
-        </div>
-        <div class="widget">
-          <div class="card light settings">
-            <p><Icon name="tor" /><span>Use Tor</span><i class="switch"></i></p>
-            <p><Icon name="lock" /><span>Backup</span><b>Saved</b></p>
-            <p><Icon name="eye" /><span>Viewing key</span><b>Share</b></p>
-            <p><Icon name="unlock" /><span>Require unlock</span><i class="switch"></i></p>
-          </div>
-        </div>
+        </article>
       </div>
     </section>
 
@@ -197,14 +141,16 @@ const faq = [
       </div>
     </section>
 
-    <section class="closing">
-      <div class="closing-copy">
-        <p class="tag plain dark">Ready when you are</p>
-        <h2>Start a shared vault</h2>
-        <p>Two phones and a few testnet coins.</p>
-        <a class="pill" href={downloadUrl} rel="noopener noreferrer">Get Zafe</a>
+    <!-- The call to action over the world seen from above (world.js). -->
+    <section class="cta-world" aria-label="Get Zafe">
+      <div class="cta-pin">
+        <div class="cta-card">
+          <p class="tag">Ready when you are</p>
+          <h2>Open your vault</h2>
+          <p>Two phones and a few testnet coins.</p>
+          <a class="pill" href={downloadUrl} rel="noopener noreferrer">Get Zafe</a>
+        </div>
       </div>
-      <img class="closing-art" src="/assets/screens/art_vault_dark.webp" width="1080" height="1120" alt="" loading="lazy" />
     </section>
   </main>
 

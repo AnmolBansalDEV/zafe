@@ -30,9 +30,12 @@ function hasWebGL() {
 const canvas = document.querySelector('canvas.world');
 const story = document.querySelector('.story');
 const hero = document.querySelector('.hero');
-if (canvas && story && !reduced && hasWebGL()) {
+const features = document.querySelector('.islands');
+const cta = document.querySelector('.cta-world');
+const covers = [...document.querySelectorAll('.faq, .foot')];
+if (canvas && story && features && cta && !reduced && hasWebGL()) {
   import('./world.js')
-    .then((m) => m.start({ canvas, story, hero }))
+    .then((m) => m.start({ canvas, story, hero, features, cta, covers }))
     .catch((err) => {
       document.documentElement.classList.remove('world-on');
       console.warn('world:', err);
