@@ -956,8 +956,10 @@ Toolchain (installed by `~/android/install-toolchain.sh`; `source ~/android/env.
   ZIP 2005 § 4.2.3 from our own `sk` agreement: change "very unlikely", "if you have your
   own system that will also work"), U5 (builder-chosen `alpha` fine; keep it secret) and U3
   (redpallas moves to the FROST repo, same serialization). Mainnet now waits on the external
-  audit (spec M2); still testnet/regtest only until then. Daira-Emma Hopwood was also asked
-  on Discord (U1 clarification: `ak` is from the DKG); record her answer when it comes.
+  audit (spec M2); still testnet/regtest only until then. Daira-Emma Hopwood confirmed
+  on Discord (2026-10-01): U5 "fine"; a vault with `ak` from the DKG and `nk`/`qsk`/`rivk_ext`
+  from `sk` with `use_qsk = true` is "the intended usage"; `use_qsk = false` does not
+  conform to ZIP 2005 and is not quantum-recoverable.
 - **Post-quantum**: every member holds `qsk`, so a discrete-log-breaking adversary needs
   only one member's `qsk` (ZIP 2005 says so; spec §2.3). Not fixable inside ZIP 2005.
 - COCKTAIL-DKG (frost#1033) not production-ready; Zafe uses frost-core DKG + own echo/transcript.

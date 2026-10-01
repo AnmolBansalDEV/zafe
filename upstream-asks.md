@@ -6,8 +6,8 @@ on the Zcash R&D Discord. conradoplg co-wrote the Re-Randomized FROST paper, so 
 
 **Status (2026-10-01): all three answered.** conradoplg replied on frost#1094
 (https://github.com/ZcashFoundation/frost/issues/1094#issuecomment-5932215317): U5 fine, U1 "very unlikely" to change, U3 handled with the move to the
-FROST repo. Daira-Emma Hopwood also replied on Discord (under U5); our follow-up to her was
-sent (end of this file). No upstream blocker left for mainnet.
+FROST repo. Daira-Emma Hopwood also replied on Discord (under U5) and answered our follow-up the same
+day (end of this file): both deviations fine. No upstream blocker left for mainnet.
 Ids are the open items in `spec.md` §19. Write each question so it can be answered
 without opening links.
 
@@ -136,7 +136,7 @@ the move, and will it keep the frost-core 3.x `KeyPackage` serialization?
 > thanks 🙏
 
 
-## Follow-up to Daira (Discord, sent 2026-10-01; awaiting her answer)
+## Follow-up to Daira (Discord, sent 2026-10-01; answered the same day)
 
 > Thanks Daira! Two follow-ups:
 >
@@ -149,6 +149,21 @@ the move, and will it keep the frost-core 3.x `KeyPackage` serialization?
 > **2.** We don't derive the FROST keys from sk: ak and the ask shares come from the DKG, so
 > ask never exists. sk only gives nk, qsk and rivk_ext (ZIP 2005 "Usage with FROST"). Does a
 > vault built this way pass the Recovery Protocol as is?
+
+**Answer (Daira-Emma Hopwood, 2026-10-01):**
+> Yes this is fine.
+> Yes that's the intended usage with use_qsk = true, as in the Usage with FROST diagram. With
+> use_qsk = false it does not conform to ZIP 2005 and the funds will not be quantum-recoverable.
+>
+> If this wasn't clear, how could the ZIP be changed to make it more clear? Would an explicit
+> statement that use_qsk MUST be true whenever using FROST with a DKG help?
+
+So: (1) builder-chosen `α` before round 1 is fine given `α` stays among members; (2) our
+vault shape (`ak` from the DKG, `sk` → `nk`/`qsk`/`rivk_ext`, `use_qsk = true`) passes the
+Recovery Protocol. Our reply to her ZIP question (suggestions only, `docs/tracker.md`):
+put the MUST in § 4.2.3 itself, say which Recovery Statement branch a FROST wallet uses
+(qk branch; `ask` never exists), and say `sk`/`qsk` must be kept (the FROST book says to
+discard `sk`).
 
 ---
 

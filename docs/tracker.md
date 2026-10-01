@@ -491,7 +491,10 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 - [x] U5 security: answered 2026-10-01 (Daira-Emma Hopwood on Discord, quoted in
       `upstream-asks.md`): the proof doesn't need `alpha` after the commitments; `alpha`
       links `rk` to `ak`, so it stays among members (spec §9.5.1)
-- [x] Sent Daira the Discord follow-up (2026-10-01); record her answer in `upstream-asks.md`
+- [x] Sent Daira the Discord follow-up (2026-10-01); she answered the same day: both fine,
+      `use_qsk = true` with `ak` from the DKG is the intended usage (`upstream-asks.md`)
+- [ ] **(you)** Answer Daira's question on how ZIP 2005 could be clearer (draft in chat,
+      2026-10-01); offer a zips PR if she wants one
 - [x] U5 conformance: ZF accepts the ZIP 312 deviation (conradoplg, 2026-10-01)
 - [ ] thus-spoke-zakura PR #124 (Ironwood fix, targets `main`; replaces #119, auto-closed when `dev` was deleted on 2026-09-30): rebased onto `main` aee7880 2026-10-01, all CI steps + all 3 Docker recovery tests pass locally; CI waits on maintainer approval. Follow up until merged
 - [ ] Zakura's faster prover once it supports Ironwood (V7)

@@ -793,7 +793,7 @@ Self-hostable relay packaging and paid hosted tiers, dapp SDK (proposal requests
 | D1 | Maximum N (default 15): DKG cost is O(N²) messages; confirm the UX | M1 |
 | D2 | Default proposal expiry and timeouts | M1 |
 | D3 | Free vs paid tier limits | M4 |
-| ~~U1~~ | **Answered (frost#1094, 2026-10-01):** vaults derived per §7.4 (ZIP 2005 § 4.2.3, agreed `sk`, `ak` from the DKG) are expected to stay recoverable; a change is "very unlikely" and "if you have your own system that will also work". Left: get our `use_qsk` vectors cross-checked upstream | — |
+| ~~U1~~ | **Answered (frost#1094, 2026-10-01):** vaults derived per §7.4 (ZIP 2005 § 4.2.3, agreed `sk`, `ak` from the DKG) are expected to stay recoverable; a change is "very unlikely" and "if you have your own system that will also work". Daira-Emma Hopwood (Discord, 2026-10-01): "that's the intended usage with use_qsk = true" Left: get our `use_qsk` vectors cross-checked upstream | — |
 | ~~U2~~ | **Answered (frost#1094, 2026-09-21):** an external-randomizer API will always exist; `sign()` may be un-deprecated | — |
 | ~~U3~~ | **Answered (frost#1094, 2026-10-01):** the redpallas ciphersuite moves to the FROST repo with the same serialization; any 0.5.x security fix before then will be worked out | — |
 | U4 | **Upstream:** COCKTAIL-DKG Pallas implementation (frost#1033). The ZIP 312 key-generation spec is drafted in zips#895 (§7.4.1) | Not blocking (§7.5) |
