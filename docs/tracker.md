@@ -484,11 +484,11 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       Zafe's `sk` agreement with it when COCKTAIL-DKG is usable
 - [ ] FROST book `book/src/zcash/technical-details.md` still says to throw `sk` away and
       that the key share is the only secret (against ZIP 2005): send a docs PR
-- [x] U5 security: answered 2026-10-01 (reply outside frost#1094, quoted in
+- [x] U5 security: answered 2026-10-01 (Daira-Emma Hopwood on Discord, quoted in
       `upstream-asks.md`): the proof doesn't need `alpha` after the commitments; `alpha`
       links `rk` to `ak`, so it stays among members (spec §9.5.1)
-- [ ] **(you)** Send the U1 follow-up drafted at the end of `upstream-asks.md` where the
-      reply came from (it read U1 as deriving `ask` from `sk`); record the author there
+- [ ] **(you)** Send Daira the Discord follow-up at the end of `upstream-asks.md`: is the
+      ZIP 312 deviation OK given `alpha` stays among members, and U1 (`ak` is from the DKG)
 - [ ] U5 conformance: will ZIP 312 allow a builder-chosen `alpha` (it says MUST derive it
       from the commitments after round 1)? If not: derive `alpha` from the assigned
       commitments before building the PCZT (needs a way to set `alpha`)

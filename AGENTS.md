@@ -76,7 +76,7 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   round 1 because `rk` feeds the sighash). Secure per the Re-Randomized FROST paper; matches
   frost-tools' `zcash-sign`. **Deviates from ZIP 312**, which says the Coordinator MUST
   derive the randomizer after round 1 from fresh bytes + the commitment list (a hedge, per
-  its rationale); asked as U5, spec §9.5.1. Upstream reply (2026-10-01): the proof doesn't
+  its rationale); asked as U5, spec §9.5.1. Daira-Emma Hopwood (Discord, 2026-10-01): the proof doesn't
   need `alpha` after the commitments and even lets the adversary pick it, **but `alpha`
   links `rk` to `ak`**: it must never leave the members (it lives only in the PCZT: encrypted
   log, HPKE requests, devices). Anything that exports a PCZT or signing package outside
@@ -161,7 +161,7 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   `list_proposals` runs on every refresh (app poll, after approving/proposing, and each
   background check). Pools drain when a proposal **enters the log**, for every member,
   approving or not. Security reading of ePrint 2024/436 is in
-  spec §9.5.1; confirmed by the 2026-10-01 upstream reply (U5); ZIP 312 wording still open.
+  spec §9.5.1; confirmed by Daira-Emma Hopwood 2026-10-01 (U5); ZIP 312 wording still open.
 - **Sweeps**: a `Proposal` with **no payments** spends a cancelled proposal's notes back
   to the vault (`node::invalidate`, `VaultWallet::propose_sweep`) so a fully signed
   cancelled transaction can never be mined. UI code must handle `payments.isEmpty`
@@ -953,7 +953,7 @@ Toolchain (installed by `~/android/install-toolchain.sh`; `source ~/android/env.
 - **Mainnet gate (U1)**: ZF hasn't confirmed that vaults derived per ZIP 2005 § 4.2.3
   from an agreed `sk` are recoverable as they are (frost#1094 says FROST FVK derivation is
   "blocked on zips#895"; ZIP 2005's "Usage with FROST" only requires a privately agreed
-  `sk`). The 2026-10-01 reply read it as deriving `ask` from `sk` (we don't: `ak` is from
+  `sk`). Daira's 2026-10-01 reply read it as deriving `ask` from `sk` (we don't: `ak` is from
   the DKG); a clarifying follow-up is drafted in `upstream-asks.md`. Testnet/regtest only
   until then; small capped amounts at most. **U5** (builder-chosen `alpha`): security
   answered 2026-10-01 (fine, keep `alpha` private); only ZIP 312 conformance is open.

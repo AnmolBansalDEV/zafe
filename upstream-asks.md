@@ -4,7 +4,7 @@
 and FVK derivation, answered by conradoplg on 2026-09-21), plus a short pointer in `#frost`
 on the Zcash R&D Discord. conradoplg co-wrote the Re-Randomized FROST paper, so U5 is his.
 
-**Status (2026-10-01):** a reply came back (outside frost#1094; quoted under U5). U5's
+**Status (2026-10-01):** Daira-Emma Hopwood replied on Discord (quoted under U5). U5's
 security question is answered; U5's ZIP 312 wording and U1 stay open; U3 is minor. Send the
 follow-up at the end of this file.
 Ids are the open items in `spec.md` §19. Write each question so it can be answered
@@ -39,7 +39,7 @@ concurrent signing packages over the same sighash and `α` (one per signer group
 commitments)? (b) will ZIP 312 allow it (what any PCZT signer gets), or should wallets bind
 `α` to the commitments, and would the variant above count?
 
-**Answer (2026-10-01, received by the user, not on frost#1094; record the author):**
+**Answer (2026-10-01, Daira-Emma Hopwood on Discord):**
 > The security proof in https://eprint.iacr.org/2024/436.pdf does not require α to be chosen
 > after the commitments (in fact, when considering security against forgery as opposed to
 > privacy, it allows the adversary to choose α). However, knowing α allows anyone to link the
@@ -118,21 +118,25 @@ the move, and will it keep the frost-core 3.x `KeyPackage` serialization?
 > thanks 🙏
 
 
-## Follow-up reply (draft, send where the answer came from)
+## Follow-up to Daira (Discord, draft)
 
-> Thanks, that settles the randomizer for us. α only lives in the PCZT, which stays inside
-> the vault (encrypted log, HPKE to signers); the broadcast tx doesn't carry it and every
-> member already holds the FVK, so the link to ak isn't new to anyone who sees α.
+> Thanks Daira! Two follow-ups:
 >
-> On keys, a clarification: we don't derive the FROST keys from sk. ak and the ask shares
-> come from the frost-core DKG, so ask never exists anywhere. sk is agreed only for nk, qsk
-> and rivk_ext, per ZIP 2005 "Usage with FROST" (use_qsk = true). So every member can view
-> and holds qsk, but spending needs t shares while discrete logs hold; recovery needs t
-> members, not one seed.
+> **1. α.** In Zafe α never leaves the vault's members: it's only inside the PCZT, which
+> travels over our encrypted log and HPKE signing requests. The broadcast tx doesn't carry
+> it, and every member already holds the FVK, so they can see the tx anyway. Given that, is
+> it fine for us to deviate from ZIP 312's MUST (derive the randomizer from the commitment
+> list after round 1)? We can't follow it for one-tap signing: commitments are published
+> ahead of time, before any proposal exists, and α has to be fixed before the sighash (rk
+> is in it). Several signer groups (disjoint commitments) then sign the same sighash with
+> the same α.
 >
-> So the remaining question is narrow: does a vault built that way (DKG ak + privately
-> agreed sk, § 4.2.3) pass the Recovery Protocol as is, or does zips#895 change anything
-> for it? Happy to PR our use_qsk vectors to zcash-test-vectors.
+> **2. Keys.** We don't derive the FROST keys from sk. ak and the ask shares come from the
+> frost-core DKG, so ask never exists anywhere. sk is agreed only for nk, qsk and rivk_ext,
+> per ZIP 2005 "Usage with FROST" (use_qsk = true). Every member can view and holds qsk, but
+> spending needs t shares while discrete logs hold; recovery needs t members, not one seed.
+> So: does a vault built this way pass the Recovery Protocol as is, or does zips#895 change
+> anything for it?
 
 ---
 
