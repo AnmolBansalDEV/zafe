@@ -8,4 +8,4 @@ export const sourceUrl = process.env.ZAFE_SOURCE_URL || repo;
 // works as a header.
 export const csp =
   "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; " +
-  "font-src 'self'; base-uri 'none'; form-action 'none'";
+  "font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'";

@@ -1,12 +1,13 @@
-"""Regenerates the site's screenshots and web fonts from the app (run from the repo root).
+"""Regenerates the site's images and web fonts from the app (run from the repo root).
 
-    cd app && flutter test tool/screens/home_render_test.dart tool/screens/proposal_render_test.dart
+    cd app && HOME_NOTICE=0 flutter test tool/screens/ && flutter test tool/illustrations/preview_test.dart
     python3 infra/site/assets.py          # needs: pip install pillow fonttools brotli
 
-Screens: the app's own renders (fake data, app/build/screen_preview/), cropped to a phone
-viewport and saved as WebP. Fonts: the app's DM Sans and Space Grotesk, subset to Latin
-and saved as WOFF2, with their OFL licences. The outputs are committed, so building or
-deploying the site doesn't need Flutter or Python packages.
+Images: the app's own renders (fake data, app/build/screen_preview/) and illustrations
+(app/build/illustration_preview/), cropped to the part the page talks about and saved as
+WebP (light theme; the site has no dark mode). Fonts: the app's DM Sans, Space Grotesk and JetBrains Mono, subset
+to Latin and saved as WOFF2, with their OFL licences. The outputs are committed, so
+building or deploying the site doesn't need Flutter or Python packages.
 """
 
 import os
@@ -16,19 +17,39 @@ from fontTools import subset
 from PIL import Image
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", ".."))
-RENDERS = os.path.join(ROOT, "app", "build", "screen_preview")
+BUILD = os.path.join(ROOT, "app", "build")
 APP_FONTS = os.path.join(ROOT, "app", "assets", "fonts")
 OUT = os.path.join(ROOT, "infra", "site", "public", "assets")
 
-# Phone viewport of the renders: 390 x 844 logical pixels at 2x.
-PHONE = (780, 1688)
-SCREENS = ["home_light", "home_dark", "proposal_review_light", "proposal_review_dark"]
+# (output name, source under app/build without the _light/_dark suffix, crop box). Screen
+# renders are 780 px wide (390 logical at 2x); boxes are in those pixels.
+PHONE = (0, 0, 780, 1688)  # a phone viewport: 390 x 844 at 2x
+TALL = (0, 0, 780, 2400)   # taller than the phone: the story scrolls it to the button
+
+CROPS = [
+    # The scroll story: Bob's phone in dark mode, yours in light (proposal_render_test's
+    # story_* scenarios and home_render_test with HOME_NOTICE=0).
+    ("story_bob_home", "screen_preview/home", PHONE, "dark"),
+    ("story_bob_propose", "screen_preview/story_bob_propose", PHONE, "dark"),
+    ("story_bob_approve", "screen_preview/story_bob_approve", TALL, "dark"),
+    ("story_bob_approved", "screen_preview/story_bob_approved", PHONE, "dark"),
+    ("story_me_home", "screen_preview/home", PHONE, "light"),
+    ("story_me_review", "screen_preview/proposal_review", TALL, "light"),
+    ("story_me_sent", "screen_preview/story_me_sent", PHONE, "light"),
+    # The sending screen (sending_render_test): the story's finale.
+    ("story_me_sending", "screen_preview/sending_progress", PHONE, "light"),
+    ("story_me_done", "screen_preview/sending_sent", PHONE, "light"),
+    # The vault door with its keys, behind the closing call to action (a dark card, so
+    # the dark render).
+    ("art_vault", "illustration_preview/welcome_vault", (0, 120, 1080, 1240), "dark"),
+]
 
 FONTS = [
     "DMSans-Regular",
     "DMSans-Medium",
     "SpaceGrotesk-Medium",
     "SpaceGrotesk-SemiBold",
+    "JetBrainsMono-Regular",
 ]
 # Basic Latin, Latin-1, and the punctuation the copy uses (dashes, quotes, bullet,
 # ellipsis, arrows, minus).
@@ -37,16 +58,23 @@ UNICODES = "U+0000-00FF,U+2013-2014,U+2018-201D,U+2022,U+2026,U+2190-2193,U+2212
 
 def screens():
     out = os.path.join(OUT, "screens")
-    os.makedirs(out, exist_ok=True)
-    for name in SCREENS:
-        src = os.path.join(RENDERS, f"{name}.png")
-        if not os.path.exists(src):
-            raise SystemExit(f"missing {src}: run the render tests first (see the docstring)")
-        image = Image.open(src).convert("RGB")
-        image = image.crop((0, 0, PHONE[0], min(PHONE[1], image.height)))
-        dest = os.path.join(out, f"{name}.webp")
-        image.save(dest, "WEBP", quality=84, method=6)
-        print(f"{dest}  {os.path.getsize(dest) // 1024} KB")
+    if os.path.isdir(out):
+        shutil.rmtree(out)  # drop crops that are no longer listed
+    os.makedirs(out)
+    for name, source, box, *theme in CROPS:
+        for theme in theme or ("light",):  # the site is light only
+            src = os.path.join(BUILD, f"{source}_{theme}.png")
+            if not os.path.exists(src):
+                raise SystemExit(f"missing {src}: run the render tests first (see the docstring)")
+            image = Image.open(src).convert("RGB").crop(box)
+            if name.startswith("art_") and image.width * 4 > image.height * 5:
+                # Pillar art shares a 5:4 tile: extend the sky rather than crop the scene.
+                padded = Image.new("RGB", (image.width, image.width * 4 // 5), image.getpixel((4, 4)))
+                padded.paste(image, (0, padded.height - image.height))
+                image = padded
+            dest = os.path.join(out, f"{name}_{theme}.webp")
+            image.save(dest, "WEBP", quality=86, method=6)
+            print(f"{dest}  {image.size[0]}x{image.size[1]}  {os.path.getsize(dest) // 1024} KB")
 
 
 def fonts():
@@ -62,7 +90,7 @@ def fonts():
             f"--output-file={dest}",
         ])
         print(f"{dest}  {os.path.getsize(dest) // 1024} KB")
-    for licence in ("DMSans-OFL.txt", "SpaceGrotesk-OFL.txt"):
+    for licence in ("DMSans-OFL.txt", "SpaceGrotesk-OFL.txt", "JetBrainsMono-OFL.txt"):
         shutil.copy(os.path.join(APP_FONTS, "licenses", licence), out)
 
 

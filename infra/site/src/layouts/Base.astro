@@ -24,8 +24,7 @@ const { title, description, bodyClass, noindex = false } = Astro.props;
     {noindex && <meta name="robots" content="noindex" />}
     <title>{title}</title>
     {description && <meta name="description" content={description} />}
-    <meta name="theme-color" content="#F1F5F5" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#080B0B" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#F1F5F5" />
     <link rel="icon" href="/assets/zafe.svg" type="image/svg+xml" />
     <link rel="preload" href="/assets/fonts/SpaceGrotesk-SemiBold.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/assets/fonts/DMSans-Regular.woff2" as="font" type="font/woff2" crossorigin />

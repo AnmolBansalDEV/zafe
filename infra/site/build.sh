@@ -58,7 +58,8 @@ ZAFE_DOWNLOAD_URL="$download" ZAFE_SOURCE_URL="$source_url" ASTRO_TELEMETRY_DISA
 touch "$out/.nojekyll" # GitHub Pages: serve .well-known
 
 # The CSP allows only same-origin files: refuse a build that inlined any script or style.
-if grep -l -E '<script(>| (type|is)=)|<style|[[:space:]](style|on[a-z]+)=' "$out"/*.html; then
+# A <script> must have a src (Astro's bundled modules do); anything else is inline.
+if grep -l -P '<script(?![^>]*\ssrc=)[^>]*>|<style|\s(style|on[a-z]+)=' "$out"/*.html; then
   die "inline script or style in the pages above (the CSP would block it)"
 fi
 

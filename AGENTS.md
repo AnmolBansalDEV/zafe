@@ -813,13 +813,22 @@ Learned while studying it:
   xyz.zafe.zafe` first).
 - **Website** (`infra/site/`, Astro 7, static): landing page `/` and invite page `/join`.
   Chose Astro over Next.js (Vizor's site) to keep a strict CSP with no inline code: the
-  landing page ships no JS, `/join` loads only the hand-written `public/assets/join.js`
-  (`<script is:inline src=…>`, never bundled; it's the only code that sees the invite).
+  landing page bundles its motion (`src/scripts/story.js` → `world.js` Three.js world,
+  `ui.js` pointer and text) as same-origin modules; `/join` loads only the hand-written
+  `public/assets/join.js` (`<script is:inline src=…>`, never bundled; it's the only code
+  that sees the invite). agent-browser reports no fine pointer, so check the custom
+  cursor with `/?pointer=fine`; the 3D world needs a few seconds after each scroll
+  jump before a screenshot.
   `astro.config.mjs` sets `inlineStylesheets: 'never'` and `build.format: 'file'`;
   `build.sh` greps the output and fails on any inline script/style/handler. Phone shots
   are the app's own renders (`tool/screens/*_render_test.dart` → `infra/site/assets.py`
   → WebP); fonts are the app's, subset to WOFF2. Landing copy must only claim shipped
   features. Look at it with agent-browser at 1280 and 390 wide, light and dark.
+  **Design** follows `docs/site.md` (now laid out after vizor.cash; decisions at the top): teal only
+  for the action and "needs you", gold only for amounts, Space Grotesk only at display
+  sizes, real app crops and illustrations (`assets.py` CROPS; wide pillar art is padded to 5:4). The
+  chain-view numbers are a real testnet transaction: never replace them with invented
+  ones. Patina icons are inlined by `src/components/Icon.astro` (magenta → 38% layer).
   **Deploy**: `.github/workflows/site.yml` → Vercel with `vercel deploy --prebuilt` on
   `.vercel/output` from `vercel-output.sh` (Build Output API v3; headers read from
   `public/_headers`, `overrides` serve `join.html` at `/join`). `builds.json` isn't

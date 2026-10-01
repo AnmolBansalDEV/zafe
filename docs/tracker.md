@@ -159,6 +159,19 @@ Open
         with the app's Home screen, on-chain comparison with Safe, how it works, security
         features, honest caveats: testnet, no audit yet, members see everything, keep
         backups); no JS on it. Checked in a browser at 1280/390 px, light and dark
+  - [x] Landing page redesign (2026-10-01, user: "looks too much AI slop"): researched
+        (24 reference pages, audience, craft; `docs/site.md`), rebuilt as direction "The
+        approval": the approval screen as the hero, the real dry-run payment as members vs
+        chain see it, the payment path, the on-device check, key shares, a dense feature
+        list, limits, sources. Checked at 1440/390 px, light and dark
+  - [x] Second round (2026-10-01, user: "nah, sucks. take inspiration from vizor.cash"):
+        rebuilt on Vizor's structure (centred hero, three members' phones on a stage,
+        illustrated pillars, dark feature panel with HTML UI cards, FAQ, closing card,
+        ghost-wordmark footer) in Zafe's type, colours and art (`docs/site.md`)
+  - [x] Third round (2026-10-01): light only; CSS logo intro (the tile fills the
+        screen, pieces lock, it ripples up into the nav logo); much shorter copy
+  - *(idea)* Show a second real payment (with a memo) once one is made; add a changelog
+        or "last updated" to the site
   - [ ] **(you)** Pick and own the domain, deploy `infra/site` there with the release
         certificate fingerprint, set the `ZAFE_LINK_HOST` repository variable
   - [ ] Check on a device: `pm get-app-links` shows the host verified; a link opens Join
