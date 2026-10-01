@@ -484,10 +484,14 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       Zafe's `sk` agreement with it when COCKTAIL-DKG is usable
 - [ ] FROST book `book/src/zcash/technical-details.md` still says to throw `sk` away and
       that the key share is the only secret (against ZIP 2005): send a docs PR
-- [ ] U5: ZF confirms one-tap signing (pre-published commitments, PCZT-fixed alpha) is
-      within the Re-Randomized FROST model, and whether ZIP 312 will allow it (it says the
-      randomizer MUST come from the commitments after round 1). If not: derive `alpha` from
-      the assigned commitments before building the PCZT (needs a way to set `alpha`)
+- [x] U5 security: answered 2026-10-01 (reply outside frost#1094, quoted in
+      `upstream-asks.md`): the proof doesn't need `alpha` after the commitments; `alpha`
+      links `rk` to `ak`, so it stays among members (spec §9.5.1)
+- [ ] **(you)** Send the U1 follow-up drafted at the end of `upstream-asks.md` where the
+      reply came from (it read U1 as deriving `ask` from `sk`); record the author there
+- [ ] U5 conformance: will ZIP 312 allow a builder-chosen `alpha` (it says MUST derive it
+      from the commitments after round 1)? If not: derive `alpha` from the assigned
+      commitments before building the PCZT (needs a way to set `alpha`)
 - [ ] thus-spoke-zakura PR #124 (Ironwood fix, targets `main`; replaces #119, auto-closed when `dev` was deleted on 2026-09-30): rebased onto `main` aee7880 2026-10-01, all CI steps + all 3 Docker recovery tests pass locally; CI waits on maintainer approval. Follow up until merged
 - [ ] Zakura's faster prover once it supports Ironwood (V7)
 

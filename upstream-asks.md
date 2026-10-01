@@ -4,7 +4,9 @@
 and FVK derivation, answered by conradoplg on 2026-09-21), plus a short pointer in `#frost`
 on the Zcash R&D Discord. conradoplg co-wrote the Re-Randomized FROST paper, so U5 is his.
 
-**Status (re-checked 2026-10-01 against upstream):** U5 and U1 block mainnet; U3 is minor.
+**Status (2026-10-01):** a reply came back (outside frost#1094; quoted under U5). U5's
+security question is answered; U5's ZIP 312 wording and U1 stay open; U3 is minor. Send the
+follow-up at the end of this file.
 Ids are the open items in `spec.md` §19. Write each question so it can be answered
 without opening links.
 
@@ -37,6 +39,18 @@ concurrent signing packages over the same sighash and `α` (one per signer group
 commitments)? (b) will ZIP 312 allow it (what any PCZT signer gets), or should wallets bind
 `α` to the commitments, and would the variant above count?
 
+**Answer (2026-10-01, received by the user, not on frost#1094; record the author):**
+> The security proof in https://eprint.iacr.org/2024/436.pdf does not require α to be chosen
+> after the commitments (in fact, when considering security against forgery as opposed to
+> privacy, it allows the adversary to choose α). However, knowing α allows anyone to link the
+> transaction containing rk to the long-term group public key ak.
+
+So (a) is yes, for both interactive and one-tap signing. The caveat is privacy: `α` must stay
+among the members. It does today (PCZT only in the encrypted log, HPKE signing requests and
+members' devices; not in the broadcast tx, backups or the CSV export; members hold the FVK
+anyway), and spec §9.5.1 now requires any future PCZT export to strip it. (b), ZIP 312's
+MUST, wasn't addressed: conformance only, no longer a security blocker.
+
 ## U1 (blocks mainnet): are vaults created today recoverable?
 
 **Context checked:**
@@ -54,6 +68,15 @@ commitments)? (b) will ZIP 312 allow it (what any PCZT signer gets), or should w
 - No official `use_qsk` vectors: zcash-test-vectors#129 (open) adds only QR note
   commitments. Zafe has its own (`crates/zafe-core/test-vectors/zip2005_use_qsk.json`, from
   `tests/zip2005_vectors.rs`, checked independently by `scripts/check_zip2005_vectors.py`).
+
+**Reply so far (2026-10-01):** *"If you derive FROST keys only from sk then there is
+necessarily a single party with all of the key material, which slightly defeats the point
+of using FROST IMHO. But it sounds like that's what you want, if you want total
+recoverability from seed."* That reads our question as deriving `ask` from `sk`. Zafe
+doesn't: `ak` and the `ask` shares come from the DKG and `ask` never exists; `sk` gives
+only `nk`, `qsk`, `rivk_ext` (ZIP 2005 "Usage with FROST"). Every member does hold `qsk`,
+so against a quantum adversary one member could steal (ZIP 2005 says so too; spec §2.3).
+Still unanswered: does the Recovery Protocol accept such vaults as they are.
 
 **Asks:** does "blocked on zips#895" apply to keys derived this way, or will such vaults pass
 the Recovery Protocol as they are? Is anything in § 4.2.3 still expected to change? Offer:
@@ -93,6 +116,23 @@ the move, and will it keep the frost-core 3.x `KeyPackage` serialization?
 >    ZIP 312 says MUST come after. OK for pre-published commitments?
 > 2. ZIP 2005 keys derived from an agreed `sk` per § 4.2.3: recoverable as is?
 > thanks 🙏
+
+
+## Follow-up reply (draft, send where the answer came from)
+
+> Thanks, that settles the randomizer for us. α only lives in the PCZT, which stays inside
+> the vault (encrypted log, HPKE to signers); the broadcast tx doesn't carry it and every
+> member already holds the FVK, so the link to ak isn't new to anyone who sees α.
+>
+> On keys, a clarification: we don't derive the FROST keys from sk. ak and the ask shares
+> come from the frost-core DKG, so ask never exists anywhere. sk is agreed only for nk, qsk
+> and rivk_ext, per ZIP 2005 "Usage with FROST" (use_qsk = true). So every member can view
+> and holds qsk, but spending needs t shares while discrete logs hold; recovery needs t
+> members, not one seed.
+>
+> So the remaining question is narrow: does a vault built that way (DKG ak + privately
+> agreed sk, § 4.2.3) pass the Recovery Protocol as is, or does zips#895 change anything
+> for it? Happy to PR our use_qsk vectors to zcash-test-vectors.
 
 ---
 
