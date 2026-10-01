@@ -7,7 +7,10 @@ an upstream status change). `CLAUDE.md` only contains `@AGENTS.md`.
 Zafe is a Safe-style **shielded multisig for Zcash** (Ironwood pool, NU6.3) using
 re-randomized FROST. Product spec: `spec.md`. Original review: `spec-review.md`. Open
 questions to the Zcash Foundation / others: `upstream-asks.md`.
-**Tracker: `docs/tracker.md`** lists what's left, deferred items and ideas. Read it at the
+**Tracker: `docs/tracker.md`** lists what's left, deferred items and ideas.
+**Stack plan: `docs/stack-plan.md`** (+ research in `docs/stack-design.md`): making the
+protocol crates and spec the shared multisig layer for other wallets; read it before
+restructuring crates or contributing upstream. Read it at the
 start of a task; when you defer something, discover a gap or finish an item, update it in
 the same change.
 
@@ -71,7 +74,8 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   Never use frost-tools' `from_sk_ak_incompatible_with_quantum_recoverability...` (not recoverable).
 - **DKG**: safety number confirmed out of band before starting; round-1 echo hashes must all
   match; round-2 packages and `sk` contributions are HPKE-sealed; every member signs the
-  descriptor. `reddsa` 0.5.2's `post_dkg` normalizes `ak` to even Y (orchard rejects odd).
+  descriptor. **Known gap**: `sk` contributions have no prior commitment, so the last
+  sender can bias `sk` (tracker "Known issues"); keep that in mind before changing keygen. `reddsa` 0.5.2's `post_dkg` normalizes `ak` to even Y (orchard rejects odd).
 - **Randomizer**: the FROST randomizer for each spend is the PCZT's own `alpha` (fixed before
   round 1 because `rk` feeds the sighash). Secure per the Re-Randomized FROST paper; matches
   frost-tools' `zcash-sign`. **Deviates from ZIP 312**, which says the Coordinator MUST

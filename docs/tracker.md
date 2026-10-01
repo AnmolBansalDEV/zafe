@@ -6,11 +6,16 @@ finished ones, tick them and add the commit. Spec references are to `spec.md`.
 
 Legend: `[ ]` open · `[x]` done · **(you)** needs the user · *(idea)* not yet decided
 
-Last updated: 2026-10-01 (Verdigris + Seam brand implemented; note reservation; versioned formats; relay TLS + packaging; wallet DB encryption; incoming payments; pending receipts from the mempool; https invite links + landing site; Astro landing page)
+Last updated: 2026-10-01 (stack plan; Verdigris + Seam brand implemented; note reservation; versioned formats; relay TLS + packaging; wallet DB encryption; incoming payments; pending receipts from the mempool; https invite links + landing site; Astro landing page)
 
 ---
 
 ## Next up (proposed order)
+
+- [ ] **Stack plan** (2026-10-01): become the shared multisig layer other wallets build
+      on (crate split, upstream PRs to ZF/librustzcash, open spec + draft ZIP, Zodl POC).
+      Checklist: `docs/stack-plan.md`; research: `docs/stack-design.md`. Track its items
+      there, not here.
 
 - [~] **Open source + testnet preview** (2026-10-01): history scanned with gitleaks and
       trufflehog (0 verified secrets; the one hit is the relay's test-only RSA fixture);
@@ -477,8 +482,9 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 - [ ] **(you)** Post the Discord pointer in `#frost` (`upstream-asks.md`); follow up on answers
 - [x] U1: answered on frost#1094 (2026-10-01): change "very unlikely"; our own `sk`
       agreement works
-- [ ] Get `test-vectors/zip2005_use_qsk.json` cross-checked upstream (PR to
-      zcash-test-vectors)
+- [ ] Get `test-vectors/zip2005_use_qsk.json` cross-checked upstream: conradoplg
+      (frost#1094, 2026-10-01) prefers frost-tools over zcash-test-vectors; ask where in
+      the repo, then PR (`docs/stack-plan.md` phase 1)
 - [x] U2: answered on frost#1094 (2026-09-21): an external-randomizer API will always
       exist (`sign()` may be un-deprecated). Keep the one `#[allow(deprecated)]` wrapper
 - [x] U3: answered (2026-10-01): moves to the FROST repo, same serialization. Switch
@@ -501,6 +507,12 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 
 ## Known issues and tech debt
 
+- [ ] **`sk` agreement: the last contributor can bias `sk`** (found 2026-10-01; same
+      issue str4d raised on zips#895). `keygen::combine_vault_secret` hashes the `r_i`,
+      which are sent after the DKG without a prior commitment, so a member that waits
+      can grind its own. Low impact (it learns `sk` anyway, can't spend alone), but fix
+      before mainnet: commit to `H(r_i)` in DKG round 1 (bump `DKG_ROUND1`), reveal,
+      abort on mismatch. `docs/stack-design.md` §7, `docs/stack-plan.md` phase 0
 - [x] Height-gated wallet sync (2026-09-30): the Home poll asks lightwalletd for the tip
       (bridge `chain_tip`, one `GetLatestBlock`) and skips `sync_vault` when it equals the
       last synced height; a changed proposal list (`ProposalsNotifier` fingerprint →
