@@ -6,7 +6,9 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/app_tappable.dart';
+import '../../providers/endpoints_provider.dart';
 import '../../providers/vault_provider.dart';
+import '../settings/endpoint_sheet.dart';
 import 'onboarding_art.dart';
 
 class WelcomeScreen extends ConsumerWidget {
@@ -17,6 +19,11 @@ class WelcomeScreen extends ConsumerWidget {
     final colors = context.colors;
     // Adding another vault: offer the way back to the one that was on screen.
     final adding = ref.watch(vaultProvider.select((v) => v.isAdding));
+    // A build without a relay URL can't create or join until one is set here.
+    final noRelay = ref.watch(
+      endpointsProvider.select((e) => e.relayIsPlaceholder),
+    );
+    void servers() => showServerSettingsSheet(context, ref);
     Future<void> cancel() async {
       await ref.read(vaultProvider.notifier).cancelAddVault();
       if (context.mounted) context.go('/home');
@@ -55,6 +62,10 @@ class WelcomeScreen extends ConsumerWidget {
                   const Spacer(),
                   const _InfoCard(),
                   const SizedBox(height: AppSpacing.md),
+                  if (noRelay) ...[
+                    _NoRelayNote(onTap: servers),
+                    const SizedBox(height: AppSpacing.s),
+                  ],
                   AppButton(
                     expand: true,
                     onPressed: () => context.push('/create'),
@@ -81,32 +92,18 @@ class WelcomeScreen extends ConsumerWidget {
             ),
           ),
           if (adding)
-            SafeArea(
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.sm),
-                  child: AppTappable(
-                    onTap: cancel,
-                    semanticsLabel: 'Cancel adding a vault',
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: colors.background.ground,
-                        shape: BoxShape.circle,
-                      ),
-                      alignment: Alignment.center,
-                      child: AppIcon(
-                        AppIcons.cross,
-                        size: 20,
-                        color: colors.icon.accent,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+            _CornerButton(
+              alignment: Alignment.topLeft,
+              icon: AppIcons.cross,
+              label: 'Cancel adding a vault',
+              onTap: cancel,
             ),
+          _CornerButton(
+            alignment: Alignment.topRight,
+            icon: AppIcons.cog,
+            label: 'Server settings',
+            onTap: servers,
+          ),
         ],
       ),
     );
@@ -117,6 +114,92 @@ class WelcomeScreen extends ConsumerWidget {
         if (!didPop) cancel();
       },
       child: scaffold,
+    );
+  }
+}
+
+/// A round button in a top corner, over the hero art.
+class _CornerButton extends StatelessWidget {
+  const _CornerButton({
+    required this.alignment,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+  final Alignment alignment;
+  final String icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return SafeArea(
+      child: Align(
+        alignment: alignment,
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          child: AppTappable(
+            onTap: onTap,
+            semanticsLabel: label,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: colors.background.ground,
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: AppIcon(icon, size: 20, color: colors.icon.accent),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// This build has no relay URL, so creating or joining would fail.
+class _NoRelayNote extends StatelessWidget {
+  const _NoRelayNote({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return AppTappable(
+      onTap: onTap,
+      semanticsLabel: 'No relay set. Open server settings',
+      child: Row(
+        children: [
+          AppIcon(
+            AppIcons.warning,
+            size: 16,
+            color: colors.icon.warning,
+            patina: colors.icon.warning,
+          ),
+          const SizedBox(width: AppSpacing.xs),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                text: 'No relay set. ',
+                children: [
+                  TextSpan(
+                    text: 'Add one',
+                    style: TextStyle(
+                      decoration: TextDecoration.underline,
+                      decorationColor: colors.text.warning,
+                    ),
+                  ),
+                ],
+              ),
+              style: AppTypography.bodySmall.copyWith(
+                color: colors.text.warning,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

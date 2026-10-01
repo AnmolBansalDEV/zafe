@@ -276,9 +276,11 @@ Open
       "Reset to default". Saved in prefs per network (`zafe_relay_url_<net>`), read in the
       bootstrap and by background checks; a relay change re-registers the push token.
       The network stays compile-time. Needs an on-device check
-- [ ] Endpoint settings before the first vault: Settings is only reachable from Home, so
-      a testnet build still pointing at the placeholder relay can't create or join a
-      vault without `ZAFE_RELAY_URL`; offer "Server settings" on the welcome screen
+- [x] Endpoint settings before the first vault (2026-10-01): a cog on the welcome screen
+      opens "Server settings" (Relay, Zcash server → the same editor as Settings); with
+      the placeholder relay the welcome screen says "No relay set. Add one". Test:
+      `test/welcome_server_settings_test.dart`; previews: `tool/screens/welcome_render_test.dart`.
+      Needs an on-device check
 - [ ] iOS: build and run at all (only Android has been exercised)
 - [ ] iOS: exclude the nonce directory from backups (`isExcludedFromBackup`)
 - [x] Biometric/passcode gate before approving and signing (spec §14; done 2026-09-30,

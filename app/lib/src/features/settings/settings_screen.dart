@@ -191,7 +191,7 @@ class SettingsScreen extends ConsumerWidget {
                           label: 'Relay',
                           value: endpoints.relayIsPlaceholder
                               ? 'Not configured'
-                              : _host(endpoints.relayUrl),
+                              : endpointHost(endpoints.relayUrl),
                           chevron: true,
                           onTap: () => showEndpointSheet(
                             context,
@@ -202,7 +202,7 @@ class SettingsScreen extends ConsumerWidget {
                         row(
                           icon: AppIcons.endpoint,
                           label: 'Zcash server',
-                          value: _host(endpoints.lightwalletdUrl),
+                          value: endpointHost(endpoints.lightwalletdUrl),
                           chevron: true,
                           onTap: () => showEndpointSheet(
                             context,
@@ -384,8 +384,6 @@ String _themeLabel(ThemeMode mode) => switch (mode) {
   ThemeMode.light => 'Light',
   ThemeMode.dark => 'Dark',
 };
-
-String _host(String url) => Uri.tryParse(url)?.authority ?? url;
 
 /// Shown under the Security rows when the phone has no screen lock, so approvals
 /// go through without a prompt.

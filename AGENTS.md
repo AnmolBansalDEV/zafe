@@ -451,7 +451,10 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   loaded with `FontLoader`, `proposalReviewProvider` overridden) and writes
   `app/build/screen_preview/*_{dark,light}.png`. Widgets that call Rust (`vault.summary`,
   `myKeyHex`) can't be pumped, so keep screen bodies in public widgets that take plain data
-  (`features/proposals/proposal_parts.dart`).
+  (`features/proposals/proposal_parts.dart`). To capture a sheet, wrap the whole
+  `MaterialApp` in the `RepaintBoundary` and apply `AppTheme` through its `builder`
+  (`welcome_render_test.dart`). Widget tests use the Ahem font, which is wider than DM
+  Sans: a 390 pt view overflows button labels, so use a wider view there.
 - In a fresh worktree `flutter analyze` reports errors in `rust_builder/cargokit/build_tool`
   until `dart pub get` is run in that directory.
 

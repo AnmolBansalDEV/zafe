@@ -11,6 +11,8 @@ import '../../core/errors/zafe_error_copy.dart';
 import '../../core/layout/mobile/app_mobile_sheet.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_icon.dart';
+import '../../core/widgets/mobile/mobile_list_row.dart';
 import '../../core/widgets/mobile_text_field.dart';
 import '../../notifications/vault_watch.dart' show reregisterPush;
 import '../../providers/endpoints_provider.dart';
@@ -36,6 +38,78 @@ Future<void> showEndpointSheet(
     await ref.read(vaultProvider.notifier).sync();
   }
 }
+
+/// The relay and Zcash server, before any vault exists (Settings is only reachable from
+/// Home). Each row opens the editor above.
+Future<void> showServerSettingsSheet(
+  BuildContext context,
+  WidgetRef ref,
+) async {
+  final kind = await showAppMobileSheet<EndpointKind>(
+    context: context,
+    builder: (_) => const _ServerSettingsSheet(),
+  );
+  if (kind != null && context.mounted)
+    await showEndpointSheet(context, ref, kind);
+}
+
+class _ServerSettingsSheet extends ConsumerWidget {
+  const _ServerSettingsSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final endpoints = ref.watch(endpointsProvider);
+    final style = AppTypography.labelLarge.copyWith(
+      fontWeight: FontWeight.w400,
+      color: colors.text.accent,
+    );
+    Widget row(EndpointKind kind, String label, String value) => MobileListRow(
+      leading: AppIcon(AppIcons.endpoint, size: 20, color: colors.icon.muted),
+      label: label,
+      value: value,
+      minRowHeight: 44,
+      textStyle: style,
+      valueTextStyle: style,
+      valueColor: colors.text.accent,
+      chevronColor: colors.icon.accent,
+      showChevron: true,
+      onTap: () => Navigator.of(context).pop(kind),
+    );
+    return MobileModalScaffold(
+      title: 'Server settings',
+      onClose: () => Navigator.of(context).pop(),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Every vault on this phone uses these.',
+            style: AppTypography.bodyMedium.copyWith(
+              color: colors.text.secondary,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.s),
+          row(
+            EndpointKind.relay,
+            'Relay',
+            endpoints.relayIsPlaceholder
+                ? 'Not configured'
+                : endpointHost(endpoints.relayUrl),
+          ),
+          row(
+            EndpointKind.lightwalletd,
+            'Zcash server',
+            endpointHost(endpoints.lightwalletdUrl),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The host shown for an endpoint URL.
+String endpointHost(String url) => Uri.tryParse(url)?.authority ?? url;
 
 /// Tries `url` for `kind`: a relay `GET /health`, or lightwalletd's info (network and
 /// tip). Returns null when it answers, else what went wrong (user copy).
