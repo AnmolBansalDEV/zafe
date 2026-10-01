@@ -6,9 +6,10 @@ use serde::{de::DeserializeOwned, Serialize};
 use zafe_proto::{
     relay::{
         decode_body, join_token_hash, AppendResult, CreateMailbox, InboxAck, InboxAckResponse,
-        InboxRead, InboxResponse, Join, LogRead, LogResponse, MembersRead, MembersResponse,
-        PushPlatform, RegisterPush, Remove, Seal, Signed, WaitRequest, WaitResponse,
-        MAX_ACK_CURSORS, MAX_WAIT_SECS, UNSUPPORTED_VERSION_HEADER,
+        InboxRead, InboxResponse, Join, LogRead, LogResponse, MailboxesRead, MailboxesResponse,
+        MembersRead, MembersResponse, PushPlatform, RegisterPush, Remove, ReplaceApproval,
+        ReplaceMember, Seal, SetThreshold, Signed, WaitRequest, WaitResponse, MAX_ACK_CURSORS,
+        MAX_WAIT_SECS, UNSUPPORTED_VERSION_HEADER,
     },
     version::{Format, UnsupportedVersion},
     Envelope, Identity, LogEntry, MailboxId, ProtoError,
@@ -403,6 +404,64 @@ impl RelayClient {
     ) -> Result<(), RelayClientError> {
         self.signed("/v1/mailbox/seal", creator, Seal { mailbox, members })
             .await
+    }
+
+    /// Creator only, before sealing: records the vault's threshold, which moving a lost
+    /// member's seat later needs. `Ok(false)` from a relay without the route (HTTP 404):
+    /// such a vault can't move seats.
+    pub async fn set_threshold(
+        &self,
+        creator: &Identity,
+        mailbox: MailboxId,
+        threshold: u16,
+    ) -> Result<bool, RelayClientError> {
+        match self
+            .signed::<_, ()>(
+                "/v1/mailbox/threshold",
+                creator,
+                SetThreshold { mailbox, threshold },
+            )
+            .await
+        {
+            Ok(()) => Ok(true),
+            Err(RelayClientError::Status { status: 404, .. }) => Ok(false),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Moves a lost member's seat to a new key on the relay, with the approvals of at least
+    /// the vault's threshold of other members. Succeeds if it already moved.
+    pub async fn replace_member(
+        &self,
+        who: &Identity,
+        approval: ReplaceApproval,
+        approvals: Vec<([u8; 32], Vec<u8>)>,
+    ) -> Result<(), RelayClientError> {
+        self.signed(
+            "/v1/mailbox/replace",
+            who,
+            ReplaceMember {
+                approval,
+                approvals,
+            },
+        )
+        .await
+    }
+
+    /// The mailboxes `who` is a member of. Empty from a relay without the route (404).
+    pub async fn mailboxes(&self, who: &Identity) -> Result<Vec<MailboxId>, RelayClientError> {
+        match self
+            .signed::<_, MailboxesResponse>(
+                "/v1/mailboxes",
+                who,
+                MailboxesRead { timestamp: now() },
+            )
+            .await
+        {
+            Ok(r) => Ok(r.mailboxes),
+            Err(RelayClientError::Status { status: 404, .. }) => Ok(Vec::new()),
+            Err(e) => Err(e),
+        }
     }
 
     /// Creator only, before sealing: removes a joined member.

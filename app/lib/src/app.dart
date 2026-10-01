@@ -27,7 +27,9 @@ import 'features/receive/receive_screen.dart';
 import 'features/received/received_screen.dart';
 import 'features/send/send_screen.dart';
 import 'features/settings/settings_screen.dart';
+import 'features/recover/recover_screen.dart';
 import 'features/settings/vault_protection_screen.dart';
+import 'features/signers/replace_signer_screen.dart';
 import 'features/settings/viewing_key_screen.dart';
 import 'providers/tor_provider.dart';
 import 'providers/mempool_watch_provider.dart';
@@ -118,6 +120,7 @@ final _routerProvider = Provider<GoRouter>((ref) {
         '/signers',
         '/viewing-key',
         '/vault-protection',
+        '/replace-signer',
         '/export',
         '/activity',
         '/backup-prompt',
@@ -202,6 +205,19 @@ final _routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/restore',
         pageBuilder: (_, _) => page(const SecureScreen(child: RestoreScreen())),
+      ),
+      GoRoute(
+        path: '/recover',
+        pageBuilder: (_, _) => page(const SecureScreen(child: RecoverScreen())),
+      ),
+      GoRoute(
+        path: '/replace-signer',
+        pageBuilder: (_, state) {
+          final args = state.extra as (String, String)?;
+          return page(
+            ReplaceSignerScreen(signer: args?.$1, code: args?.$2),
+          );
+        },
       ),
       GoRoute(
         path: '/vault-protection',

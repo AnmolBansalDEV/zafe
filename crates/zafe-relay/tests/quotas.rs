@@ -297,7 +297,8 @@ async fn counters_survive_a_restart() {
     std::fs::remove_dir_all(&dir).ok();
 }
 
-/// Schema 1 had no counters: opening it adds them and fills them from the stored rows.
+/// Schema 1 had no counters (nor thresholds): opening it adds them and fills the counters
+/// from the stored rows.
 #[tokio::test]
 async fn a_schema_1_database_is_migrated() {
     let (dir, path) = temp_db("quota-migrate");
@@ -308,6 +309,7 @@ async fn a_schema_1_database_is_migrated() {
     conn.execute_batch(
         "ALTER TABLE mailboxes DROP COLUMN delivery_bytes;
          ALTER TABLE mailboxes DROP COLUMN log_bytes;
+         ALTER TABLE mailboxes DROP COLUMN threshold;
          PRAGMA user_version = 1;",
     )
     .unwrap();
@@ -316,6 +318,35 @@ async fn a_schema_1_database_is_migrated() {
     let relay = Relay::open(&path).unwrap();
     assert_eq!(relay.usage(&MAILBOX).unwrap(), before);
     let conn = rusqlite::Connection::open(&path).unwrap();
+    let version: u16 = conn
+        .pragma_query_value(None, "user_version", |r| r.get(0))
+        .unwrap();
+    assert_eq!(version, zafe_proto::version::RELAY_DB);
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+/// Schema 2 had no thresholds: opening it adds the column (0: the vault can't move seats).
+#[tokio::test]
+async fn a_schema_2_database_is_migrated() {
+    let (dir, path) = temp_db("threshold-migrate");
+    let mut rng = StdRng::seed_from_u64(6);
+    let before = fill(&Relay::open(&path).unwrap(), &mut rng).await;
+
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    conn.execute_batch(
+        "ALTER TABLE mailboxes DROP COLUMN threshold;
+         PRAGMA user_version = 2;",
+    )
+    .unwrap();
+    drop(conn);
+
+    let relay = Relay::open(&path).unwrap();
+    assert_eq!(relay.usage(&MAILBOX).unwrap(), before);
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    let threshold: i64 = conn
+        .query_row("SELECT threshold FROM mailboxes", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(threshold, 0);
     let version: u16 = conn
         .pragma_query_value(None, "user_version", |r| r.get(0))
         .unwrap();

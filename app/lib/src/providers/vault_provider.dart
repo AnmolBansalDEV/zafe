@@ -188,6 +188,14 @@ class VaultNotifier extends Notifier<VaultState> {
         : await prefs.setString(kActiveVaultKey, id);
   }
 
+  /// Saves vault `id`'s material with the current membership (a signer's seat moved to a
+  /// new phone, spec §10.1), so summaries and checks show the new key.
+  Future<void> replaceMaterial(String id, List<int> material) async {
+    await _store.writeMaterial(id, material);
+    final vaults = await _store.readAll();
+    state = state.copyWith(vaults: vaults);
+  }
+
   /// Shows another vault.
   Future<void> switchTo(String id) async {
     if (id == state.activeId && !state.isAdding) return;

@@ -197,8 +197,9 @@ async fn keygen_refuses_an_unconfirmed_safety_number() {
 #[tokio::test]
 async fn a_rate_limited_client_gets_a_typed_error() {
     let relay = RelayClient::new(
+        // Creating a vault takes two requests (the mailbox, then its threshold).
         start_relay(Limits {
-            per_key: Some(Rate::new(1, 1)),
+            per_key: Some(Rate::new(1, 2)),
             ..Limits::none()
         })
         .await,

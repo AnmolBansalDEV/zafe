@@ -13,6 +13,7 @@ use zafe_core::{
     node::{self, Invite, VaultMaterial},
     nonce_store::{FileNonceStore, FilePoolStore},
     relay_client::RelayClient,
+    repair::{self, RecoveryRequest, RecoveryStatus},
     session::ProposalId,
     wallet::{connect, latest_height, PaymentRequest, VaultWallet, WalletKey, ZafeNetwork},
 };
@@ -91,6 +92,27 @@ enum Command {
     Respond,
     /// Leader: aggregate shares, prove, broadcast.
     Finalize { proposal: String },
+    /// Moving a signer's seat to a new device (a lost phone; spec §10.1).
+    #[command(subcommand)]
+    Seat(SeatCmd),
+    /// On a new device with no backup: print this device's recovery code for a co-signer,
+    /// and (with `--wait`) wait until the seat has moved and the key is repaired.
+    Recover {
+        #[arg(long)]
+        wait: bool,
+        #[arg(long, default_value_t = 300)]
+        timeout_secs: u64,
+    },
+}
+
+#[derive(Subcommand)]
+enum SeatCmd {
+    /// Approve moving a signer's seat to the device that printed `code`.
+    Approve { old: String, code: String },
+    /// Seat moves waiting for approvals.
+    List,
+    /// Do this member's part in repairing a moved seat's key (and save the new membership).
+    Repair,
 }
 
 #[derive(Subcommand)]
@@ -343,7 +365,11 @@ async fn main() -> Result<()> {
                 zafe_core::backup::KdfParams::DEFAULT,
                 &mut rng,
             )?;
+            zafe_core::backup::decrypt(&bytes, &passphrase)?.validate()?;
             println!("{}", zafe_core::backup::to_text(&bytes));
+            let at = contents.created_at;
+            node::attest_backup(&relay, &home.identity()?, &home.material()?, at, &mut rng).await?;
+            eprintln!("backup attested in the vault log");
         }
         Command::Name { name } => {
             let material = home.material()?;
@@ -436,6 +462,90 @@ async fn main() -> Result<()> {
                 "signing requests sent to {} member(s)",
                 sent.request.signers.len()
             );
+        }
+        Command::Seat(cmd) => {
+            let me = home.identity()?;
+            let material = home.material()?;
+            match cmd {
+                SeatCmd::Approve { old, code } => {
+                    let old: [u8; 32] = hex::decode(old.trim())?
+                        .try_into()
+                        .map_err(|_| anyhow!("old must be a 32-byte hex key"))?;
+                    let request = RecoveryRequest::decode(&code)?;
+                    let moved = repair::approve_replacement(
+                        &relay, &me, &material, old, &request, &mut rng,
+                    )
+                    .await?;
+                    println!(
+                        "approved (safety code {}){}",
+                        request.safety_code(),
+                        if moved { "; the seat moved" } else { "" }
+                    );
+                }
+                SeatCmd::List => {
+                    let (_, state) = node::load_state(&relay, &me, &material).await?;
+                    for p in state.pending_replacements.values() {
+                        println!(
+                            "{} -> {}  safety {}  approvals {}/{}",
+                            hex::encode(p.old),
+                            hex::encode(p.new.sig_pk),
+                            RecoveryRequest { identity: p.new }.safety_code(),
+                            p.approvals.len(),
+                            state.descriptor.threshold
+                        );
+                    }
+                }
+                SeatCmd::Repair => {
+                    let (_, state) = node::load_state(&relay, &me, &material).await?;
+                    let report = repair::help_repairs(
+                        &relay,
+                        &me,
+                        &material,
+                        &state,
+                        &home.path("repair"),
+                        &mut rng,
+                    )
+                    .await?;
+                    if let Some(updated) = repair::current_material(&material, &state) {
+                        fs::write(home.path("vault.bin"), updated.to_bytes()?)?;
+                    }
+                    println!("{report:?}");
+                }
+            }
+        }
+        Command::Recover { wait, timeout_secs } => {
+            if home.path("vault.bin").exists() {
+                bail!("this home already holds a vault");
+            }
+            if !home.path("identity.bin").exists() {
+                let id = Identity::generate(&mut rng);
+                fs::write(home.path("identity.bin"), id.seeds().to_bytes())?;
+            }
+            let me = home.identity()?;
+            let request = RecoveryRequest {
+                identity: *me.public(),
+            };
+            println!("{}", request.encode());
+            eprintln!("safety code {}", request.safety_code());
+            let deadline = std::time::Instant::now() + Duration::from_secs(timeout_secs);
+            loop {
+                match repair::try_recover(&relay, &me).await? {
+                    RecoveryStatus::Done { material, invite } => {
+                        fs::write(home.path("vault.bin"), material.to_bytes()?)?;
+                        fs::write(home.path("invite.txt"), invite.encode())?;
+                        println!("recovered {}", material.descriptor.name);
+                        break;
+                    }
+                    status if !wait || std::time::Instant::now() > deadline => {
+                        eprintln!("{status:?}");
+                        if wait {
+                            bail!("timed out");
+                        }
+                        break;
+                    }
+                    _ => tokio::time::sleep(Duration::from_secs(2)).await,
+                }
+            }
         }
         Command::Respond => {
             let material = home.material()?;

@@ -7,6 +7,7 @@
 use std::{path::PathBuf, process::Command, thread, time::Duration};
 
 use rust_lib_zafe::api::{
+    backup,
     error::ZafeErrorKind,
     proposals::{self, MyVote, PaymentInput, ProposalStage, SendStage},
     received, vault,
@@ -933,6 +934,39 @@ fn payment_flow_through_bridge() {
         thread::sleep(Duration::from_secs(1));
     }
     assert_eq!(mined.expect("payment mined").confirmations, 1);
+
+    // Backup health: A exports a backup (checked to open) and attests it; every member
+    // sees it, and attesting again doesn't grow the log. Last, because listing proposals
+    // tops up the one-tap pools, which would change the signing flows above.
+    let backed_up = |m: &Member| {
+        proposals::list_proposals(
+            relay.clone(),
+            m.state_dir.clone(),
+            m.seeds.clone(),
+            m.material.clone(),
+            None,
+        )
+        .unwrap()
+        .backed_up
+    };
+    assert!(backed_up(&members[1]).is_empty());
+    let a = &members[0];
+    let exported = backup::export_vault_backup(
+        a.seeds.clone(),
+        a.material.clone(),
+        invite.clone(),
+        vec![],
+        "correct horse battery staple orbit lantern violet harbor cactus".into(),
+    )
+    .unwrap();
+    assert!(exported.text.starts_with("zafe-backup-v1:"));
+    for _ in 0..2 {
+        proposals::attest_backup(relay.clone(), a.seeds.clone(), a.material.clone()).unwrap();
+    }
+    let a_key = vault::identity_public_key(a.seeds.clone()).unwrap();
+    for m in &members {
+        assert_eq!(backed_up(m), vec![a_key.clone()]);
+    }
 
     let _ = std::fs::remove_dir_all(&tmp);
 }

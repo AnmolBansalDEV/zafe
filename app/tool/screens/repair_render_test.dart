@@ -1,11 +1,10 @@
-// Renders the "How it's protected" page (2 of 3, and 3 of 3) and the Signers tab's backup
-// health (all, some, too few backed up) in both themes to PNGs for review without a device.
-// Not part of `flutter test`; run it explicitly (from app/):
+// Renders the lost-phone flow without a device: the new phone's recovery screen (waiting,
+// repairing, checking the vault), a co-signer's safety-code check, and the Signers tab's
+// pending move card, in both themes. Not part of `flutter test`; run it explicitly (from app/):
 //
-//   flutter test tool/screens/protection_render_test.dart
+//   flutter test tool/screens/repair_render_test.dart
 //
-// Output (SCREEN_PREVIEW_OUT, default build/screen_preview/): protection_<rule>_<theme>.png,
-// backups_<state>_<theme>.png.
+// Output (SCREEN_PREVIEW_OUT, default build/screen_preview/): repair_<state>_<theme>.png.
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -15,10 +14,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zafe/src/core/layout/mobile/zafe_screen.dart';
 import 'package:zafe/src/core/theme/app_theme.dart';
-import 'package:zafe/src/core/widgets/mobile/mobile_surface_card.dart';
-import 'package:zafe/src/core/widgets/mobile/zafe_detail.dart';
+import 'package:zafe/src/features/recover/recover_screen.dart';
+import 'package:zafe/src/features/signers/replace_signer_screen.dart';
 import 'package:zafe/src/features/signers/signers_screen.dart';
-import 'package:zafe/src/features/settings/vault_protection_screen.dart';
+import 'package:zafe/src/rust/api/repair.dart' show RecoveryStage;
 
 Future<void> _loadFonts() async {
   final families = <String, List<String>>{
@@ -37,43 +36,12 @@ Future<void> _loadFonts() async {
   }
 }
 
-const _me = 'a3f09c41d2e87b5566c0de19f4a2b7c8e1d0937a6b5c4d3e2f1a0b9c8d7e6f50';
-const _bob = '5e17b2c9a4d86f3310ab77e2c4d9f1086b3a2c5d7e9f0a1b2c3d4e5f6a7b8c9d';
-const _cara = 'c2d4e6f8a0b1c3d5e7f9a1b3c5d7e9f1a2b4c6d8e0f2a4b6c8d0e2f4a6b8c0d2';
-const _dev = '9b8a7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b';
-
-/// The Signers tab's cards for a 2-of-4 vault where `backedUp` signers have a backup.
-Widget _backups(Set<String> backedUp) {
-  const members = [_me, _bob, _cara, _dev];
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      BackupHealthCard(
-        signers: members.length,
-        threshold: 2,
-        backedUp: members.where(backedUp.contains).length,
-      ),
-      const SizedBox(height: AppSpacing.md),
-      MobileSurfaceCard(
-        cornerRadius: AppRadii.large,
-        child: Column(
-          children: [
-            for (final m in members)
-              SignerRow(
-                keyHex: m,
-                me: _me,
-                name: {_bob: 'Bob', _cara: 'Cara'}[m],
-                trailing: BackupLabel(backedUp: backedUp.contains(m)),
-              ),
-          ],
-        ),
-      ),
-    ],
-  );
-}
+const _code =
+    'zafe-recover-v1:2c9f04d1a7e8b3c56d0f1e2a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e7f'
+    '8a9b0c1d2e3f405162738495a6b7c8d9e0f1a2b3c4d5e6f708192a3b4c5d6e7f8091';
 
 void main() {
-  testWidgets('render the protection page', (tester) async {
+  testWidgets('render the lost-phone flow', (tester) async {
     await tester.runAsync(_loadFonts);
     final out = Directory(
       Platform.environment['SCREEN_PREVIEW_OUT'] ?? 'build/screen_preview',
@@ -83,15 +51,50 @@ void main() {
     addTearDown(tester.view.reset);
 
     final pages = <(String, String, Widget)>[
-      for (final (rule, t, n) in [('2of3', 2, 3), ('3of3', 3, 3)])
-        (
-          'protection_$rule',
-          'How it\'s protected',
-          VaultProtectionBody(threshold: t, signers: n),
+      (
+        'waiting',
+        'Recover your seat',
+        const RecoverBody(code: _code, safetyCode: '4817 0263'),
+      ),
+      (
+        'repairing',
+        'Recover your seat',
+        const RecoverBody(
+          code: _code,
+          safetyCode: '4817 0263',
+          stage: RecoveryStage.repairing,
+          received: 1,
+          needed: 2,
         ),
-      ('backups_all', 'Signers', _backups({_me, _bob, _cara, _dev})),
-      ('backups_some', 'Signers', _backups({_me, _cara})),
-      ('backups_few', 'Signers', _backups({_cara})),
+      ),
+      (
+        'check',
+        'Check your vault',
+        const VaultCheckBody(
+          name: 'Grants',
+          address:
+              'utest1qz8m4k2v7d3w9x0c5n6p1r8s2t4u7y9a3b5e6f8g0h2j4k6l8m0n2p4q6r8s0t2u4w6',
+          onReject: _noop,
+        ),
+      ),
+      (
+        'approve',
+        'Replace lost phone',
+        const Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SeatMoveCard(
+              who: 'Alice',
+              safetyCode: '4817 0263',
+              approvals: 1,
+              needed: 2,
+              onApprove: _noop,
+            ),
+            SizedBox(height: AppSpacing.md),
+            SafetyCodeCard(safetyCode: '4817 0263', who: 'Alice'),
+          ],
+        ),
+      ),
     ];
     for (final (name, title, body) in pages) {
       for (final (theme, data) in [
@@ -131,7 +134,7 @@ void main() {
           final data = await image.toByteData(format: ui.ImageByteFormat.png);
           return data!.buffer.asUint8List();
         });
-        final path = '${out.path}/${name}_$theme.png';
+        final path = '${out.path}/repair_${name}_$theme.png';
         File(path).writeAsBytesSync(bytes!);
         // ignore: avoid_print
         print(path);
@@ -139,3 +142,5 @@ void main() {
     }
   });
 }
+
+void _noop() {}

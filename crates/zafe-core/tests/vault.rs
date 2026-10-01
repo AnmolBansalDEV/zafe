@@ -330,6 +330,149 @@ fn members_share_their_names() {
     assert_eq!(log.replay().unwrap().names[&pk[2]], "桜".repeat(32));
 }
 
+/// Members attest their backups; the latest attestation per member wins, one for another
+/// key epoch is ignored, and non-members can't attest.
+#[test]
+fn members_attest_backups() {
+    let mut log = Log::new();
+    log.push(0, &log.created(&[0, 1, 2]));
+    let attest = |epoch, at| VaultEvent::BackupVerified { epoch, at };
+    log.push(0, &attest(0, 100));
+    log.push(1, &attest(0, 200));
+    log.push(0, &attest(0, 300));
+    log.push(2, &attest(1, 400)); // a future epoch
+    log.push(3, &attest(0, 500)); // not a member
+    let state = log.replay().unwrap();
+    let pk: Vec<_> = log.ids.iter().map(|i| i.public().sig_pk).collect();
+    assert_eq!(state.backups.len(), 2);
+    assert_eq!(state.backups[&pk[0]].at, 300);
+    assert_eq!(state.backups[&pk[1]].at, 200);
+    assert_eq!(
+        state.ignored,
+        vec![
+            (4, VaultError::BadBackup(4)),
+            (5, VaultError::NotAMember(5))
+        ]
+    );
+}
+
+impl Log {
+    /// Member `author` approves moving `old`'s seat to `ids[new]`.
+    fn replace(&mut self, author: usize, old: usize, new: usize) {
+        let approval = zafe_proto::relay::ReplaceApproval {
+            mailbox: MAILBOX,
+            old: self.ids[old].public().sig_pk,
+            new: *self.ids[new].public(),
+        };
+        let event = VaultEvent::ReplaceApproval {
+            old: approval.old,
+            new: approval.new,
+            signature: approval.sign(&self.ids[author]).unwrap(),
+        };
+        self.push(author, &event);
+    }
+}
+
+/// A seat moves at the threshold of approvals from other members; the seat keeps its
+/// votes, name and FROST identifier under the new key, the old key is out, and invalid
+/// approvals are ignored.
+#[test]
+fn a_seat_moves_at_the_threshold() {
+    let mut log = Log::new();
+    log.push(0, &log.created(&[0, 1, 2]));
+    log.push(0, &name("Alice"));
+    log.push(0, &proposal(1));
+    log.push(0, &vote(1, true)); // one-tap style: no commitments
+    log.push(0, &VaultEvent::BackupVerified { epoch: 0, at: 1 });
+    let pk: Vec<_> = log.ids.iter().map(|i| i.public().sig_pk).collect();
+
+    log.replace(0, 0, 3); // the lost member can't approve its own move
+    log.replace(1, 1, 1); // nor can a member move to a key that is already a member
+    let mut forged = VaultEvent::ReplaceApproval {
+        old: pk[0],
+        new: *log.ids[3].public(),
+        signature: vec![0; 64],
+    };
+    log.push(1, &forged);
+    log.replace(1, 0, 3);
+    log.replace(1, 0, 3); // twice from the same member counts once
+    let state = log.replay().unwrap();
+    assert!(state.replacements.is_empty());
+    assert_eq!(state.pending_replacements.len(), 1);
+    assert_eq!(
+        state.ignored.iter().map(|(i, _)| *i).collect::<Vec<_>>(),
+        vec![5, 6, 7, 9]
+    );
+
+    log.replace(2, 0, 3);
+    let state = log.replay().unwrap();
+    let moved = &state.replacements[0];
+    assert_eq!((moved.old, moved.new.sig_pk), (pk[0], pk[3]));
+    assert_eq!(moved.helpers(), vec![pk[1], pk[2]]);
+    assert_eq!(moved.frost_id, vec![0]);
+    assert!(state.pending_replacements.is_empty());
+    assert_eq!(state.descriptor.member(&pk[3]).unwrap().frost_id, vec![0]);
+    assert!(state.descriptor.member(&pk[0]).is_none());
+    assert_eq!(state.names[&pk[3]], "Alice");
+    assert!(state.backups.is_empty(), "the new device has no backup yet");
+    let p = &state.proposals[&[1; 16]];
+    assert_eq!(p.author, pk[3]);
+    assert!(p.approvals.contains_key(&pk[3]));
+
+    // The old key is out; the new one is a member.
+    log.push(0, &name("Mallory"));
+    log.push(3, &name("Alice 2"));
+    let state = log.replay().unwrap();
+    assert_eq!(
+        state.ignored.last(),
+        Some(&(11, VaultError::NotAMember(11)))
+    );
+    assert_eq!(state.names[&pk[3]], "Alice 2");
+
+    // An approval that arrives after the move is moot.
+    forged = VaultEvent::Name { name: "x".into() };
+    log.push(3, &forged);
+    log.replace(1, 0, 3);
+    assert!(matches!(
+        log.replay().unwrap().ignored.last(),
+        Some((14, VaultError::BadReplacement(14)))
+    ));
+}
+
+/// Interactive approvals of the lost device carry commitments whose nonces were on it:
+/// the move voids them, so a proposal approved at exactly the threshold reopens.
+#[test]
+fn a_seat_move_voids_interactive_approvals() {
+    let mut log = Log::new();
+    log.push(0, &log.created(&[0, 1, 2]));
+    log.push(0, &proposal(1));
+    let interactive = |id: u8| VaultEvent::Vote {
+        proposal: [id; 16],
+        pczt_hash: [id; 32],
+        approve: true,
+        commitments: vec![vec![1; 64]],
+        shares: vec![],
+    };
+    log.push(0, &interactive(1));
+    log.push(1, &interactive(1));
+    assert_eq!(
+        log.replay().unwrap().proposals[&[1; 16]].status,
+        ProposalStatus::Approved
+    );
+    log.replace(1, 0, 3);
+    log.replace(2, 0, 3);
+    let state = log.replay().unwrap();
+    let p = &state.proposals[&[1; 16]];
+    assert_eq!(p.status, ProposalStatus::Open);
+    assert_eq!(p.approvals.len(), 1);
+    // The new device approves again.
+    log.push(3, &interactive(1));
+    assert_eq!(
+        log.replay().unwrap().proposals[&[1; 16]].status,
+        ProposalStatus::Approved
+    );
+}
+
 /// Version 2 only appended `Name`: a log written by version 1 still replays the same.
 #[test]
 fn version_1_events_still_replay() {

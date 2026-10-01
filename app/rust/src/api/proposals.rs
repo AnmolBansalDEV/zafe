@@ -12,6 +12,7 @@ use zafe_core::{
     node::{self, VaultMaterial},
     nonce_store::{FileNonceStore, FilePoolStore},
     relay_client::RelayClient,
+    repair,
     session::{NonceStore, ProposalId},
     vault::{ProposalStatus, ProposedPayment, VaultState},
     wallet::{connect, PaymentRequest, ZafeNetwork},
@@ -357,6 +358,29 @@ pub struct ProposalList {
     /// Names members gave themselves in the log (this member's included). The app shows
     /// its own local label first, then these.
     pub shared_names: Vec<SignerName>,
+    /// Members (hex signing keys) who attested a backup of their current keys
+    /// (backup health, spec §12.2).
+    pub backed_up: Vec<String>,
+    /// Seat moves waiting for approvals (a signer who lost their phone, spec §10.1).
+    pub seat_moves: Vec<SeatMove>,
+    /// This member's vault material with the current membership, when a seat moved since
+    /// the stored copy: save it in place of the old one.
+    pub updated_material: Option<Vec<u8>>,
+}
+
+/// A signer moving to a new phone, waiting for approvals.
+pub struct SeatMove {
+    /// The signer who lost their phone (hex key).
+    pub old_key_hex: String,
+    /// The new phone's key (hex).
+    pub new_key_hex: String,
+    /// What the new phone shows ("1234 5678"): compare before approving.
+    pub safety_code: String,
+    /// Members who approved so far (hex keys).
+    pub approvals: Vec<String>,
+    pub needed: u32,
+    /// The recovery code, rebuilt from the log, for approving from this list.
+    pub code: String,
 }
 
 /// Every proposal in the vault log, newest first. Also keeps this device ready for
@@ -377,6 +401,13 @@ pub fn list_proposals(
     let state = runtime().block_on(async {
         node::top_up_pool(&relay, &me, &m, &mut pool, &mut OsRng).await?;
         let (_, state) = node::load_state(&relay, &me, &m).await?;
+        // This member's part in repairing a moved seat's key (best effort: retried on
+        // every refresh).
+        let repair_dir = PathBuf::from(&state_dir).join("repair");
+        if let Err(e) = repair::help_repairs(&relay, &me, &m, &state, &repair_dir, &mut OsRng).await
+        {
+            eprintln!("share repair: {e}");
+        }
         Ok::<_, ZafeError>(state)
     })?;
     node::forget_closed(&state, &me.public().sig_pk, tip_height, &mut pool);
@@ -385,7 +416,40 @@ pub fn list_proposals(
         items: info(&state, me.public().sig_pk, &state_dir),
         newer_version_entries: state.newer_version_entries() as u32,
         shared_names: shared_names(&state),
+        backed_up: backed_up(&state),
+        seat_moves: seat_moves(&state),
+        updated_material: repair::current_material(&m, &state)
+            .map(|m| m.to_bytes())
+            .transpose()
+            .map_err(|e| ZafeError::new(ZafeErrorKind::Other, e.to_string()))?,
     })
+}
+
+fn seat_moves(state: &VaultState) -> Vec<SeatMove> {
+    state
+        .pending_replacements
+        .values()
+        .map(|p| {
+            let request = repair::RecoveryRequest { identity: p.new };
+            SeatMove {
+                old_key_hex: hex::encode(p.old),
+                new_key_hex: hex::encode(p.new.sig_pk),
+                safety_code: request.safety_code(),
+                approvals: p.approvals.iter().map(|(pk, _)| hex::encode(pk)).collect(),
+                needed: u32::from(state.descriptor.threshold),
+                code: request.encode(),
+            }
+        })
+        .collect()
+}
+
+fn backed_up(state: &VaultState) -> Vec<String> {
+    state
+        .backups
+        .iter()
+        .filter(|(_, b)| b.epoch == state.descriptor.epoch)
+        .map(|(pk, _)| hex::encode(pk))
+        .collect()
 }
 
 fn shared_names(state: &VaultState) -> Vec<SignerName> {
@@ -650,6 +714,28 @@ pub fn set_my_name(
         &me,
         &m,
         &name,
+        &mut OsRng,
+    ))?;
+    Ok(())
+}
+
+/// Records in the vault log that this member saved a backup that opens (backup health).
+/// Logged once per key epoch.
+pub fn attest_backup(
+    relay_url: String,
+    seeds: Vec<u8>,
+    material: Vec<u8>,
+) -> Result<(), ZafeError> {
+    let me = identity(&seeds)?;
+    let m = self::material(&material)?;
+    let at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    runtime().block_on(node::attest_backup(
+        &RelayClient::new(relay_url),
+        &me,
+        &m,
+        at,
         &mut OsRng,
     ))?;
     Ok(())

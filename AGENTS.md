@@ -238,6 +238,14 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   every tag from 1 to the current one (v2 only appended a variant), so v1 logs replay
   unchanged (`version_1_events_still_replay`). An older app skips `Name` entries and
   counts them as newer; nothing but names depends on them, so no gate was needed.
+  `VAULT_EVENT` 2 → 3 (2026-10-01, `VaultEvent::BackupVerified`): appended the same way;
+  an older app skips attestations (backup health only), so no gate either.
+  `VAULT_EVENT` 3 → 4 (2026-10-01, `VaultEvent::ReplaceApproval`, seat moves). **Gate:** an
+  older app ignores the approvals, never moves the seat, and then rejects the new key's
+  log entries as a non-member's: every member must update before anyone moves a seat.
+  `RELAY_DB` 2 → 3 (`mailboxes.threshold`, migrated from 1 and 2). New formats `REPAIR`
+  (delta/sigma payloads) and `RECOVERY_REQUEST` (`zafe-recover-v1:`); new envelope kinds
+  `RepairDelta`/`RepairSigma` were appended (older apps drop envelopes they can't decode).
   **Pre-release: nothing reads the unversioned bytes from before 2026-09-30**; reset
   test devices (`adb shell pm clear xyz.zafe.zafe`), the harness
   (`scripts/app-harness.sh stop`) and relay DBs after pulling this change.
@@ -692,6 +700,52 @@ Learned while studying it:
   **inside** the merge (outside, it adds an unlabeled focusable node and the label reads
   as a separate node); `test/app_button_semantics_test.dart` guards it. Use
   `expand: true` inside `Expanded` rows.
+- **Seat moves / share repair** (spec §10.1, §10.4.2; `zafe_core::repair`): a signer who
+  lost their phone and has no backup gets their seat moved to a new phone. Membership is
+  now **dynamic**: `VaultState.descriptor` is the *current* membership (seat moves applied),
+  not the signed original; `node::load_log` checks the `Created` entry against its own
+  descriptor and every later entry against the membership as of that entry (so the
+  creator can be replaced). Anything membership-related must use the replayed state
+  (`members_by_pk(state)`, `frost_id_of(&state.descriptor, ..)`), never
+  `material.descriptor` (which the app refreshes from `ProposalList.updated_material`, and
+  `load_state` only compares on group key + UFVK). Flow: new phone shows a recovery code +
+  8-digit safety code (`RecoveryRequest`), co-signers log `ReplaceApproval` (signature over
+  `relay::ReplaceApproval`, reused for the relay), at t the seat moves (votes/shares/groups/
+  name re-keyed; interactive approvals voided; pool + backup attestation dropped); the
+  relay swaps keys on `/v1/mailbox/replace` with t signatures (t recorded by the creator via
+  `/v1/mailbox/threshold`, called by `node::create_vault`; 0 = can't move);
+  `repair::help_repairs` (run by the bridge's `list_proposals`, CLI `zafe seat repair`)
+  does the first t approvers' RTS rounds (own deltas saved in `<state>/repair/<index>.delta`
+  before sending, `.done` after the sigma); `repair::try_recover` (bridge `check_recovery`,
+  CLI `zafe recover --wait`) finds the vault via `/v1/mailboxes`, reads the log with a
+  helper's log key, requires every helper's sigma with identical vault data, and checks
+  the verifying share, group key and UFVK. `load_state` boxes `load_log` (an unboxed future
+  overflowed rustc's query depth in `send_with_progress`). App: Welcome → "Lost your
+  phone? Recover without a backup" (`/recover`, pending identity in secure storage
+  `zafe_recovery_identity`; once done the member must confirm the vault address's last 8
+  characters with a co-signer (`VaultCheckBody`), because the new phone can't know which
+  vault to expect and a dishonest relay could present one of its own; then
+  `addRestoredVault` and `/backup-prompt`); Signers tab →
+  "Replace a lost phone" (`/replace-signer`, extra `(oldKey, code)` for a pending move) and
+  `SeatMoveCard`s. Tests: `crates/zafe-core/tests/repair.rs` (creator replaced, same share,
+  signs with a co-signer), `tests/vault.rs` replay rules, `app/rust/tests/repair_bridge.rs`
+  (bridge calls, no Docker). Preview: `flutter test tool/screens/repair_render_test.dart`.
+  Not done: re-running a stalled repair with other helpers, QR scanning of the code (paste
+  or share only), a notification for pending moves. Live-tested on the emulator
+  2026-10-01 both ways (app as helper, app as the new phone) with CLI members
+  (`zafe recover`, `zafe seat approve|repair`). Tips: `/recover` is a SecureScreen
+  (screenshots are black: read it with `agent-device snapshot`); the code is not shown as
+  text, so "Copy code", then paste it into Join's field to read it.
+- **Backup health** (spec §12.2): `VaultEvent::BackupVerified { epoch, at }` (only for the
+  current descriptor epoch; latest per member in `VaultState.backups`), written by
+  `node::attest_backup` (once per epoch; bridge `attest_backup`, CLI `zafe backup`).
+  `export_vault_backup` decrypts the backup it just made before returning it. The app
+  sets the local `summary.json` `backedUp` only once the file was shared (share result
+  not `dismissed`; `unavailable` counts) or the text copied, and `ProposalsNotifier`
+  attests whenever `backedUp` is set but the log's `ProposalList.backed_up` lacks this
+  member (covers exports, restores and devices backed up before attestations; once per
+  vault per session). Signers tab: `BackupHealthCard` + `BackupLabel` per row (preview
+  in `tool/screens/protection_render_test.dart`).
 - **Signer names** (`core/storage/member_names.dart`, `names.json` per vault) travel as
   `Vec<SignerName>` (`api/names.rs`) to `export_vault_backup` / `export_history_csv`
   and back from `import_vault_backup`. Background checks read `names.json` themselves

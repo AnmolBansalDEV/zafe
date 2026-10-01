@@ -13,6 +13,7 @@ import '../notifications/vault_watch.dart' show recordSeen;
 import '../features/proposals/proposal_status.dart' show proposalExpired;
 import '../rust/api/error.dart';
 import '../rust/api/proposals.dart' as rust;
+import '../rust/api/repair.dart' as rust_repair;
 import 'endpoints_provider.dart';
 import 'vault_provider.dart';
 
@@ -42,6 +43,8 @@ class ProposalsState {
     this.newerVersionEntries = 0,
     this.refreshedAt,
     this.sharedNames = const {},
+    this.backedUp = const {},
+    this.seatMoves = const [],
   });
 
   final List<rust.ProposalInfo> items;
@@ -62,6 +65,12 @@ class ProposalsState {
   /// Names members gave themselves in the vault log (key hex → name).
   final Map<String, String> sharedNames;
 
+  /// Members (key hex) who attested a backup of their current keys in the vault log.
+  final Set<String> backedUp;
+
+  /// Signers moving to a new phone, waiting for approvals.
+  final List<rust.SeatMove> seatMoves;
+
   rust.ProposalInfo? byId(String id) {
     for (final p in items) {
       if (p.id == id) return p;
@@ -78,6 +87,8 @@ class ProposalsState {
     int? newerVersionEntries,
     DateTime? refreshedAt,
     Map<String, String>? sharedNames,
+    Set<String>? backedUp,
+    List<rust.SeatMove>? seatMoves,
   }) => ProposalsState(
     items: items ?? this.items,
     loaded: loaded ?? this.loaded,
@@ -86,6 +97,8 @@ class ProposalsState {
     newerVersionEntries: newerVersionEntries ?? this.newerVersionEntries,
     refreshedAt: refreshedAt ?? this.refreshedAt,
     sharedNames: sharedNames ?? this.sharedNames,
+    backedUp: backedUp ?? this.backedUp,
+    seatMoves: seatMoves ?? this.seatMoves,
   );
 }
 
@@ -164,7 +177,20 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
         newerVersionEntries: list.newerVersionEntries,
         refreshedAt: DateTime.now(),
         sharedNames: {for (final n in list.sharedNames) n.keyHex: n.name},
+        backedUp: list.backedUp.toSet(),
+        seatMoves: list.seatMoves,
       );
+      // A signer's seat moved to a new phone: keep this device's copy of the
+      // membership current.
+      final updated = list.updatedMaterial;
+      if (updated != null) {
+        await ref
+            .read(vaultProvider.notifier)
+            .replaceMaterial(vault.activeId!, updated);
+      }
+      if (!list.backedUp.contains(vault.myKeyHex)) {
+        unawaited(_attestIfBackedUp(vault.activeId!));
+      }
       // Seen on screen: never announced from the background. Only while the app is in
       // the foreground; a refresh running in the background must not swallow news.
       if (WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
@@ -309,6 +335,42 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
       proposalId: id,
     );
     await refresh();
+  }
+
+  /// Vaults this session already tried to attest a backup for.
+  static final _attested = <String>{};
+
+  /// Tells the other members this device has a backup (export, or a restore from one)
+  /// when the log doesn't say so yet. Best effort, once per vault per session.
+  Future<void> _attestIfBackedUp(String id) async {
+    if (!(await VaultSummaries.read(id)).backedUp || !_attested.add(id)) return;
+    final vault = _vault;
+    if (vault.activeId != id) return;
+    try {
+      await rust.attestBackup(
+        relayUrl: _endpoints.relayUrl,
+        seeds: vault.identity!,
+        material: vault.material!,
+      );
+      refreshSoon();
+    } catch (e) {
+      debugPrint('backup attestation failed: ${describeError(e)}');
+    }
+  }
+
+  /// Approves moving `oldKeyHex`'s seat to the phone that showed `code`. Returns whether
+  /// the seat moved (this was the last approval needed).
+  Future<bool> approveSeatMove(String oldKeyHex, String code) async {
+    final vault = _vault;
+    final moved = await rust_repair.approveSeatMove(
+      relayUrl: _endpoints.relayUrl,
+      seeds: vault.identity!,
+      material: vault.material!,
+      oldKeyHex: oldKeyHex,
+      code: code,
+    );
+    await refresh();
+    return moved;
   }
 
   /// Sets this member's name for the other members (empty clears it).

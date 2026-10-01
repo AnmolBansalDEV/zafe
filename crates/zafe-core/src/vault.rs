@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use zafe_proto::{
+    relay::ReplaceApproval,
     version::{self, DecodeError, Format, UnsupportedVersion},
     IdentityPublic, LogEntry, LogKey,
 };
@@ -57,6 +58,10 @@ pub enum VaultError {
     NotesInUse(u64),
     #[error("entry {0}: not a valid display name")]
     BadName(u64),
+    #[error("entry {0}: backup attestation for another key epoch")]
+    BadBackup(u64),
+    #[error("entry {0}: not a valid approval to move a member's seat")]
+    BadReplacement(u64),
 }
 
 /// Most commitments one `Commitments` event may carry.
@@ -288,6 +293,59 @@ pub enum VaultEvent {
     Name {
         name: String,
     },
+    /// The author made a backup of this device's copy of the vault and checked that it
+    /// opens (spec §12.2, backup health). Event version 3.
+    BackupVerified {
+        /// The descriptor epoch the backup holds keys for (must be the current one).
+        epoch: u32,
+        /// Author's clock, unix seconds (display only; not trusted).
+        at: u64,
+    },
+    /// The author approves moving the seat of `old` (a member who lost their device) to
+    /// the key `new` (spec §10.1). `signature` is the author's signature over the
+    /// [`ReplaceApproval`] for this vault, which also goes to the relay. Once the vault's
+    /// threshold of other members approved the same move, the seat moves. Event version 4.
+    ReplaceApproval {
+        old: [u8; 32],
+        new: IdentityPublic,
+        signature: Vec<u8>,
+    },
+}
+
+/// Approvals collected so far for moving `old`'s seat to `new`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PendingReplacement {
+    pub old: [u8; 32],
+    pub new: IdentityPublic,
+    /// `(approver sig_pk, signature)`, in log order.
+    pub approvals: Vec<([u8; 32], Vec<u8>)>,
+}
+
+/// A seat that moved to a new key (a lost device replaced, spec §10.1).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Replacement {
+    /// Log index of the approval that completed it (identifies the move).
+    pub index: u64,
+    pub old: [u8; 32],
+    pub new: IdentityPublic,
+    /// The member's FROST identifier (unchanged: repair recreates the same share).
+    pub frost_id: Vec<u8>,
+    /// The threshold of approvals that moved it, in log order (also sent to the relay).
+    pub approvals: Vec<([u8; 32], Vec<u8>)>,
+}
+
+impl Replacement {
+    /// The members who repair the share: the approvers, in log order.
+    pub fn helpers(&self) -> Vec<[u8; 32]> {
+        self.approvals.iter().map(|(pk, _)| *pk).collect()
+    }
+}
+
+/// A member's latest backup attestation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BackupRecord {
+    pub epoch: u32,
+    pub at: u64,
 }
 
 /// Longest display name, in characters (as the app's local labels).
@@ -400,6 +458,13 @@ pub struct VaultState {
     pub pools: BTreeMap<[u8; 32], Pool>,
     /// Display names members gave themselves (latest `Name` event per member).
     pub names: BTreeMap<[u8; 32], String>,
+    /// Members' latest backup attestations (`BackupVerified`).
+    pub backups: BTreeMap<[u8; 32], BackupRecord>,
+    /// Seat moves waiting for approvals, by `(old, new sig_pk)`.
+    pub pending_replacements: BTreeMap<([u8; 32], [u8; 32]), PendingReplacement>,
+    /// Seat moves that happened, in log order. `descriptor.members` already holds the new
+    /// keys: the state's descriptor is the current membership, not the signed original.
+    pub replacements: Vec<Replacement>,
 }
 
 impl VaultState {
@@ -434,6 +499,9 @@ impl VaultState {
             ignored: Vec::new(),
             pools: BTreeMap::new(),
             names: BTreeMap::new(),
+            backups: BTreeMap::new(),
+            pending_replacements: BTreeMap::new(),
+            replacements: Vec::new(),
         };
         for entry in rest {
             state.apply_entry(entry, key);
@@ -655,12 +723,142 @@ impl VaultState {
                     self.names.insert(author, name);
                 }
             }
+            VaultEvent::BackupVerified { epoch, at } => {
+                if epoch != self.descriptor.epoch {
+                    return Err(VaultError::BadBackup(index));
+                }
+                self.backups.insert(author, BackupRecord { epoch, at });
+            }
+            VaultEvent::ReplaceApproval {
+                old,
+                new,
+                signature,
+            } => {
+                let bad = || VaultError::BadReplacement(index);
+                let was_member = |pk: &[u8; 32]| self.replacements.iter().any(|r| &r.old == pk);
+                if author == old
+                    || self.descriptor.member(&old).is_none()
+                    || self.descriptor.member(&new.sig_pk).is_some()
+                    || was_member(&new.sig_pk)
+                    || new.sig_pk == old
+                {
+                    return Err(bad());
+                }
+                let approval = ReplaceApproval {
+                    mailbox: self.descriptor.vault_id,
+                    old,
+                    new,
+                };
+                let by = self
+                    .descriptor
+                    .member(&author)
+                    .expect("checked above")
+                    .identity;
+                approval.verify(&by, &signature).map_err(|_| bad())?;
+                let pending = self
+                    .pending_replacements
+                    .entry((old, new.sig_pk))
+                    .or_insert_with(|| PendingReplacement {
+                        old,
+                        new,
+                        approvals: Vec::new(),
+                    });
+                if pending.new != new || pending.approvals.iter().any(|(pk, _)| *pk == author) {
+                    return Err(bad());
+                }
+                pending.approvals.push((author, signature));
+                if pending.approvals.len() >= threshold {
+                    let approvals = pending.approvals.clone();
+                    self.move_seat(index, old, new, approvals);
+                }
+            }
         }
         Ok(())
     }
 }
 
 impl VaultState {
+    /// The current members' identities (after any seat moves).
+    pub fn member_identities(&self) -> Vec<IdentityPublic> {
+        self.descriptor.members.iter().map(|m| m.identity).collect()
+    }
+
+    /// The seat move that gave `new` its seat, if any (the latest one).
+    pub fn replacement_to(&self, new: &[u8; 32]) -> Option<&Replacement> {
+        self.replacements
+            .iter()
+            .rev()
+            .find(|r| &r.new.sig_pk == new)
+    }
+
+    /// Moves `old`'s seat to `new`: the member keeps its FROST identifier, its votes,
+    /// shares and place in signer groups, and its shared name, under the new key. Its
+    /// pre-published commitments are dropped (their nonces were on the lost device) and
+    /// so is its backup attestation (the new device has no backup yet).
+    fn move_seat(
+        &mut self,
+        index: u64,
+        old: [u8; 32],
+        new: IdentityPublic,
+        approvals: Vec<([u8; 32], Vec<u8>)>,
+    ) {
+        let rekey = |pk: &mut [u8; 32]| {
+            if *pk == old {
+                *pk = new.sig_pk;
+            }
+        };
+        let mut frost_id = Vec::new();
+        for m in &mut self.descriptor.members {
+            if m.identity.sig_pk == old {
+                m.identity = new;
+                frost_id = m.frost_id.clone();
+            }
+        }
+        let threshold = usize::from(self.descriptor.threshold);
+        for p in self.proposals.values_mut() {
+            rekey(&mut p.author);
+            if let Some(v) = p.approvals.remove(&old) {
+                if v.is_empty() {
+                    p.approvals.insert(new.sig_pk, v); // one-tap: its shares are in `shares`
+                } else if p.status == ProposalStatus::Approved && p.approvals.len() < threshold {
+                    // Interactive commitments whose nonces were on the lost device: the
+                    // approval is void, and the new device can approve again.
+                    p.status = ProposalStatus::Open;
+                }
+            }
+            if p.rejections.remove(&old).is_some() {
+                p.rejections.insert(new.sig_pk, ());
+            }
+            if let Some(v) = p.shares.remove(&old) {
+                p.shares.insert(new.sig_pk, v);
+            }
+            if let Some(pre) = &mut p.preprocessed {
+                pre.subsets.iter_mut().flatten().for_each(rekey);
+            }
+            if let Some(c) = &mut p.completed_by {
+                rekey(c);
+            }
+        }
+        self.pools.remove(&old);
+        if let Some(name) = self.names.remove(&old) {
+            self.names.insert(new.sig_pk, name);
+        }
+        self.backups.remove(&old);
+        // Other moves of this seat are moot; the old key's approvals of others' moves go
+        // (the relay no longer counts that key).
+        self.pending_replacements.retain(|(o, _), _| *o != old);
+        for p in self.pending_replacements.values_mut() {
+            p.approvals.retain(|(pk, _)| *pk != old);
+        }
+        self.replacements.push(Replacement {
+            index,
+            old,
+            new,
+            frost_id,
+            approvals,
+        });
+    }
+
     /// Fixes the signing commitments of a new proposal: for every signer group (t-subset of
     /// members, descriptor order), every spend and every member of the group, the member's
     /// next unused pool commitment. Deterministic from the log, so every member computes the

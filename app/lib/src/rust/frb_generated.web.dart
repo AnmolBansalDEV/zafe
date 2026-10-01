@@ -14,6 +14,7 @@ import 'api/mempool.dart';
 import 'api/names.dart';
 import 'api/proposals.dart';
 import 'api/received.dart';
+import 'api/repair.dart';
 import 'api/tor.dart';
 import 'api/vault.dart';
 import 'api/watch.dart';
@@ -115,6 +116,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<ScannedPayment> dco_decode_list_scanned_payment(dynamic raw);
 
   @protected
+  List<SeatMove> dco_decode_list_seat_move(dynamic raw);
+
+  @protected
   List<SignerName> dco_decode_list_signer_name(dynamic raw);
 
   @protected
@@ -142,6 +146,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ZafeError? dco_decode_opt_box_autoadd_zafe_error(dynamic raw);
 
   @protected
+  Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
+
+  @protected
   PassphraseCheck dco_decode_passphrase_check(dynamic raw);
 
   @protected
@@ -163,6 +170,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ReceivedInfo dco_decode_received_info(dynamic raw);
 
   @protected
+  RecoveryCode dco_decode_recovery_code(dynamic raw);
+
+  @protected
+  RecoveryCodeInfo dco_decode_recovery_code_info(dynamic raw);
+
+  @protected
+  RecoveryProgress dco_decode_recovery_progress(dynamic raw);
+
+  @protected
+  RecoveryStage dco_decode_recovery_stage(dynamic raw);
+
+  @protected
   ReviewInfo dco_decode_review_info(dynamic raw);
 
   @protected
@@ -170,6 +189,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ScannedRequest dco_decode_scanned_request(dynamic raw);
+
+  @protected
+  SeatMove dco_decode_seat_move(dynamic raw);
 
   @protected
   SendProgress dco_decode_send_progress(dynamic raw);
@@ -309,6 +331,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<SeatMove> sse_decode_list_seat_move(SseDeserializer deserializer);
+
+  @protected
   List<SignerName> sse_decode_list_signer_name(SseDeserializer deserializer);
 
   @protected
@@ -338,6 +363,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
+
+  @protected
   PassphraseCheck sse_decode_passphrase_check(SseDeserializer deserializer);
 
   @protected
@@ -359,6 +387,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ReceivedInfo sse_decode_received_info(SseDeserializer deserializer);
 
   @protected
+  RecoveryCode sse_decode_recovery_code(SseDeserializer deserializer);
+
+  @protected
+  RecoveryCodeInfo sse_decode_recovery_code_info(SseDeserializer deserializer);
+
+  @protected
+  RecoveryProgress sse_decode_recovery_progress(SseDeserializer deserializer);
+
+  @protected
+  RecoveryStage sse_decode_recovery_stage(SseDeserializer deserializer);
+
+  @protected
   ReviewInfo sse_decode_review_info(SseDeserializer deserializer);
 
   @protected
@@ -366,6 +406,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ScannedRequest sse_decode_scanned_request(SseDeserializer deserializer);
+
+  @protected
+  SeatMove sse_decode_seat_move(SseDeserializer deserializer);
 
   @protected
   SendProgress sse_decode_send_progress(SseDeserializer deserializer);
@@ -529,6 +572,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_seat_move(List<SeatMove> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_signer_name(
     List<SignerName> self,
     SseSerializer serializer,
@@ -565,6 +611,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_list_prim_u_8_strict(
+    Uint8List? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_passphrase_check(
     PassphraseCheck self,
     SseSerializer serializer,
@@ -589,6 +641,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_received_info(ReceivedInfo self, SseSerializer serializer);
 
   @protected
+  void sse_encode_recovery_code(RecoveryCode self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_recovery_code_info(
+    RecoveryCodeInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_recovery_progress(
+    RecoveryProgress self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_recovery_stage(RecoveryStage self, SseSerializer serializer);
+
+  @protected
   void sse_encode_review_info(ReviewInfo self, SseSerializer serializer);
 
   @protected
@@ -602,6 +672,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     ScannedRequest self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_seat_move(SeatMove self, SseSerializer serializer);
 
   @protected
   void sse_encode_send_progress(SendProgress self, SseSerializer serializer);

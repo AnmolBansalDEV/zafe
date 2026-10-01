@@ -144,6 +144,67 @@ pub struct MembersRead {
     pub timestamp: u64,
 }
 
+/// Records the vault's approval threshold `t` on the relay, so that moving a lost member's
+/// seat to a new key ([`ReplaceMember`]) later needs `t` members' approvals. Signed by the
+/// creator, before sealing (`POST /v1/mailbox/threshold`, a newer route: a relay without it
+/// answers 404 and its vaults can't move seats).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SetThreshold {
+    pub mailbox: MailboxId,
+    pub threshold: u16,
+}
+
+const REPLACE_DOMAIN: &[u8] = b"Zafe replace member v1";
+
+/// What a member signs to approve moving the seat of `old` (a member who lost their
+/// device) to the new key `new` (spec §10.1). The same signature goes into the vault log
+/// (every member checks it there) and to the relay ([`ReplaceMember`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReplaceApproval {
+    pub mailbox: MailboxId,
+    pub old: [u8; 32],
+    pub new: IdentityPublic,
+}
+
+impl ReplaceApproval {
+    fn signing_bytes(&self) -> Result<Vec<u8>, ProtoError> {
+        let mut out = REPLACE_DOMAIN.to_vec();
+        out.extend_from_slice(&encode(self)?);
+        Ok(out)
+    }
+
+    pub fn sign(&self, identity: &Identity) -> Result<Vec<u8>, ProtoError> {
+        Ok(identity.sign(&self.signing_bytes()?).to_vec())
+    }
+
+    pub fn verify(&self, by: &IdentityPublic, signature: &[u8]) -> Result<(), ProtoError> {
+        by.verify(&self.signing_bytes()?, signature)
+    }
+}
+
+/// Moves a seat on the relay: `approval.old` leaves the member list and `approval.new`
+/// joins, given approvals (signatures over `approval`) from at least the mailbox's
+/// threshold of current members other than `old`. Signed by a current member or by `new`
+/// (`POST /v1/mailbox/replace`). Repeating a replacement that already happened succeeds.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReplaceMember {
+    pub approval: ReplaceApproval,
+    /// `(approver sig_pk, signature)`.
+    pub approvals: Vec<([u8; 32], Vec<u8>)>,
+}
+
+/// Lists the mailboxes the signer is a member of (`POST /v1/mailboxes`): a device that
+/// recovers a lost member's seat finds its vault once the seat has moved.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MailboxesRead {
+    pub timestamp: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MailboxesResponse {
+    pub mailboxes: Vec<MailboxId>,
+}
+
 /// The longest a relay holds a [`WaitRequest`] open; longer requests are cut to this. It
 /// stays below common proxy idle timeouts (Caddy, Fly.io), so a quiet wait ends with an
 /// answer rather than a dropped connection.

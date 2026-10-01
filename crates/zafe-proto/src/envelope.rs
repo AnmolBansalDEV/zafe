@@ -47,6 +47,11 @@ pub enum Kind {
     Approval,
     SigningRequest,
     SignatureShares,
+    /// Share repair, helper to helper: one RTS delta (spec §10.4.2).
+    RepairDelta,
+    /// Share repair, helper to the member being repaired: an RTS sigma plus the vault
+    /// secret, log key and public key package.
+    RepairSigma,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

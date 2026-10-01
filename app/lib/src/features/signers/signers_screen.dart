@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/layout/mobile/mobile_top_nav.dart';
 import '../../core/layout/mobile/mobile_top_scroll_fade.dart';
+import '../../core/formatting/member_label.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/mobile/mobile_surface_card.dart';
 import '../../core/widgets/mobile/zafe_detail.dart';
 import '../../providers/member_names_provider.dart';
+import '../../providers/proposals_provider.dart';
 import '../../providers/vault_provider.dart';
 import '../home/rename_sheet.dart';
 
@@ -25,6 +30,9 @@ class SignersScreen extends ConsumerWidget {
     final me = vault.myKeyHex;
     final threshold = summary.threshold;
     final members = summary.members;
+    final proposals = ref.watch(proposalsProvider);
+    // Unknown until the vault log has been read.
+    final backedUp = proposals.loaded ? proposals.backedUp : null;
 
     return SafeArea(
       bottom: false,
@@ -60,6 +68,31 @@ class SignersScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  for (final move in proposals.seatMoves) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    SeatMoveCard(
+                      who: memberLabel(move.oldKeyHex, me: me, names: names),
+                      safetyCode: move.safetyCode,
+                      approvals: move.approvals.length,
+                      needed: move.needed,
+                      // The signer who lost the phone can't approve; nor twice.
+                      onApprove:
+                          move.oldKeyHex == me || move.approvals.contains(me)
+                          ? null
+                          : () => context.push(
+                              '/replace-signer',
+                              extra: (move.oldKeyHex, move.code),
+                            ),
+                    ),
+                  ],
+                  if (backedUp != null) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    BackupHealthCard(
+                      signers: members.length,
+                      threshold: threshold,
+                      backedUp: members.where(backedUp.contains).length,
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.md),
                   MobileSurfaceCard(
                     cornerRadius: AppRadii.large,
@@ -71,6 +104,9 @@ class SignersScreen extends ConsumerWidget {
                             keyHex: m,
                             me: me,
                             name: names[m],
+                            trailing: backedUp == null
+                                ? null
+                                : BackupLabel(backedUp: backedUp.contains(m)),
                             onTap: m == me
                                 ? () => showMyNameSheet(context, ref)
                                 : () => showRenameSignerSheet(context, ref, m),
@@ -91,10 +127,177 @@ class SignersScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
+                  if (members.length > 1) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    AppButton(
+                      expand: true,
+                      variant: AppButtonVariant.secondary,
+                      leading: const AppIcon(AppIcons.renew, size: 20),
+                      onPressed: () => context.push('/replace-signer'),
+                      child: const Text('Replace a lost phone'),
+                    ),
+                  ],
                 ],
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// How many signers told the vault they have a backup, and what it means if they don't
+/// (spec §12.1–12.2).
+class BackupHealthCard extends StatelessWidget {
+  const BackupHealthCard({
+    super.key,
+    required this.signers,
+    required this.threshold,
+    required this.backedUp,
+  });
+
+  final int signers;
+  final int threshold;
+  final int backedUp;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final missing = signers - backedUp;
+    final spare = signers - threshold;
+    final ok = missing == 0;
+    final String body;
+    if (ok) {
+      body = 'Every signer has saved a backup of their key.';
+    } else if (missing <= spare) {
+      body =
+          '${missing == 1 ? '1 signer hasn\'t' : '$missing signers haven\'t'} saved '
+          'a backup yet. The vault keeps working if up to $spare '
+          '${spare == 1 ? 'signer loses their phone' : 'signers lose their phones'}, '
+          'but each loss without a backup uses up that margin.';
+    } else {
+      body =
+          '$missing signers haven\'t saved a backup yet. If more than $spare of '
+          '${spare == 1 ? 'them loses their phone' : 'them lose their phones'}, '
+          'the funds are lost for good.';
+    }
+    return MobileSurfaceCard(
+      cornerRadius: AppRadii.large,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppIcon(
+            ok ? AppIcons.checkCircle : AppIcons.warningCircle,
+            size: 22,
+            color: ok ? colors.icon.accent : colors.icon.warning,
+          ),
+          const SizedBox(width: AppSpacing.s),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Backups: $backedUp of $signers',
+                  style: AppTypography.labelLarge.copyWith(
+                    color: colors.text.accent,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  body,
+                  style: AppTypography.bodySmall.copyWith(
+                    color: colors.text.secondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Backed up" or "No backup" at the end of a signer row.
+class BackupLabel extends StatelessWidget {
+  const BackupLabel({super.key, required this.backedUp});
+
+  final bool backedUp;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Text(
+      backedUp ? 'Backed up' : 'No backup',
+      style: AppTypography.bodySmall.copyWith(
+        color: backedUp ? colors.text.muted : colors.text.warning,
+      ),
+    );
+  }
+}
+
+/// A signer moving to a new phone, waiting for co-signers' approvals.
+class SeatMoveCard extends StatelessWidget {
+  const SeatMoveCard({
+    super.key,
+    required this.who,
+    required this.safetyCode,
+    required this.approvals,
+    required this.needed,
+    this.onApprove,
+  });
+
+  final String who;
+  final String safetyCode;
+  final int approvals;
+  final int needed;
+
+  /// Null when this member can't approve (it's their seat, or they already did).
+  final VoidCallback? onApprove;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return MobileSurfaceCard(
+      cornerRadius: AppRadii.large,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              AppIcon(AppIcons.renew, size: 22, color: colors.icon.accent),
+              const SizedBox(width: AppSpacing.s),
+              Expanded(
+                child: Text(
+                  '$who is moving to a new phone',
+                  style: AppTypography.labelLarge.copyWith(
+                    color: colors.text.accent,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Approvals: $approvals of $needed. Before approving, ask $who to read the '
+            'safety code on their new phone: it must be $safetyCode.',
+            style: AppTypography.bodySmall.copyWith(
+              color: colors.text.secondary,
+            ),
+          ),
+          if (onApprove != null) ...[
+            const SizedBox(height: AppSpacing.s),
+            SizedBox(
+              width: double.infinity,
+              child: AppButton(
+                expand: true,
+                size: AppButtonSize.medium,
+                onPressed: onApprove,
+                child: const Text('Check and approve'),
+              ),
+            ),
+          ],
         ],
       ),
     );

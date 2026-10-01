@@ -224,6 +224,9 @@ pub async fn create_vault<R: RngCore + CryptoRng>(
     relay
         .create_mailbox(creator, mailbox, &join_token, members)
         .await?;
+    // Lets the relay check approvals when a lost member's seat moves (spec §10.1). An
+    // older relay without the route still hosts the vault, without seat moves.
+    relay.set_threshold(creator, mailbox, threshold).await?;
     Ok(Invite {
         mailbox,
         join_token,
@@ -742,27 +745,27 @@ pub async fn read_inbox(
 
 // --- Vault log helpers -------------------------------------------------------------------
 
-/// Reads new log entries after the chain's head (following pagination), verifying the chain
-/// and applying them to `state`.
+/// Reads new log entries after the chain's head (following pagination), verifying each
+/// against the membership as of that entry (seats can move) and applying it to `state`.
 async fn catch_up(
     relay: &RelayClient,
     me: &Identity,
-    material: &VaultMaterial,
+    key: &LogKey,
     chain: &mut Chain,
     state: &mut VaultState,
 ) -> Result<(), NodeError> {
-    let members = material.member_identities();
-    let key = material.log_key();
     loop {
         let batch = relay
-            .read_log(me, material.descriptor.vault_id, chain.len())
+            .read_log(me, state.descriptor.vault_id, chain.len())
             .await?;
         if batch.is_empty() {
             return Ok(());
         }
         for entry in batch {
-            chain.append(entry.clone(), &members).map_err(chain_err)?;
-            state.apply_entry(&entry, &key);
+            chain
+                .append(entry.clone(), &state.member_identities())
+                .map_err(chain_err)?;
+            state.apply_entry(&entry, key);
         }
     }
 }
@@ -773,15 +776,57 @@ pub async fn load_state(
     me: &Identity,
     material: &VaultMaterial,
 ) -> Result<(Chain, VaultState), NodeError> {
-    let mailbox = material.descriptor.vault_id;
-    let members = material.member_identities();
-    let mut chain = Chain::new(mailbox);
-    // The first page must contain the Created entry.
-    for entry in relay.read_log(me, mailbox, 0).await? {
-        chain.append(entry, &members).map_err(chain_err)?;
+    // Boxed: callers nest this in large async functions, and the unboxed future made
+    // their layout deeper than rustc's query depth limit.
+    let (chain, state) = Box::pin(load_log(
+        relay,
+        me,
+        material.descriptor.vault_id,
+        &material.log_key(),
+    ))
+    .await?;
+    let d = &state.descriptor;
+    if d.group_public_key != material.descriptor.group_public_key
+        || d.ufvk != material.descriptor.ufvk
+    {
+        return Err(NodeError::Protocol(
+            "the vault log belongs to another vault".into(),
+        ));
     }
-    let mut state = VaultState::replay(chain.entries(), &material.log_key()).map_err(vault_err)?;
-    catch_up(relay, me, material, &mut chain, &mut state).await?;
+    Ok((chain, state))
+}
+
+/// Reads and verifies the log of `mailbox` with `key`, without the member's material (a
+/// device recovering a seat has only the log key at first). The `Created` entry is checked
+/// against the descriptor it carries, which every member signed; later entries against the
+/// membership as of each entry.
+pub async fn load_log(
+    relay: &RelayClient,
+    me: &Identity,
+    mailbox: MailboxId,
+    key: &LogKey,
+) -> Result<(Chain, VaultState), NodeError> {
+    let mut chain = Chain::new(mailbox);
+    let first_page = relay.read_log(me, mailbox, 0).await?;
+    let first = first_page.first().ok_or(NodeError::Invalid(
+        crate::vault::VaultError::NotCreatedFirst,
+    ))?;
+    let mut state = VaultState::replay(std::slice::from_ref(first), key).map_err(vault_err)?;
+    if state.descriptor.vault_id != mailbox {
+        return Err(NodeError::Protocol(
+            "the vault log belongs to another vault".into(),
+        ));
+    }
+    chain
+        .append(first.clone(), &state.member_identities())
+        .map_err(chain_err)?;
+    for entry in first_page.into_iter().skip(1) {
+        chain
+            .append(entry.clone(), &state.member_identities())
+            .map_err(chain_err)?;
+        state.apply_entry(&entry, key);
+    }
+    catch_up(relay, me, key, &mut chain, &mut state).await?;
     Ok((chain, state))
 }
 
@@ -817,12 +862,12 @@ pub async fn append_event<R: RngCore + CryptoRng>(
         match relay.append_log(&entry).await? {
             AppendResult::Appended { index } => {
                 chain
-                    .append(entry.clone(), &material.member_identities())
+                    .append(entry.clone(), &state.member_identities())
                     .map_err(proto)?;
                 state.apply_entry(&entry, &key);
                 return Ok(index);
             }
-            AppendResult::Conflict { .. } => catch_up(relay, me, material, chain, state).await?,
+            AppendResult::Conflict { .. } => catch_up(relay, me, &key, chain, state).await?,
         }
     }
     Err(NodeError::Protocol(
@@ -949,8 +994,9 @@ pub fn expectations<P: Parameters>(
     })
 }
 
-fn members_by_pk(material: &VaultMaterial) -> BTreeMap<[u8; 32], IdentityPublic> {
-    material
+/// The current members (after seat moves) by signing key.
+pub fn members_by_pk(state: &VaultState) -> BTreeMap<[u8; 32], IdentityPublic> {
+    state
         .member_identities()
         .into_iter()
         .map(|m| (m.sig_pk, m))
@@ -1276,7 +1322,7 @@ pub async fn approve<P: Parameters, R: RngCore + CryptoRng>(
             for g in pre.groups_of(&my_pk) {
                 let ids = pre.subsets[g]
                     .iter()
-                    .map(|pk| frost_id_of(material, pk))
+                    .map(|pk| frost_id_of(&state.descriptor, pk))
                     .collect::<Result<Vec<_>, _>>()?;
                 groups.push((g, ids, pre.commitments[g].clone()));
             }
@@ -1362,9 +1408,11 @@ fn check_signing_spends(verified: &VerifiedTx, declared: u16) -> Result<(), Node
     Ok(())
 }
 
-fn frost_id_of(material: &VaultMaterial, sig_pk: &[u8; 32]) -> Result<Identifier, NodeError> {
-    let info = material
-        .descriptor
+pub(crate) fn frost_id_of(
+    descriptor: &crate::vault::VaultDescriptor,
+    sig_pk: &[u8; 32],
+) -> Result<Identifier, NodeError> {
+    let info = descriptor
         .member(sig_pk)
         .ok_or_else(|| NodeError::Protocol("unknown member".into()))?;
     Identifier::deserialize(&info.frost_id).map_err(proto)
@@ -1548,7 +1596,7 @@ pub async fn send_ready<P: Parameters, R: RngCore + CryptoRng>(
     .map_err(|e| NodeError::Verification(e.to_string()))?;
     let ids = pre.subsets[group]
         .iter()
-        .map(|pk| frost_id_of(material, pk))
+        .map(|pk| frost_id_of(&state.descriptor, pk))
         .collect::<Result<Vec<_>, _>>()?;
     let mut shares = BTreeMap::new();
     for (pk, id) in pre.subsets[group].iter().zip(&ids) {
@@ -1750,13 +1798,36 @@ pub async fn set_name<R: RngCore + CryptoRng>(
     Ok(())
 }
 
-fn member_by_frost_id(
+/// Records in the log that this member has a backup of its current keys that opens
+/// (spec §12.2, backup health). Logged only when the member has no attestation for the
+/// current epoch yet, so repeated exports don't grow the log.
+pub async fn attest_backup<R: RngCore + CryptoRng>(
+    relay: &RelayClient,
+    me: &Identity,
     material: &VaultMaterial,
+    at: u64,
+    rng: &mut R,
+) -> Result<(), NodeError> {
+    let (mut chain, mut state) = load_state(relay, me, material).await?;
+    let epoch = state.descriptor.epoch;
+    if state
+        .backups
+        .get(&me.public().sig_pk)
+        .is_some_and(|b| b.epoch == epoch)
+    {
+        return Ok(());
+    }
+    let event = VaultEvent::BackupVerified { epoch, at };
+    append_event(relay, me, material, &mut chain, &mut state, &event, rng).await?;
+    Ok(())
+}
+
+fn member_by_frost_id(
+    descriptor: &crate::vault::VaultDescriptor,
     id: &Identifier,
 ) -> Result<IdentityPublic, NodeError> {
     let bytes = id.serialize();
-    material
-        .descriptor
+    descriptor
         .members
         .iter()
         .find(|m| m.frost_id == bytes)
@@ -1815,7 +1886,7 @@ pub async fn request_signatures<P: Parameters, R: RngCore + CryptoRng>(
         if used.contains(&hash) {
             continue;
         }
-        let info = material
+        let info = state
             .descriptor
             .member(author)
             .ok_or_else(|| NodeError::Protocol("approval from non-member".into()))?;
@@ -1850,7 +1921,7 @@ pub async fn request_signatures<P: Parameters, R: RngCore + CryptoRng>(
     let bytes = encode_request(&request)?;
     let mut seq = SeqCounter::default();
     for id in &request.signers {
-        let to = member_by_frost_id(material, id)?;
+        let to = member_by_frost_id(&state.descriptor, id)?;
         if to.sig_pk == me.public().sig_pk {
             continue; // the leader signs its own part locally (`sign_own_shares`)
         }
@@ -1902,7 +1973,7 @@ pub async fn respond<P: Parameters, R: RngCore + CryptoRng>(
     rng: &mut R,
 ) -> Result<RespondReport, NodeError> {
     let (_, state) = load_state(relay, me, material).await?;
-    let members = members_by_pk(material);
+    let members = members_by_pk(&state);
     let key_package = material.key_package()?;
     let keys = material.vault_keys()?;
     let member = Member {
@@ -2040,9 +2111,10 @@ async fn read_shares(
     relay: &RelayClient,
     me: &Identity,
     material: &VaultMaterial,
+    state: &VaultState,
     request: &SigningRequest,
 ) -> Result<BTreeMap<Identifier, Vec<SignatureShare>>, NodeError> {
-    let members = members_by_pk(material);
+    let members = members_by_pk(state);
     let wanted = request_hash(request)?;
     let mut shares = BTreeMap::new();
     for (_, from, env) in read_inbox(relay, me, material.descriptor.vault_id, &members, 0).await? {
@@ -2058,7 +2130,7 @@ async fn read_shares(
         if msg.proposal != request.proposal || msg.request_hash != wanted {
             continue; // a share from another proposal or an earlier round
         }
-        let Some(info) = material.descriptor.member(&from.sig_pk) else {
+        let Some(info) = state.descriptor.member(&from.sig_pk) else {
             continue;
         };
         let id = Identifier::deserialize(&info.frost_id).map_err(proto)?;
@@ -2085,8 +2157,11 @@ pub async fn share_progress(
     material: &VaultMaterial,
     request: &SigningRequest,
 ) -> Result<ShareProgress, NodeError> {
+    let (_, state) = load_state(relay, me, material).await?;
     Ok(ShareProgress {
-        received: read_shares(relay, me, material, request).await?.len(),
+        received: read_shares(relay, me, material, &state, request)
+            .await?
+            .len(),
         needed: request.signers.len(),
     })
 }
@@ -2179,7 +2254,7 @@ pub async fn finalize<R: RngCore + CryptoRng>(
         None => None,
     };
     let shares = loop {
-        let mut shares = read_shares(relay, me, material, request).await?;
+        let mut shares = read_shares(relay, me, material, &state, request).await?;
         if let Some((id, own)) = &own {
             shares.insert(*id, own.clone());
         }

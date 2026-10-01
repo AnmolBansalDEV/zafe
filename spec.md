@@ -556,9 +556,19 @@ Changing members depends on the group, so Zafe offers two operations and explain
 
 ### 10.1 Replace a lost device (same member)
 
-The member keeps their seat. Two ways back in (§12): restore from an encrypted backup, or **repair** (§10.4.2), where at least t other members regenerate the member's share on the new device. For repair, the new device gets a new identity key, which is announced by a `MEMBERSHIP` proposal needing t approvals. Then one member HPKE-sends `sk`, the descriptor and the log key.
+The member keeps their seat. Two ways back in (§12): restore from an encrypted backup, or **repair** (§10.4.2), where t other members regenerate the member's share on the new device.
 
-**The FROST identifier stays the same** (repair recreates the share at the member's existing identifier), even though the identity key changes. So in this one case the `Identifier` is not re-derived from the new `sigPk` (an exception to §5.1). The descriptor records the mapping.
+**Repair as implemented (2026-10-01; `zafe_core::repair`, `VaultEvent::ReplaceApproval`, event version 4):**
+1. The new phone makes a fresh identity and shows a **recovery code** (`zafe-recover-v1:<hex postcard {identity}>`, shared like an invite) and an 8-digit **safety code** (BLAKE2b of the new keys), which co-signers compare with the member by voice or in person.
+2. Co-signers approve in the log: `ReplaceApproval { old, new, signature }`, where `signature` is the author's Ed25519 signature over `("Zafe replace member v1", vault id, old, new)`. Replay accepts it only from a current member other than `old`, for a current `old` and a `new` that is not and never was a member. At **t approvals** for the same `(old, new)` the seat moves (`VaultState::replacements`): the descriptor's member identity is swapped in the replayed state, and votes, one-tap shares, signer-group slots and the shared name move to the new key. Interactive approvals are voided (their nonces were on the lost device; a proposal approved at exactly t reopens). The old key's pool and backup attestation are dropped. From then on the old key's entries are ignored and chain verification uses the membership as of each entry.
+3. The relay swaps the key (`POST /v1/mailbox/replace`) when shown t valid approval signatures from other current members. It learns t from the creator before sealing (`/v1/mailbox/threshold`; vaults created on an older relay can't move seats). The new phone finds its vault with `/v1/mailboxes`.
+4. The first t approvers are the **helpers**. Each runs RTS part 1 (deltas, saved before anything is sent), seals a delta to every other helper, then part 2, and seals its sigma to the new phone with the public key package, `sk` and the log key (`Kind::RepairDelta` / `RepairSigma`, `Format::Repair`). This runs on every refresh.
+5. The new phone reads the log with the log key, finds its move and the helpers, requires a sigma from every helper with identical vault data, and checks that the repaired verifying share equals the member's share in the public key package, that the group key matches the descriptor, and that `sk` gives the descriptor's UFVK. Its material carries the current membership. Other members' apps save their material with the new membership when they see a move.
+6. **The member confirms the vault before it is saved**: the new phone shows the vault address's last 8 characters to compare with a co-signer. It can't know in advance which vault to expect, so a dishonest relay could otherwise present a self-made vault (it couldn't steal anything, but money sent to that vault's address would be lost).
+
+**The FROST identifier stays the same** (repair recreates the share at the member's existing identifier), even though the identity key changes. So in this one case the `Identifier` is not re-derived from the new `sigPk` (an exception to §5.1). The replayed state records the mapping (`Replacement::frost_id`).
+
+**Limits:** if a helper never finishes, the move stalls (no re-run with other helpers yet). A backup made by the lost phone still holds the old identity: restoring it gives a key share that works but an identity the relay no longer accepts.
 
 ### 10.2 Rotate (keep the vault address)
 
@@ -665,7 +675,7 @@ A CSV export of the vault history. Columns: date, txid, direction, counterparty 
 - Contents: identity keys, FROST key package, `sk`, the vault descriptor, the log key, and `useQsk = true`. **Never** FROST nonces.
 - Encryption: a passphrase run through Argon2id (at least 64 MiB, 3 iterations), then XChaCha20-Poly1305. The passphrase must be at least 12 words or pass a zxcvbn score of 4 or more.
 - Destinations: iCloud Drive, Google Drive, or a file export.
-- The app tracks who has a verified backup (a member attests to it in the log) and shows the vault's "backup health".
+- The app tracks who has a verified backup (a member attests to it in the log) and shows the vault's "backup health". Implemented 2026-10-01: `BACKUP_VERIFIED` for the current epoch, logged once the backup has been decrypted again on the device and saved or copied out of the app; the Signers tab shows the count and each signer's status.
 - Warning shown when backing up: the backup plus the passphrase give that member's full capability.
 
 ### 12.3 Restore

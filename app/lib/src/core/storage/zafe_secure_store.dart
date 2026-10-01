@@ -94,6 +94,17 @@ class ZafeSecureStore {
   Future<void> writeMaterial(String id, List<int> material) =>
       _writeBytes(_key(id, 'material'), material);
 
+  static const _recoveryKey = 'zafe_recovery_identity';
+
+  /// The identity a new phone made to take over a lost signer's seat, kept until the
+  /// seat has moved and the vault is saved (spec §10.1).
+  Future<Uint8List?> readRecoveryIdentity() => _readBytes(_recoveryKey);
+
+  Future<void> writeRecoveryIdentity(List<int> seeds) =>
+      _writeBytes(_recoveryKey, seeds);
+
+  Future<void> deleteRecoveryIdentity() => _storage.delete(key: _recoveryKey);
+
   final Map<String, Future<Uint8List>> _creatingWalletKey = {};
 
   /// The key that encrypts this vault's wallet database (SQLCipher), made on first use.

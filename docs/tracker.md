@@ -402,7 +402,7 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       on a device yet
 - [ ] **Import a vault as view-only** (auditor mode: balance and history from a UFVK, no
       signing)
-- [~] Backup health: per-device prompt after creation + home reminder done; members attesting backups in the log (so others see vault-wide backup health) still open
+- [x] Backup health: per-device prompt after creation + home reminder; members attest backups in the log (`BackupVerified`), the Signers tab shows who has one (2026-10-01)
 - [ ] Multi-part QR for device-to-device transfer (material is a few KB) as an
       alternative to files, *(idea)*
 
@@ -430,9 +430,13 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       Contact names stay empty until the address book exists
 - [x] Encrypted backup (Argon2id + XChaCha20-Poly1305; file via the share sheet, or text) and restore;
       never includes nonces (§12.2–12.3)
-- [ ] Backup health: members attest a verified backup in the log (§12.2)
-- [ ] Repair a lost device's share (frost-core repairable, with verifying-share checks and
-      a test signature before deleting old shares) (§10.1, §10.4)
+- [x] Backup health: members attest a backup that opens in the log; Signers tab shows
+      it (§12.2; 2026-10-01). Not yet: a later "check my backup" (re-enter the passphrase)
+- [x] Repair a lost device's share (2026-10-01; §10.1, §10.4.2): seat moves with t
+      approvals in the log and on the relay, RTS repair by the first t approvers, the new
+      phone checks the share against the public key package, the group key and the UFVK.
+      Follow-ups: re-run a stalled repair with other helpers; scan the recovery code by QR;
+      notify members of a pending move; test on devices
 - [ ] Transparent / TEX recipients with a warning (spec allows; verify.rs is
       Ironwood-only today)
 - [ ] External security audit of zafe-core and the protocol

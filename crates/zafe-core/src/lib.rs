@@ -11,6 +11,7 @@ pub mod net;
 pub mod node;
 pub mod nonce_store;
 pub mod relay_client;
+pub mod repair;
 pub mod session;
 pub mod signing;
 pub mod tor;

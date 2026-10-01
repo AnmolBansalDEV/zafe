@@ -8,7 +8,7 @@ import 'error.dart';
 import 'names.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `info`, `leader_dir`, `local_tip`, `memo_bytes`, `memo_text`, `nonce_store`, `parse_id`, `pool_store`, `request_file`, `shared_names`
+// These functions are ignored because they are not marked as `pub`: `backed_up`, `info`, `leader_dir`, `local_tip`, `memo_bytes`, `memo_text`, `nonce_store`, `parse_id`, `pool_store`, `request_file`, `seat_moves`, `shared_names`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `send_with_progress`
 
@@ -164,6 +164,18 @@ Future<void> setMyName({
   seeds: seeds,
   material: material,
   name: name,
+);
+
+/// Records in the vault log that this member saved a backup that opens (backup health).
+/// Logged once per key epoch.
+Future<void> attestBackup({
+  required String relayUrl,
+  required List<int> seeds,
+  required List<int> material,
+}) => RustLib.instance.api.crateApiProposalsAttestBackup(
+  relayUrl: relayUrl,
+  seeds: seeds,
+  material: material,
 );
 
 /// Cancels a proposal this member authored (open or approved, not yet sent).
@@ -477,15 +489,34 @@ class ProposalList {
   /// its own local label first, then these.
   final List<SignerName> sharedNames;
 
+  /// Members (hex signing keys) who attested a backup of their current keys
+  /// (backup health, spec §12.2).
+  final List<String> backedUp;
+
+  /// Seat moves waiting for approvals (a signer who lost their phone, spec §10.1).
+  final List<SeatMove> seatMoves;
+
+  /// This member's vault material with the current membership, when a seat moved since
+  /// the stored copy: save it in place of the old one.
+  final Uint8List? updatedMaterial;
+
   const ProposalList({
     required this.items,
     required this.newerVersionEntries,
     required this.sharedNames,
+    required this.backedUp,
+    required this.seatMoves,
+    this.updatedMaterial,
   });
 
   @override
   int get hashCode =>
-      items.hashCode ^ newerVersionEntries.hashCode ^ sharedNames.hashCode;
+      items.hashCode ^
+      newerVersionEntries.hashCode ^
+      sharedNames.hashCode ^
+      backedUp.hashCode ^
+      seatMoves.hashCode ^
+      updatedMaterial.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -494,7 +525,10 @@ class ProposalList {
           runtimeType == other.runtimeType &&
           items == other.items &&
           newerVersionEntries == other.newerVersionEntries &&
-          sharedNames == other.sharedNames;
+          sharedNames == other.sharedNames &&
+          backedUp == other.backedUp &&
+          seatMoves == other.seatMoves &&
+          updatedMaterial == other.updatedMaterial;
 }
 
 enum ProposalStage {
@@ -606,6 +640,55 @@ class ScannedRequest {
           runtimeType == other.runtimeType &&
           payments == other.payments &&
           problem == other.problem;
+}
+
+/// A signer moving to a new phone, waiting for approvals.
+class SeatMove {
+  /// The signer who lost their phone (hex key).
+  final String oldKeyHex;
+
+  /// The new phone's key (hex).
+  final String newKeyHex;
+
+  /// What the new phone shows ("1234 5678"): compare before approving.
+  final String safetyCode;
+
+  /// Members who approved so far (hex keys).
+  final List<String> approvals;
+  final int needed;
+
+  /// The recovery code, rebuilt from the log, for approving from this list.
+  final String code;
+
+  const SeatMove({
+    required this.oldKeyHex,
+    required this.newKeyHex,
+    required this.safetyCode,
+    required this.approvals,
+    required this.needed,
+    required this.code,
+  });
+
+  @override
+  int get hashCode =>
+      oldKeyHex.hashCode ^
+      newKeyHex.hashCode ^
+      safetyCode.hashCode ^
+      approvals.hashCode ^
+      needed.hashCode ^
+      code.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SeatMove &&
+          runtimeType == other.runtimeType &&
+          oldKeyHex == other.oldKeyHex &&
+          newKeyHex == other.newKeyHex &&
+          safetyCode == other.safetyCode &&
+          approvals == other.approvals &&
+          needed == other.needed &&
+          code == other.code;
 }
 
 class SendProgress {

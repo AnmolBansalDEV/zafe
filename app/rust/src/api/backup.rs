@@ -90,6 +90,8 @@ pub fn export_vault_backup(
         names: to_map(names),
     };
     let bytes = backup::encrypt(&contents, &passphrase, KdfParams::DEFAULT, &mut OsRng)?;
+    // Open it again before handing it out: the member attests this backup in the log.
+    backup::decrypt(&bytes, &passphrase)?.validate()?;
     let text = backup::to_text(&bytes);
     Ok(ExportedBackup { bytes, text })
 }

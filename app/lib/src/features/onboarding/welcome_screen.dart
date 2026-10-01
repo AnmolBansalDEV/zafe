@@ -87,6 +87,12 @@ class WelcomeScreen extends ConsumerWidget {
                     onPressed: () => context.push('/restore'),
                     child: const Text('Restore from backup'),
                   ),
+                  AppButton(
+                    expand: true,
+                    variant: AppButtonVariant.ghost,
+                    onPressed: () => context.push('/recover'),
+                    child: const Text('Recover without a backup'),
+                  ),
                 ],
               ),
             ),

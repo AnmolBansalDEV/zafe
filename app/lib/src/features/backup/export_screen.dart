@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -18,6 +19,7 @@ import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/app_toast.dart';
 import '../../core/widgets/mobile/mobile_surface_card.dart';
 import '../../core/widgets/mobile_text_field.dart';
+import '../../providers/proposals_provider.dart';
 import '../../providers/vault_names_provider.dart';
 import '../../providers/vault_provider.dart';
 import '../onboarding/onboarding_art.dart';
@@ -81,8 +83,6 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
         names: MemberNames.toSigners(await MemberNames.read(vault.activeId!)),
         passphrase: _pass.text,
       );
-      await VaultSummaries.write(vault.activeId!, backedUp: true);
-      ref.invalidate(backupStatusProvider);
       setState(() => _done = backup);
     } catch (e) {
       if (mounted) {
@@ -106,14 +106,24 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
     return 'Zafe-$safe-${d.year}-${two(d.month)}-${two(d.day)}.zafebackup';
   }
 
+  /// The backup left the app (saved or sent): stop the reminder and tell the other
+  /// members (the next refresh attests it in the vault log).
+  Future<void> _saved() async {
+    await VaultSummaries.write(ref.read(vaultProvider).activeId!, backedUp: true);
+    ref.invalidate(backupStatusProvider);
+    unawaited(ref.read(proposalsProvider.notifier).refresh());
+  }
+
   Future<void> _shareFile() async {
     final backup = _done!;
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/$_fileName');
     await file.writeAsBytes(backup.bytes, flush: true);
-    await SharePlus.instance.share(
+    final result = await SharePlus.instance.share(
       ShareParams(files: [XFile(file.path)], fileNameOverrides: [_fileName]),
     );
+    // `unavailable`: the platform can't tell whether a target was picked.
+    if (result.status != ShareResultStatus.dismissed) await _saved();
     // The share sheet has copied or sent it; don't leave the backup lying in the cache.
     try {
       await file.delete();
@@ -122,6 +132,7 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
 
   Future<void> _copyText() async {
     await Clipboard.setData(ClipboardData(text: _done!.text));
+    await _saved();
     if (mounted) {
       showAppToast(
         context,

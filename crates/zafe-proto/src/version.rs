@@ -21,7 +21,9 @@ pub const LOG_ENTRY: u16 = 1;
 /// Vault log events (the decrypted plaintext of a log entry).
 /// 2 (2026-10-01): members' display names (`VaultEvent::Name`); version 1 events still
 /// decode (their variants keep their postcard index).
-pub const VAULT_EVENT: u16 = 2;
+/// 3 (2026-10-01): backup attestations (`VaultEvent::BackupVerified`), appended the same way.
+/// 4 (2026-10-01): moving a lost member's seat (`VaultEvent::ReplaceApproval`), appended.
+pub const VAULT_EVENT: u16 = 4;
 /// The vault descriptor (`VaultDescriptor::version`, covered by every member's signature).
 pub const DESCRIPTOR: u16 = 1;
 /// Relay API request and response bodies (signed into every request).
@@ -51,8 +53,13 @@ pub const USED_COMMITMENTS: u16 = 1;
 /// names (2026-09-30); version 1 still decrypts and is migrated.
 pub const BACKUP: u16 = 2;
 /// The relay's SQLite schema (`PRAGMA user_version`). 2: storage quota counters on
-/// `mailboxes` (migrated from 1 at startup).
-pub const RELAY_DB: u16 = 2;
+/// `mailboxes` (migrated from 1 at startup). 3: `mailboxes.threshold` for moving a lost
+/// member's seat (migrated from 1 and 2).
+pub const RELAY_DB: u16 = 3;
+/// Share repair envelope payloads (RTS deltas and sigmas).
+pub const REPAIR: u16 = 1;
+/// A recovering device's request to take over a lost member's seat (`zafe-recover-v1:`).
+pub const RECOVERY_REQUEST: u16 = 1;
 
 /// Each versioned format. [`Format::current`] is the version this build writes and reads.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -74,6 +81,8 @@ pub enum Format {
     UsedCommitments,
     Backup,
     RelayDb,
+    Repair,
+    RecoveryRequest,
 }
 
 impl Format {
@@ -96,6 +105,8 @@ impl Format {
             Format::UsedCommitments => USED_COMMITMENTS,
             Format::Backup => BACKUP,
             Format::RelayDb => RELAY_DB,
+            Format::Repair => REPAIR,
+            Format::RecoveryRequest => RECOVERY_REQUEST,
         }
     }
 
@@ -118,6 +129,8 @@ impl Format {
             Format::UsedCommitments => "used commitments",
             Format::Backup => "backup",
             Format::RelayDb => "relay database",
+            Format::Repair => "share repair message",
+            Format::RecoveryRequest => "recovery request",
         }
     }
 }

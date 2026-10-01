@@ -45,9 +45,10 @@ use zafe_proto::{
     log::GENESIS_PREV_HASH,
     relay::{
         encode_body, join_token_hash, AppendResult, CreateMailbox, InboxAck, InboxAckResponse,
-        InboxRead, InboxResponse, Join, LogRead, LogResponse, MembersRead, MembersResponse,
-        PushPlatform, RegisterPush, Remove, Seal, Signed, WaitRequest, WaitResponse,
-        MAX_ACK_CURSORS, MAX_REQUEST_SKEW_SECS, MAX_WAIT_SECS, UNSUPPORTED_VERSION_HEADER,
+        InboxRead, InboxResponse, Join, LogRead, LogResponse, MailboxesRead, MailboxesResponse,
+        MembersRead, MembersResponse, PushPlatform, RegisterPush, Remove, ReplaceMember, Seal,
+        SetThreshold, Signed, WaitRequest, WaitResponse, MAX_ACK_CURSORS, MAX_REQUEST_SKEW_SECS,
+        MAX_WAIT_SECS, UNSUPPORTED_VERSION_HEADER,
     },
     version::{self, UnsupportedVersion},
     Envelope, IdentityPublic, LogEntry, MailboxId, ProtoError, Recipient,
@@ -193,7 +194,8 @@ CREATE TABLE IF NOT EXISTS mailboxes (
     next_cursor INTEGER NOT NULL DEFAULT 1,
     created_at INTEGER NOT NULL,
     delivery_bytes INTEGER NOT NULL DEFAULT 0,
-    log_bytes INTEGER NOT NULL DEFAULT 0
+    log_bytes INTEGER NOT NULL DEFAULT 0,
+    threshold INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS members (
     mailbox BLOB NOT NULL,
@@ -201,6 +203,7 @@ CREATE TABLE IF NOT EXISTS members (
     enc_pk BLOB NOT NULL,
     PRIMARY KEY (mailbox, sig_pk)
 );
+CREATE INDEX IF NOT EXISTS members_by_key ON members (sig_pk);
 CREATE TABLE IF NOT EXISTS deliveries (
     mailbox BLOB NOT NULL,
     cursor INTEGER NOT NULL,
@@ -284,6 +287,9 @@ impl Relay {
         // entries), refused; delete it. Older schemas migrate from `found` here.
         if found == 1 {
             migrate_from_v1(&conn)?;
+            migrate_from_v2(&conn)?;
+        } else if found == 2 {
+            migrate_from_v2(&conn)?;
         } else if found != 0 || has_tables {
             version::check(version::Format::RelayDb, found)?;
         }
@@ -379,6 +385,9 @@ impl Relay {
             .route("/v1/mailbox/seal", post(seal))
             .route("/v1/mailbox/remove", post(remove))
             .route("/v1/mailbox/members", post(members))
+            .route("/v1/mailbox/threshold", post(set_threshold))
+            .route("/v1/mailbox/replace", post(replace_member))
+            .route("/v1/mailboxes", post(mailboxes))
             .route("/v1/push/register", post(register_push))
             .route("/v1/envelope", post(post_envelope))
             .route("/v1/inbox", post(inbox))
@@ -456,6 +465,18 @@ fn migrate_from_v1(conn: &Connection) -> Result<(), RelayError> {
     Ok(())
 }
 
+/// Schema 2 → 3: `mailboxes.threshold` (0 = unknown: the vault can't move seats).
+fn migrate_from_v2(conn: &Connection) -> Result<(), RelayError> {
+    conn.execute_batch(
+        "BEGIN;
+         ALTER TABLE mailboxes ADD COLUMN threshold INTEGER NOT NULL DEFAULT 0;
+         PRAGMA user_version = 3;
+         COMMIT;",
+    )?;
+    tracing::info!("relay database migrated from schema 2 to 3 (thresholds)");
+    Ok(())
+}
+
 /// Refuses a delivery of `len` bytes to each of `recipients` that would go over a quota.
 fn check_delivery_quotas(
     tx: &Connection,
@@ -498,6 +519,7 @@ struct MailboxRow {
     join_token_hash: [u8; 32],
     max_members: u16,
     sealed: bool,
+    threshold: u16,
 }
 
 fn arr32(v: Vec<u8>) -> Result<[u8; 32], RelayError> {
@@ -507,7 +529,8 @@ fn arr32(v: Vec<u8>) -> Result<[u8; 32], RelayError> {
 fn mailbox(db: &Connection, id: &MailboxId) -> Result<MailboxRow, RelayError> {
     let row = db
         .query_row(
-            "SELECT creator, join_token_hash, max_members, sealed FROM mailboxes WHERE id = ?1",
+            "SELECT creator, join_token_hash, max_members, sealed, threshold
+             FROM mailboxes WHERE id = ?1",
             params![&id[..]],
             |r| {
                 Ok((
@@ -515,6 +538,7 @@ fn mailbox(db: &Connection, id: &MailboxId) -> Result<MailboxRow, RelayError> {
                     r.get::<_, Vec<u8>>(1)?,
                     r.get::<_, i64>(2)?,
                     r.get::<_, i64>(3)?,
+                    r.get::<_, i64>(4)?,
                 ))
             },
         )
@@ -525,6 +549,7 @@ fn mailbox(db: &Connection, id: &MailboxId) -> Result<MailboxRow, RelayError> {
         join_token_hash: arr32(row.1)?,
         max_members: u16::try_from(row.2).map_err(|_| RelayError::Storage)?,
         sealed: row.3 != 0,
+        threshold: u16::try_from(row.4).map_err(|_| RelayError::Storage)?,
     })
 }
 
@@ -718,6 +743,98 @@ async fn members(State(relay): State<Relay>, body: Bytes) -> RelayResult {
         members,
         sealed: mb.sealed,
     })
+}
+
+async fn set_threshold(State(relay): State<Relay>, body: Bytes) -> RelayResult {
+    let req = verified::<SetThreshold>(&relay, &body)?;
+    let p = &req.payload;
+    let db = relay.db.lock().expect("lock");
+    let mb = mailbox(&db, &p.mailbox)?;
+    if req.signer.sig_pk != mb.creator || mb.sealed {
+        return Err(RelayError::Forbidden);
+    }
+    if p.threshold == 0 || p.threshold > mb.max_members {
+        return Err(RelayError::BadRequest);
+    }
+    db.execute(
+        "UPDATE mailboxes SET threshold = ?2 WHERE id = ?1",
+        params![&p.mailbox[..], p.threshold],
+    )?;
+    ok(&())
+}
+
+/// Moves a lost member's seat to a new key, given approvals from the vault's threshold of
+/// other current members (spec §10.1). The relay can't read the vault log, so it checks
+/// the approvals itself; members check the same signatures in the log.
+async fn replace_member(State(relay): State<Relay>, body: Bytes) -> RelayResult {
+    let req = verified::<ReplaceMember>(&relay, &body)?;
+    let a = req.payload.approval;
+    let mut db = relay.db.lock().expect("lock");
+    let tx = db.transaction()?;
+    let mb = mailbox(&tx, &a.mailbox)?;
+    let current = members_of(&tx, &a.mailbox)?;
+    let is_member = |pk: &[u8; 32]| current.iter().any(|m| &m.sig_pk == pk);
+    if req.signer.sig_pk != a.new.sig_pk && !is_member(&req.signer.sig_pk) {
+        return Err(RelayError::Forbidden);
+    }
+    if !is_member(&a.old) && current.contains(&a.new) {
+        return ok(&()); // already moved
+    }
+    if !mb.sealed || mb.threshold == 0 || !is_member(&a.old) || is_member(&a.new.sig_pk) {
+        return Err(RelayError::Forbidden);
+    }
+    let mut approvers = std::collections::BTreeSet::new();
+    for (pk, signature) in &req.payload.approvals {
+        let Some(by) = current
+            .iter()
+            .find(|m| &m.sig_pk == pk && m.sig_pk != a.old)
+        else {
+            continue;
+        };
+        if a.verify(by, signature).is_ok() {
+            approvers.insert(*pk);
+        }
+    }
+    if approvers.len() < usize::from(mb.threshold) {
+        return Err(RelayError::Forbidden);
+    }
+    tx.execute(
+        "DELETE FROM members WHERE mailbox = ?1 AND sig_pk = ?2",
+        params![&a.mailbox[..], &a.old[..]],
+    )?;
+    tx.execute(
+        "DELETE FROM push_tokens WHERE mailbox = ?1 AND member = ?2",
+        params![&a.mailbox[..], &a.old[..]],
+    )?;
+    tx.execute(
+        "INSERT INTO members (mailbox, sig_pk, enc_pk) VALUES (?1, ?2, ?3)",
+        params![&a.mailbox[..], &a.new.sig_pk[..], &a.new.enc_pk[..]],
+    )?;
+    tx.commit()?;
+    drop(db);
+    relay.waiters.signal(&a.mailbox);
+    ok(&())
+}
+
+async fn mailboxes(State(relay): State<Relay>, body: Bytes) -> RelayResult {
+    let req = verified::<MailboxesRead>(&relay, &body)?;
+    relay.check_fresh(req.payload.timestamp)?;
+    let db = relay.db.lock().expect("lock");
+    let mut stmt = db.prepare(
+        "SELECT mailbox FROM members WHERE sig_pk = ?1 AND enc_pk = ?2 ORDER BY mailbox",
+    )?;
+    let rows = stmt.query_map(
+        params![&req.signer.sig_pk[..], &req.signer.enc_pk[..]],
+        |r| r.get::<_, Vec<u8>>(0),
+    )?;
+    let mailboxes = rows
+        .map(|r| {
+            r.map_err(RelayError::from)?
+                .try_into()
+                .map_err(|_| RelayError::Storage)
+        })
+        .collect::<Result<Vec<MailboxId>, RelayError>>()?;
+    ok(&MailboxesResponse { mailboxes })
 }
 
 async fn register_push(State(relay): State<Relay>, body: Bytes) -> RelayResult {

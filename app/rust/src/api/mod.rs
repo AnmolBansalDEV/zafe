@@ -7,6 +7,7 @@ pub mod mempool;
 pub mod names;
 pub mod proposals;
 pub mod received;
+pub mod repair;
 pub mod tor;
 pub mod vault;
 pub mod watch;
