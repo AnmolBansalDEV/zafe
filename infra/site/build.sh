@@ -114,7 +114,7 @@ EOF
 fi
 
 if command -v python3 > /dev/null; then
-  for f in "$out"/.well-known/*; do
+  for f in "$out"/.well-known/{assetlinks.json,apple-app-site-association}; do
     [[ -e "$f" ]] || continue
     python3 -m json.tool "$f" > /dev/null || die "invalid JSON: $f"
   done

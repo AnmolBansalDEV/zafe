@@ -854,8 +854,12 @@ Learned while studying it:
   world's visitors never fetch the stills; anything only for the fallback goes under
   `:is(html:not(.js), html.stills)`.
   **SEO** (`docs/seo.md`): the public origin is one value, `site` in `astro.config.mjs`
-  (now the Vercel URL; change it with the custom domain); canonical, og:url/og:image,
-  `sitemap.xml` and `robots.txt` (Astro endpoints in `src/pages/*.ts`) derive from it.
+  (`https://zafe.cash` since 2026-10-01: Cloudflare DNS, DNS-only CNAMEs to Vercel, www
+  redirects to the apex; mail to any `@zafe.cash` address is forwarded by Cloudflare
+  Email Routing); canonical, og:url/og:image, `sitemap.xml`, `robots.txt` and
+  `.well-known/security.txt` (Astro endpoints in `src/pages/`; security.txt's `Expires`
+  is build + 1 year, so redeploy at least yearly) derive from it. `build.sh` validates
+  only the two JSON files in `.well-known`.
   Head tags live in `Base.astro` (props `title`, `description`, `socialTitle`, `jsonLd`,
   `noindex`); social image `/assets/og.png` (1200×630) in `config.ts`. `/join` stays
   `noindex`, out of the sitemap and **not** disallowed in robots.txt (Google must fetch
