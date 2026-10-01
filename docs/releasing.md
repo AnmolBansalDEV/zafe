@@ -6,9 +6,13 @@ Releases are testnet APKs on GitHub Releases, built and signed by
 ## One-time setup (you)
 
 1. **Deploy the relay** (`infra/relay/README.md`) and note its `https://` URL.
-2. **Create the upload key** and keep it safe: every future release must be signed with the
-   same key, or phones refuse the update. Store the `.jks` and its passwords in a password
-   manager, not in the repo.
+2. **The upload key exists** (made 2026-10-01: alias `zafe`, cert SHA-256
+   `D8:A2:F2:C1:…:F6:9C`, on the maintainer's machine as `~/.config/zafe/zafe-upload.jks`
+   + `zafe-upload.password`; PKCS12, key password = store password). **Don't make a new
+   one**: zafe.cash's `assetlinks.json` lists this fingerprint (repository variable
+   `ZAFE_ANDROID_CERT_SHA256`), and every future release must be signed with the same
+   key, or phones refuse the update. Keep the `.jks` and its password in a password
+   manager, not in the repo. How it was made, for reference:
 
    ```bash
    keytool -genkeypair -keystore zafe-upload.jks -alias zafe \
@@ -16,12 +20,19 @@ Releases are testnet APKs on GitHub Releases, built and signed by
    base64 -w0 zafe-upload.jks > zafe-upload.jks.b64
    ```
 3. **GitHub settings** of the repo (Settings > Secrets and variables > Actions):
-   - Variables: `ZAFE_RELAY_URL` = the relay URL. Optional `ZAFE_LINK_HOST` = the host
-     of the invite landing site (`infra/site/README.md`; deploy the site first, with
-     this key's certificate fingerprint in its `assetlinks.json`). Without it, invites
-     are `zafe://` links, which only work where Zafe is installed.
-   - Secrets: `ANDROID_KEYSTORE_BASE64` (contents of `zafe-upload.jks.b64`),
-     `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (`zafe`), `ANDROID_KEY_PASSWORD`.
+   - Variables: `ZAFE_RELAY_URL` = the relay URL (not set yet). `ZAFE_LINK_HOST` =
+     `zafe.cash` (set 2026-10-01; the site serves `assetlinks.json` with this key's
+     fingerprint). Without it, invites are `zafe://` links, which only work where Zafe
+     is installed.
+   - Secrets (not set yet; set them before the first release), from `~/zafe`:
+
+     ```bash
+     d=~/.config/zafe
+     base64 -w0 $d/zafe-upload.jks | gh secret set ANDROID_KEYSTORE_BASE64
+     gh secret set ANDROID_KEYSTORE_PASSWORD < $d/zafe-upload.password
+     gh secret set ANDROID_KEY_PASSWORD < $d/zafe-upload.password
+     printf zafe | gh secret set ANDROID_KEY_ALIAS
+     ```
    - Optional secret `GOOGLE_SERVICES_JSON`: the contents of
      `app/android/app/google-services.json` (Firebase project `zafe-18c4d`), for push.
      The relay then needs the FCM service account too.
