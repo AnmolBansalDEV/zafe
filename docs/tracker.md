@@ -453,8 +453,9 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 
 ## Upstream and waiting on others
 
-- [ ] Send the ZF questions in `upstream-asks.md` (U5, U1, U3; re-checked and rewritten
-      2026-10-01): one comment on frost#1094, then the Discord pointer **(you: approve)**
+- [x] ZF questions (U5, U1, U3) posted as one comment on frost#1094 (2026-10-01):
+      https://github.com/ZcashFoundation/frost/issues/1094#issuecomment-5928093098
+- [ ] **(you)** Post the Discord pointer in `#frost` (`upstream-asks.md`); follow up on answers
 - [ ] U1: ZF confirms the ZIP 2005 derivation stays recoverable under zips#895; get our
       `test-vectors/zip2005_use_qsk.json` cross-checked upstream
 - [x] U2: answered on frost#1094 (2026-09-21): an external-randomizer API will always

@@ -88,7 +88,7 @@ the move, and will it keep the frost-core 3.x `KeyPackage` serialization?
 
 > hi FROST folks 👋 I'm building Zafe, a mobile shielded multisig on Ironwood with
 > re-randomized FROST (frost-core 3.0, reddsa 0.5.2, PCZT). Two questions block our
-> mainnet, written up on frost#1094: <comment link>
+> mainnet, written up on frost#1094: https://github.com/ZcashFoundation/frost/issues/1094#issuecomment-5928093098
 > 1. our randomizer is the PCZT's `α`, chosen before round 1 (like `zcash-sign`), which
 >    ZIP 312 says MUST come after. OK for pre-published commitments?
 > 2. ZIP 2005 keys derived from an agreed `sk` per § 4.2.3: recoverable as is?
