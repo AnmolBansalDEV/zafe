@@ -27,6 +27,26 @@ headers_json="$(awk '
 ' "$here/public/_headers")"
 [[ "$headers_json" == *Content-Security-Policy* ]] || die "no CSP found in public/_headers"
 
+# Each "/assets/..." block (caching) becomes a route: "*" in the path matches anything.
+asset_routes="$(python3 - "$here/public/_headers" <<'PY'
+import json, re, sys
+routes, path, headers = [], None, {}
+def flush():
+    if path and headers:
+        src = '^' + re.escape(path).replace(r'\*', '(.*)') + '$'
+        routes.append(json.dumps({'src': src, 'headers': headers, 'continue': True}))
+for line in open(sys.argv[1]):
+    if line.startswith('/'):
+        flush()
+        path, headers = (line.strip() if line.startswith('/assets/') else None), {}
+    elif path and line.startswith('  ') and ': ' in line:
+        name, value = line.strip().split(': ', 1)
+        headers[name] = value
+flush()
+print(''.join(', ' + r for r in routes))
+PY
+)"
+
 rm -rf "$output"
 mkdir -p "$output"
 cp -R "$dist" "$output/static"
@@ -45,7 +65,7 @@ cat > "$output/config.json" <<EOF
   "routes": [
     { "src": "^/join/$", "status": 308, "headers": { "Location": "/join" } },
     { "src": "^/join\\\\.html$", "status": 308, "headers": { "Location": "/join" } },
-    { "src": "^/(.*)$", "headers": { $headers_json }, "continue": true },
+    { "src": "^/(.*)$", "headers": { $headers_json }, "continue": true }$asset_routes,
     { "src": "^/\\\\.well-known/(.*)$", "headers": { "Cache-Control": "public, max-age=300" }, "continue": true },
     { "handle": "filesystem" }
   ],

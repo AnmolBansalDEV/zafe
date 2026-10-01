@@ -86,14 +86,21 @@ emissive/gold only, grain, vignette), GSAP ScrollTrigger, Lenis.
 (cd infra/site && ./build.sh)                         # includes the inline-code guard
 python3 -m http.server 8768 --bind 127.0.0.1 --directory infra/site/dist   # background
 S=.claude/skills/landing-page
-bash $S/frames.sh "http://127.0.0.1:8768/?pointer=fine" .story 1440 900 12 "$OUT" story
+bash $S/frames.sh "http://127.0.0.1:8768/?world=always&pointer=fine" .story 1440 900 12 "$OUT" story
 python3 $S/sheet.py "$OUT" story 3 0.36               # one contact sheet, then Read it
-bash $S/frames.sh http://127.0.0.1:8768/ .story 390 844 12 "$OUT" story_m && python3 $S/sheet.py "$OUT" story_m 6 0.5
+bash $S/frames.sh "http://127.0.0.1:8768/?world=always" .story 390 844 12 "$OUT" story_m && python3 $S/sheet.py "$OUT" story_m 6 0.5
 ```
 - Desktop 1440x900 **and** phone 390x844, every section you touched; open the sheet and
   the key single frames; fix, rebuild, recapture before reporting.
-- Headless Chrome reports no fine pointer: use `?pointer=fine`; move the mouse with
+- Headless Chrome renders WebGL in software (SwiftShader), so the page skips the world
+  there: add `?world=always`. The world then runs at the lowest quality (softer) and
+  ~1 fps, fine for screenshots, meaningless for frame rates; the bare URL checks the
+  stills fallback. No fine pointer either: `?pointer=fine`; move the mouse with
   `agent-browser mouse move` twice before a cursor shot.
+- **Performance** (see `docs/site.md` ninth round): keep adaptive quality, the software
+  renderer skip and the give-up path working (`canvas.world` `data-quality`: 0-4 or
+  `off`); hashed bundles are cached for a year via `public/_headers` → `vercel-output.sh`.
+  Measure page weight and rAF rate with a small agent-browser script in a file.
 - The sandbox refuses complex inline shell and `eval` strings: put scripts in files and
   run them with `bash`.
 

@@ -148,12 +148,26 @@ function zBars(segments, material) {
 
 // ---------------------------------------------------------------------------- scene
 
-export async function start({ canvas, story, hero, features, cta, covers }) {
-  const images = await loadScreens();
+export async function start({ canvas, story, hero, features, cta, covers, screens, forceWorld = false }) {
+  // story.js starts fetching the screens while this module downloads.
+  const images = await (screens ?? loadScreens());
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false });
   const mobile = window.matchMedia('(max-width: 760px)').matches;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, mobile ? 1.5 : 2));
+  // Quality levels, best first. The page starts at the device's level and steps down
+  // (never back up, so it can't flicker) while frames are slow; see adapt().
+  const dpr = window.devicePixelRatio || 1;
+  const LEVELS = [
+    { dpr: Math.min(dpr, 2), msaa: 4 },
+    { dpr: Math.min(dpr, 1.5), msaa: 2 },
+    { dpr: Math.min(dpr, 1.5), msaa: 0 }, // phones start here (as before adaptive quality)
+    { dpr: 1, msaa: 0 },
+    { dpr: 0.75, msaa: 0 },
+  ];
+  let level = mobile ? 2 : 0;
+  canvas.dataset.quality = String(level);
+  let settleUntil = performance.now() + 2000; // adapt() ignores frames until then
+  renderer.setPixelRatio(LEVELS[level].dpr);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NoToneMapping;
   renderer.shadowMap.enabled = true;
@@ -592,7 +606,7 @@ export async function start({ canvas, story, hero, features, cta, covers }) {
   const cur = { pos: CAM[0][0].clone(), target: CAM[0][1].clone(), frameY: S.frameY, frameX: S.frameX };
 
   // ---------------------------------------------------------------- post
-  const composer = new EffectComposer(renderer, { multisampling: mobile ? 0 : 4, frameBufferType: THREE.HalfFloatType });
+  const composer = new EffectComposer(renderer, { multisampling: LEVELS[level].msaa, frameBufferType: THREE.HalfFloatType });
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new BloomEffect({ luminanceThreshold: 0.92, luminanceSmoothing: 0.2, intensity: 1.1, mipmapBlur: true, radius: 0.7 });
   const noise = new NoiseEffect({ blendFunction: BlendFunction.OVERLAY });
@@ -612,6 +626,7 @@ export async function start({ canvas, story, hero, features, cta, covers }) {
     camera.fov = portrait ? 30 : 20;
     if (camPos) buildCamera(portrait);
     camera.updateProjectionMatrix();
+    settleUntil = performance.now() + 2000;
   }
   resize();
   window.addEventListener('resize', resize);
@@ -663,9 +678,50 @@ export async function start({ canvas, story, hero, features, cta, covers }) {
     return Object.values(obj).map((v) => (typeof v === 'number' ? v.toFixed(3) : v)).join('|');
   }
 
+  // Adaptive quality: average frame time over ~1 s windows; a slow window (under ~45
+  // fps) drops one level. Ignores frames for 2 s after start or a resize (shader
+  // compilation, texture uploads) and 1 s after the world or the tab was hidden. Still
+  // under ~20 fps at the lowest level: give up and show the stills (giveUp).
+  let winMs = 0;
+  let winFrames = 0;
+  document.addEventListener('visibilitychange', () => {
+    settleUntil = performance.now() + 1000;
+  });
+  function adapt(now, ms) {
+    if (now < settleUntil) {
+      winMs = 0;
+      winFrames = 0;
+      return;
+    }
+    winMs += Math.min(ms, 1000);
+    winFrames++;
+    if (winMs < 1000) return;
+    const avg = winMs / winFrames;
+    winMs = 0;
+    winFrames = 0;
+    if (avg <= 22) return;
+    if (level === LEVELS.length - 1) {
+      if (avg > 50 && !forceWorld) giveUp();
+      return;
+    }
+    level++;
+    renderer.setPixelRatio(LEVELS[level].dpr);
+    composer.multisampling = LEVELS[level].msaa;
+    composer.setSize(window.innerWidth, window.innerHeight);
+    if (level >= 2 && key.shadow.mapSize.x > 1024) {
+      // Soft (VSM) shadows hide the lower resolution; three rebuilds the map.
+      key.shadow.mapSize.set(1024, 1024);
+      key.shadow.map?.dispose();
+      key.shadow.map = null;
+    }
+    canvas.dataset.quality = String(level); // for perf checks
+    settleUntil = now + 1000;
+  }
+
   function frame() {
     if (!running) return;
     const now = performance.now();
+    adapt(now, now - last);
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     const time = (now - t0) / 1000;
@@ -941,11 +997,28 @@ export async function start({ canvas, story, hero, features, cta, covers }) {
       return r.top <= 0 && r.bottom >= window.innerHeight;
     });
   const loop = () => {
+    const was = running;
     running = !covered();
+    if (running && !was) settleUntil = performance.now() + 1000;
     frame();
   };
   gsap.ticker.add(loop);
   document.documentElement.classList.add('world-on');
   ScrollTrigger.refresh();
+
+  // Too slow even at the lowest quality: stop, free the GPU, and fall back to the
+  // stills layout (the same one as without WebGL).
+  function giveUp() {
+    gsap.ticker.remove(loop);
+    for (const t of [tl, ft]) {
+      t.scrollTrigger?.kill();
+      t.kill();
+    }
+    composer.dispose();
+    renderer.dispose();
+    document.documentElement.classList.remove('world-on');
+    canvas.dataset.quality = 'off';
+    ScrollTrigger.refresh();
+  }
   return { S, hero };
 }

@@ -3,6 +3,29 @@
 The landing page (`infra/site/src/pages/index.astro`) follows this brief. Keep it current
 when the page changes.
 
+## Decisions (2026-10-01, ninth round): performance
+
+The user asked to "optimize the website a bit for performance". Measured first (bundle
+sizes, headers, renderer settings, rAF rate in headless Chrome).
+- **Caching**: hashed bundles (`/assets/_astro/*`, world 179 KB + main 51 KB gzipped)
+  were revalidated on every visit; now `max-age=31536000, immutable`. Fonts and screens:
+  a week + `stale-while-revalidate`. Source: `public/_headers`; `vercel-output.sh` turns
+  each `/assets/...` block into a route.
+- **Adaptive quality** (world.js `LEVELS`): starts at device pixel ratio ≤ 2 with 4×
+  MSAA (phones: 1.5, none, as before), averages frame time over ~1 s windows and steps down while
+  under ~45 fps (pixel ratio, MSAA; shadow map 2048 → 1024 from level 2). Never steps
+  back up (no flicker); ignores 2 s after start/resize and 1 s after the world or tab
+  was hidden.
+- **No GPU, no world**: a software WebGL renderer (SwiftShader, llvmpipe; hardware
+  acceleration off) took ~4 s per frame and froze scrolling. `story.js` checks the
+  renderer name and shows the stills without downloading the world; at runtime the
+  world gives up (stops, frees the GPU, stills layout) if it stays under ~20 fps at its
+  lowest level. `?world=always` overrides both for headless checks.
+- **Screens load in parallel** with the world module (started in `story.js`), not after it.
+- Checked, no change needed: three.js is tree-shaken (what's left is referenced by the
+  renderer); backdrop blur on the cards isn't a measurable cost; fallback stills are lazy.
+- **Open**: the stills fallback still uses the older dark/light phone split.
+
 ## Decisions (2026-10-01, eighth round): islands, the view from above, pointer and text
 
 - **Features are islands in the same world** (the dark feature panel, the "idea" line

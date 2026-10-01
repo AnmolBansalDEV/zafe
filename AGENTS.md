@@ -820,7 +820,11 @@ Learned while studying it:
   `public/assets/join.js` (`<script is:inline src=…>`, never bundled; it's the only code
   that sees the invite). agent-browser reports no fine pointer, so check the custom
   cursor with `/?pointer=fine`; the 3D world needs a few seconds after each scroll
-  jump before a screenshot.
+  jump before a screenshot. agent-browser renders WebGL in software, and the page skips
+  the world on software renderers (and gives up at runtime if it stays under ~20 fps at
+  its lowest quality), so screenshots of the world need `/?world=always`.
+  Cache headers live in `public/_headers` (`/assets/...` blocks; `vercel-output.sh`
+  turns each into a Vercel route).
   `astro.config.mjs` sets `inlineStylesheets: 'never'` and `build.format: 'file'`;
   `build.sh` greps the output and fails on any inline script/style/handler. Phone shots
   are the app's own renders (`tool/screens/*_render_test.dart` → `infra/site/assets.py`
