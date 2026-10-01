@@ -231,10 +231,11 @@ Open
       the app showed "Approve again", the new round with B was sent. It found and fixed:
       the proposal page kept the failed-send card with only "Try again" and never offered
       "Approve again"; the sending screen had no "Start over". Cancel checked too
-- [ ] Start-over follow-ups: the unresponsive signer keeps nonces for commitments no
-      leader will use (harmless, never reused; deleted only when the proposal closes if at
-      all). Done: members get a one-time "approve a payment again" notification
-      (`reapprovalKey` in the seen snapshot) and it counts as needing action
+- [x] Start-over follow-ups. Done: members get a one-time "approve a payment again"
+      notification (`reapprovalKey` in the seen snapshot) and it counts as needing action.
+      Left as is (2026-10-01): the unresponsive signer keeps nonces for commitments no
+      leader will use; they're never reused, and `node::forget_closed_nonces` deletes
+      them once the proposal is closed or past its expiry height, which every proposal has
 - [x] Note reservation across concurrent proposals (`reservedNotes`, spec §9.1; done
       2026-09-30): before building, `node::propose` replays the log and locks, in this
       member's wallet, every note an open/approved/broadcast proposal (or a cancelled one
@@ -291,8 +292,10 @@ Open
 - [ ] Unlock gate follow-ups: it is a UI gate only (key material in secure storage is not
       bound to user authentication; a Keystore key with `setUserAuthenticationRequired` /
       Keychain `.userPresence` would make it cryptographic, but background round-2 signing
-      needs the key while locked, spec V8). No "open security settings" shortcut from the
-      no-screen-lock warning. Done 2026-09-30: Launch/NormalTheme use AppCompat parents
+      needs the key while locked, spec V8). Done 2026-10-01: "Open settings" in the
+      no-screen-lock note (`xyz.zafe/system_settings` → `ACTION_SECURITY_SETTINGS`, falls
+      back to Settings; the note re-checks on resume); needs an on-device check.
+      Done 2026-09-30: Launch/NormalTheme use AppCompat parents
       (+ explicit `androidx.appcompat`), so the biometric prompt can't crash on Android 8
       and below; checked the app still launches (emulator, API 35)
 - [x] SQLCipher for the wallet DB (spec §14; done 2026-09-30): per-vault random key in
@@ -445,7 +448,8 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       show that their approval still needs a signing round
 - [ ] Push notifications now matter less (approvals are final at tap), but still needed
       so members learn about new proposals
-- [ ] CLI: `approve` doesn't auto-send (by design for scripts); document `zafe send`
+- [x] CLI: `approve` doesn't auto-send (by design for scripts); its help and its
+      "signatures complete" line now point to `zafe send` (2026-10-01)
 
 ## Upstream and waiting on others
 
@@ -507,7 +511,9 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       card, amount + compact recipient), approvals block with signer dots, and signer rows
       with key-derived tiles (also on the home Signers card); icon and splash done.
       Previews without a device: `flutter test tool/screens/proposal_render_test.dart`
-- [ ] Member tiles are derived from keys only; switch to names/colours once member names land
+- [x] Member tiles stay derived from keys (decided 2026-10-01): the tile is the key's
+      fingerprint, the same on every device, while a name is a label anyone can set; names
+      already show next to the tile
 - [ ] iOS: `xyz.zafe/modal_corners` has no Swift handler yet (Dart falls back to fixed
       corners); port Vizor's `NativeModalCorners` when iOS work starts
 - [x] CI: `.github/workflows/ci.yml` runs `cargo fmt --check`, clippy `-D warnings`,

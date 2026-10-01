@@ -1,8 +1,10 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/config/endpoints.dart';
+import '../../core/platform/system_settings.dart';
 import '../../core/formatting/member_label.dart';
 import '../../core/layout/mobile/app_mobile_sheet.dart';
 import '../../core/layout/mobile/mobile_top_nav.dart';
@@ -386,9 +388,32 @@ String _themeLabel(ThemeMode mode) => switch (mode) {
 };
 
 /// Shown under the Security rows when the phone has no screen lock, so approvals
-/// go through without a prompt.
-class _NoScreenLockNote extends StatelessWidget {
+/// go through without a prompt. "Open settings" goes to the phone's security settings;
+/// coming back re-checks, so the note goes away once a lock is set.
+class _NoScreenLockNote extends ConsumerStatefulWidget {
   const _NoScreenLockNote();
+
+  @override
+  ConsumerState<_NoScreenLockNote> createState() => _NoScreenLockNoteState();
+}
+
+class _NoScreenLockNoteState extends ConsumerState<_NoScreenLockNote> {
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(
+      onResume: () => ref.invalidate(hasScreenLockProvider),
+    );
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    _tap.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -411,9 +436,22 @@ class _NoScreenLockNote extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.xs),
           Expanded(
-            child: Text(
-              'Set a screen lock on this phone to protect approvals. '
-              'Until then, Zafe can\'t ask for it.',
+            child: Text.rich(
+              TextSpan(
+                text:
+                    'Set a screen lock on this phone to protect approvals. '
+                    'Until then, Zafe can\'t ask for it. ',
+                children: [
+                  TextSpan(
+                    text: 'Open settings',
+                    style: TextStyle(
+                      decoration: TextDecoration.underline,
+                      decorationColor: colors.text.warning,
+                    ),
+                    recognizer: _tap,
+                  ),
+                ],
+              ),
               style: AppTypography.bodySmall.copyWith(
                 color: colors.text.warning,
               ),
@@ -423,6 +461,8 @@ class _NoScreenLockNote extends StatelessWidget {
       ),
     );
   }
+
+  late final _tap = TapGestureRecognizer()..onTap = openSecuritySettings;
 }
 
 class _Group extends StatelessWidget {

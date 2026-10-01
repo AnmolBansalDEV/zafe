@@ -49,8 +49,9 @@ Future<void> showServerSettingsSheet(
     context: context,
     builder: (_) => const _ServerSettingsSheet(),
   );
-  if (kind != null && context.mounted)
+  if (kind != null && context.mounted) {
     await showEndpointSheet(context, ref, kind);
+  }
 }
 
 class _ServerSettingsSheet extends ConsumerWidget {

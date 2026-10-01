@@ -1,5 +1,8 @@
 package xyz.zafe.zafe
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.provider.Settings
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -24,6 +27,28 @@ class MainActivity : FlutterFragmentActivity() {
                             }
                         }
                         result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        // Opens the system's security settings (to set a screen lock); falls back to the
+        // main Settings screen where a vendor doesn't have that page.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "xyz.zafe/system_settings")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "openSecurity" -> {
+                        val opened = listOf(
+                            Settings.ACTION_SECURITY_SETTINGS,
+                            Settings.ACTION_SETTINGS,
+                        ).any { action ->
+                            try {
+                                startActivity(Intent(action))
+                                true
+                            } catch (e: ActivityNotFoundException) {
+                                false
+                            }
+                        }
+                        result.success(opened)
                     }
                     else -> result.notImplemented()
                 }

@@ -77,7 +77,9 @@ enum Command {
     },
     /// List proposals.
     Proposals,
-    /// Verify a proposal independently and approve it.
+    /// Verify a proposal independently and approve it. Never sends (scripts decide when):
+    /// once approvals complete, run `zafe send` (one tap) or `request`, `respond` and
+    /// `finalize` (interactive). The app sends by itself.
     Approve { proposal: String },
     /// Reject a proposal.
     Reject { proposal: String },
@@ -319,7 +321,7 @@ async fn main() -> Result<()> {
                 verified.spends_to_sign.len()
             );
             if approved.completed {
-                println!("signatures complete: ready to send");
+                println!("signatures complete: run `zafe send {proposal}` to broadcast");
             }
         }
         Command::Backup { passphrase } => {
