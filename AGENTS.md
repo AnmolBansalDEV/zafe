@@ -82,6 +82,8 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   log, HPKE requests, devices). Anything that exports a PCZT or signing package outside
   the vault must strip `alpha`. Uses the deprecated
   `frost_rerandomized::sign` in one wrapper (frost#1094: an external-randomizer API stays).
+  ZF accepts the deviation (conradoplg, frost#1094, 2026-10-01: the step only hedges a weak
+  coordinator RNG; everyone must keep `alpha` secret anyway).
 - **What to sign**: every Ironwood action whose `spend_auth_sig` is `None` — never filter by
   value (zero-value vault spends exist). True dummy spends are already signed by the IO
   Finalizer. Reject any unsigned Orchard-pool spend (vaults never hold Orchard funds, ZIP 326).
@@ -161,7 +163,7 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   `list_proposals` runs on every refresh (app poll, after approving/proposing, and each
   background check). Pools drain when a proposal **enters the log**, for every member,
   approving or not. Security reading of ePrint 2024/436 is in
-  spec §9.5.1; confirmed by Daira-Emma Hopwood 2026-10-01 (U5); ZIP 312 wording still open.
+  spec §9.5.1; confirmed by Daira-Emma Hopwood and conradoplg 2026-10-01 (U5).
 - **Sweeps**: a `Proposal` with **no payments** spends a cancelled proposal's notes back
   to the vault (`node::invalidate`, `VaultWallet::propose_sweep`) so a fully signed
   cancelled transaction can never be mined. UI code must handle `payments.isEmpty`
@@ -950,13 +952,12 @@ Toolchain (installed by `~/android/install-toolchain.sh`; `source ~/android/env.
 
 ## Upstream status (check before relying on it)
 
-- **Mainnet gate (U1)**: ZF hasn't confirmed that vaults derived per ZIP 2005 § 4.2.3
-  from an agreed `sk` are recoverable as they are (frost#1094 says FROST FVK derivation is
-  "blocked on zips#895"; ZIP 2005's "Usage with FROST" only requires a privately agreed
-  `sk`). Daira's 2026-10-01 reply read it as deriving `ask` from `sk` (we don't: `ak` is from
-  the DKG); a clarifying follow-up is drafted in `upstream-asks.md`. Testnet/regtest only
-  until then; small capped amounts at most. **U5** (builder-chosen `alpha`): security
-  answered 2026-10-01 (fine, keep `alpha` private); only ZIP 312 conformance is open.
+- **Upstream gates cleared (2026-10-01, frost#1094, conradoplg)**: U1 (vaults derived per
+  ZIP 2005 § 4.2.3 from our own `sk` agreement: change "very unlikely", "if you have your
+  own system that will also work"), U5 (builder-chosen `alpha` fine; keep it secret) and U3
+  (redpallas moves to the FROST repo, same serialization). Mainnet now waits on the external
+  audit (spec M2); still testnet/regtest only until then. Daira-Emma Hopwood was also asked
+  on Discord (U1 clarification: `ak` is from the DKG); record her answer when it comes.
 - **Post-quantum**: every member holds `qsk`, so a discrete-log-breaking adversary needs
   only one member's `qsk` (ZIP 2005 says so; spec §2.3). Not fixable inside ZIP 2005.
 - COCKTAIL-DKG (frost#1033) not production-ready; Zafe uses frost-core DKG + own echo/transcript.

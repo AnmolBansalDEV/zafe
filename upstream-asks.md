@@ -4,15 +4,16 @@
 and FVK derivation, answered by conradoplg on 2026-09-21), plus a short pointer in `#frost`
 on the Zcash R&D Discord. conradoplg co-wrote the Re-Randomized FROST paper, so U5 is his.
 
-**Status (2026-10-01):** Daira-Emma Hopwood replied on Discord (quoted under U5). U5's
-security question is answered; U5's ZIP 312 wording and U1 stay open; U3 is minor. Send the
-follow-up at the end of this file.
+**Status (2026-10-01): all three answered.** conradoplg replied on frost#1094
+(https://github.com/ZcashFoundation/frost/issues/1094#issuecomment-5932215317): U5 fine, U1 "very unlikely" to change, U3 handled with the move to the
+FROST repo. Daira-Emma Hopwood also replied on Discord (under U5); our follow-up to her was
+sent (end of this file). No upstream blocker left for mainnet.
 Ids are the open items in `spec.md` §19. Write each question so it can be answered
 without opening links.
 
 ---
 
-## U5 (blocks one-tap signing on mainnet): a builder-chosen randomizer with pre-published commitments
+## U5 (answered 2026-10-01): a builder-chosen randomizer with pre-published commitments
 
 **Context checked:**
 - ZIP 312, both the published text and the zips#895 draft (head `be04583`), says the
@@ -45,13 +46,25 @@ commitments)? (b) will ZIP 312 allow it (what any PCZT signer gets), or should w
 > privacy, it allows the adversary to choose α). However, knowing α allows anyone to link the
 > transaction containing rk to the long-term group public key ak.
 
+**Answer (conradoplg, frost#1094):** *"That is fine. That procedure is really to offer an
+additional layer of protection against a possible weak RNG by the coordinator. But you need
+to trust the coordinator (and all participants) to keep alpha secret anyway."* So the ZIP
+312 deviation is accepted by ZF too.
+
 So (a) is yes, for both interactive and one-tap signing. The caveat is privacy: `α` must stay
 among the members. It does today (PCZT only in the encrypted log, HPKE signing requests and
 members' devices; not in the broadcast tx, backups or the CSV export; members hold the FVK
 anyway), and spec §9.5.1 now requires any future PCZT export to strip it. (b), ZIP 312's
-MUST, wasn't addressed: conformance only, no longer a security blocker.
+MUST, was then answered by conradoplg (above): fine.
 
-## U1 (blocks mainnet): are vaults created today recoverable?
+## U1 (answered 2026-10-01): are vaults created today recoverable?
+
+**Answer (conradoplg, frost#1094):** *"There is always some risk of things changing, but I
+feel like it is very unlikely. Most work pending on zips#895 is regarding on how
+participants agree on sk; we plan to use the COCKTAIL-DKG protocol to do the DKG while
+simultaneously agree on sk. But if you have your own system that will also work."* So
+vaults derived per § 4.2.3 from Zafe's own `sk` agreement are expected to stay recoverable.
+Left: get our `use_qsk` vectors cross-checked (offer a PR to zcash-test-vectors).
 
 **Context checked:**
 - ZIP 2005 (status Proposed; changes since 2026-07 are wording) has a normative "Usage with
@@ -82,7 +95,12 @@ Still unanswered: does the Recovery Protocol accept such vaults as they are.
 the Recovery Protocol as they are? Is anything in § 4.2.3 still expected to change? Offer:
 PR our vectors to zcash-test-vectors.
 
-## U3 (minor): reddsa 0.5.x until the ciphersuite moves
+## U3 (answered 2026-10-01): reddsa 0.5.x until the ciphersuite moves
+
+**Answer (conradoplg, frost#1094):** *"They will be moved to the FROST repo. I expect that to
+happen before any need of a security fix, but in the unlikely case that happens, we will
+work it out. The move will keep serialization and everything else as is."* Switch crates
+when the move ships; stored `KeyPackage`s stay readable.
 
 reddsa 0.6.0/0.6.1 (2026-09-25) dropped the FROST ciphersuites; frost#963 (move them to the
 `frost` repo) is open and `frost` has no redpallas crate. Zafe stays on reddsa 0.5.2 +
@@ -118,25 +136,19 @@ the move, and will it keep the frost-core 3.x `KeyPackage` serialization?
 > thanks 🙏
 
 
-## Follow-up to Daira (Discord, draft)
+## Follow-up to Daira (Discord, sent 2026-10-01; awaiting her answer)
 
 > Thanks Daira! Two follow-ups:
 >
-> **1. α.** In Zafe α never leaves the vault's members: it's only inside the PCZT, which
-> travels over our encrypted log and HPKE signing requests. The broadcast tx doesn't carry
-> it, and every member already holds the FVK, so they can see the tx anyway. Given that, is
-> it fine for us to deviate from ZIP 312's MUST (derive the randomizer from the commitment
-> list after round 1)? We can't follow it for one-tap signing: commitments are published
-> ahead of time, before any proposal exists, and α has to be fixed before the sighash (rk
-> is in it). Several signer groups (disjoint commitments) then sign the same sighash with
-> the same α.
+> **1.** In Zafe α never leaves the vault members (it's only in the PCZT, sent encrypted;
+> never broadcast), and they all hold the FVK anyway. Given that, is it OK to deviate from
+> ZIP 312's "derive the randomizer from the commitments after round 1"? We can't for
+> one-tap signing: commitments are published before any proposal exists, and α must be
+> fixed before the sighash.
 >
-> **2. Keys.** We don't derive the FROST keys from sk. ak and the ask shares come from the
-> frost-core DKG, so ask never exists anywhere. sk is agreed only for nk, qsk and rivk_ext,
-> per ZIP 2005 "Usage with FROST" (use_qsk = true). Every member can view and holds qsk, but
-> spending needs t shares while discrete logs hold; recovery needs t members, not one seed.
-> So: does a vault built this way pass the Recovery Protocol as is, or does zips#895 change
-> anything for it?
+> **2.** We don't derive the FROST keys from sk: ak and the ask shares come from the DKG, so
+> ask never exists. sk only gives nk, qsk and rivk_ext (ZIP 2005 "Usage with FROST"). Does a
+> vault built this way pass the Recovery Protocol as is?
 
 ---
 

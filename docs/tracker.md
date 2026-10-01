@@ -431,7 +431,8 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 - [ ] Transparent / TEX recipients with a warning (spec allows; verify.rs is
       Ironwood-only today)
 - [ ] External security audit of zafe-core and the protocol
-- [ ] **Mainnet gate U1** (see Upstream) before any real funds
+- [x] Mainnet gate U1: answered by ZF on frost#1094 (2026-10-01). The audit above is now
+      the mainnet gate
 
 ## M3 / M4 — later (spec §16)
 
@@ -474,11 +475,14 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 - [x] ZF questions (U5, U1, U3) posted as one comment on frost#1094 (2026-10-01):
       https://github.com/ZcashFoundation/frost/issues/1094#issuecomment-5928093098
 - [ ] **(you)** Post the Discord pointer in `#frost` (`upstream-asks.md`); follow up on answers
-- [ ] U1: ZF confirms the ZIP 2005 derivation stays recoverable under zips#895; get our
-      `test-vectors/zip2005_use_qsk.json` cross-checked upstream
+- [x] U1: answered on frost#1094 (2026-10-01): change "very unlikely"; our own `sk`
+      agreement works
+- [ ] Get `test-vectors/zip2005_use_qsk.json` cross-checked upstream (PR to
+      zcash-test-vectors)
 - [x] U2: answered on frost#1094 (2026-09-21): an external-randomizer API will always
       exist (`sign()` may be un-deprecated). Keep the one `#[allow(deprecated)]` wrapper
-- [ ] U3: redpallas ciphersuite home + reddsa 0.5.x security-fix policy (frost#963)
+- [x] U3: answered (2026-10-01): moves to the FROST repo, same serialization. Switch
+      crates when the move ships (frost#963)
 - [ ] U4: COCKTAIL-DKG Pallas (frost#1033; WIP frost#1032 has no Pallas). The ZIP 312
       keygen spec exists in the zips#895 draft ("Contributory Generation of sk"): align
       Zafe's `sk` agreement with it when COCKTAIL-DKG is usable
@@ -487,11 +491,8 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 - [x] U5 security: answered 2026-10-01 (Daira-Emma Hopwood on Discord, quoted in
       `upstream-asks.md`): the proof doesn't need `alpha` after the commitments; `alpha`
       links `rk` to `ak`, so it stays among members (spec §9.5.1)
-- [ ] **(you)** Send Daira the Discord follow-up at the end of `upstream-asks.md`: is the
-      ZIP 312 deviation OK given `alpha` stays among members, and U1 (`ak` is from the DKG)
-- [ ] U5 conformance: will ZIP 312 allow a builder-chosen `alpha` (it says MUST derive it
-      from the commitments after round 1)? If not: derive `alpha` from the assigned
-      commitments before building the PCZT (needs a way to set `alpha`)
+- [x] Sent Daira the Discord follow-up (2026-10-01); record her answer in `upstream-asks.md`
+- [x] U5 conformance: ZF accepts the ZIP 312 deviation (conradoplg, 2026-10-01)
 - [ ] thus-spoke-zakura PR #124 (Ironwood fix, targets `main`; replaces #119, auto-closed when `dev` was deleted on 2026-09-30): rebased onto `main` aee7880 2026-10-01, all CI steps + all 3 Docker recovery tests pass locally; CI waits on maintainer approval. Follow up until merged
 - [ ] Zakura's faster prover once it supports Ironwood (V7)
 

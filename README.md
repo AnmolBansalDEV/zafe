@@ -10,8 +10,8 @@ chain, a Zafe vault looks exactly like a single-user wallet: no owners, no thres
 nothing that says "multisig".
 
 > **Status: pre-release, testnet/regtest only, not audited.** Do not use with real funds.
-> The mainnet gate is an upstream confirmation about the key derivation (see
-> [`upstream-asks.md`](upstream-asks.md), U1).
+> The Zcash Foundation has answered our key-derivation and signing questions (see
+> [`upstream-asks.md`](upstream-asks.md)); mainnet waits on an external audit.
 
 Website: <https://zafe.cash> (the 3D walkthrough is at
 [`/showcase`](https://zafe.cash/showcase)).
