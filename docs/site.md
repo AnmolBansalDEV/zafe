@@ -3,6 +3,18 @@
 The landing page (`infra/site/src/pages/index.astro`) follows this brief. Keep it current
 when the page changes.
 
+## Round 12b (critique pass): the hero phones, the share image, phone details
+
+Found (ranked): at 1200 px the two hero phones stood side by side (the back one was
+placed from the left edge, so the overlap changed with the width: a rejected look); the
+share image `og.png` still showed the old showcase hero; on phones the showcase teaser
+had a tall empty band and the comparison's labels wrapped to four lines; competitors'
+"Yes" was teal, the colour kept for Zafe and actions. Fixed: the back phone hangs off
+the front one (`--ph`, the front phone's height; back at `right: 4% + 0.29 * --ph`,
+tilted -4°), so they overlap the same at every width; `og.png` is now the home hero at
+1200×630 (`stills.sh` captures it from `/` after the intro); teaser 440 px on phones;
+comparison label column 40% wide, competitors' "Yes" in text colour.
+
 ## Round 12a (critique pass): spacing and the showcase entrance
 
 Found (ranked): the showcase's scroll cue sat on the right phone's pedestal; on phones

@@ -1013,7 +1013,9 @@ html.still-page .home .nav-side { visibility: hidden !important; }
 .lp-more .icon { width: 16px; height: 16px; transition: transform 0.2s var(--rise, ease); }
 .lp-more:hover .icon { transform: translateX(3px); }
 
-.lp-hero-art { position: relative; height: min(680px, calc(100vh - 160px)); min-height: 520px; }
+/* --ph is the front phone's height; the back phone hangs off it, so the overlap is the
+   same at every width (never two phones side by side). */
+.lp-hero-art { --ph: clamp(520px, calc(100vh - 160px), 680px); position: relative; height: var(--ph); }
 .lp-dial {
   position: absolute;
   left: 50%;
@@ -1028,9 +1030,9 @@ html.still-page .home .nav-side { visibility: hidden !important; }
   -webkit-mask-image: radial-gradient(circle, #000 30%, transparent 68%);
   mask-image: radial-gradient(circle, #000 30%, transparent 68%);
 }
-.lp-hero-art .lp-phone { position: absolute; height: 100%; width: auto; }
-.lp-phone-front { right: 4%; top: 0; z-index: 1; }
-.lp-phone-back { left: 2%; top: 9%; height: 86% !important; opacity: 0.96; }
+.lp-hero-art .lp-phone { position: absolute; width: auto; }
+.lp-phone-front { right: 4%; top: 0; height: var(--ph); z-index: 1; }
+.lp-phone-back { right: calc(4% + var(--ph) * 0.29); top: 9%; height: calc(var(--ph) * 0.86); rotate: -4deg; }
 
 /* At a glance: facts, not numbers we don't have. */
 .lp-facts {
@@ -1184,7 +1186,8 @@ html.still-page .home .nav-side { visibility: hidden !important; }
 .lp-compare .us { background: #E0F3F1; }
 .lp-compare thead .us { color: var(--brand); font-family: var(--display); font-size: 20px; border-radius: 20px 20px 0 0; }
 .lp-compare tbody tr:last-child .us { border-radius: 0 0 20px 20px; }
-.lp-compare td.yes { color: var(--brand); font-weight: 500; }
+.lp-compare td.yes { color: var(--text); font-weight: 500; }
+.lp-compare td.us.yes { color: var(--brand); }
 .lp-compare td.no { color: var(--text-secondary); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
@@ -1238,7 +1241,7 @@ html.still-page .home .nav-side { visibility: hidden !important; }
 
 @media (max-width: 900px) {
   .lp-hero { grid-template-columns: 1fr; padding: 40px 20px 56px; min-height: 0; gap: 24px; }
-  .lp-hero-art { height: 560px; min-height: 0; max-width: 460px; width: 100%; margin: 0 auto; }
+  .lp-hero-art { --ph: 560px; max-width: 460px; width: 100%; margin: 0 auto; }
   .lp-flow li { grid-template-columns: 1fr; padding: 48px 32px 0; gap: 8px; }
   .lp-flow li:nth-child(even) .lp-flow-copy { order: 0; }
   .lp-flow-art { height: 440px; padding-top: 32px; }
@@ -1255,7 +1258,7 @@ html.still-page .home .nav-side { visibility: hidden !important; }
 @media (max-width: 760px) {
   .lp-hero h1 { font-size: clamp(40px, 11vw, 52px); }
   .lp-hero .sub { font-size: 17px; }
-  .lp-hero-art { height: 480px; }
+  .lp-hero-art { --ph: 480px; }
   .lp-facts { padding: 22px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px 20px; font-size: 15px; }
   .lp-facts li { align-items: flex-start; }
   .lp-section { padding-top: 96px; }
@@ -1265,7 +1268,7 @@ html.still-page .home .nav-side { visibility: hidden !important; }
   .lp-flow-copy p { font-size: 16px; }
   .lp-flow-art { height: 380px; }
   .lp-flow-art .lp-phone { width: 260px; }
-  .lp-teaser { margin-top: 96px; border-radius: 28px; height: 540px; }
+  .lp-teaser { margin-top: 96px; border-radius: 28px; height: 440px; }
   .lp-teaser img { object-position: 50% 100%; }
   .lp-teaser-copy { left: 24px; right: 24px; top: 32px; }
   .lp-card { padding: 28px 24px; border-radius: 28px; }
@@ -1275,9 +1278,10 @@ html.still-page .home .nav-side { visibility: hidden !important; }
   .lp-cta-card { border-radius: 28px; padding: 0 24px; }
   .lp-cta-art { height: 300px; }
   .lp-cta-art .lp-phone { width: 240px; }
-  .lp-compare table { min-width: 0; font-size: 14px; table-layout: fixed; }
+  .lp-compare table { min-width: 0; font-size: 13px; table-layout: fixed; }
   .lp-compare th, .lp-compare td { padding: 14px 6px; }
-  .lp-compare tbody th { width: 40%; padding-left: 0; }
+  .lp-compare thead th:first-child { width: 40%; }
+  .lp-compare tbody th { padding-left: 0; font-size: 14px; line-height: 1.35; }
   .lp-compare thead th { font-size: 12px; }
   .lp-compare thead .us { font-size: 16px; }
 }

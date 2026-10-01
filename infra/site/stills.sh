@@ -66,8 +66,13 @@ shoot still 1920 900 1 \
   island_3 .islands 0.88
 # Tall: the hero on phones.
 shoot still 390 844 2 hero_tall .hero 0
-# The social image: the hero with its headline.
-shoot still=page 1200 630 1 og .hero 0
+# The social image: the home page's hero (headline and the app's screens) after the
+# CSS intro; it's the share card of every page.
+$S set viewport 1200 630 1 >/dev/null
+$S open "http://127.0.0.1:$port/index.html" >/dev/null
+$S wait 4500 >/dev/null
+$S screenshot "$raw/og.png" >/dev/null
+echo "shot og"
 
 "${PYTHON:-python3}" - "$raw" "$out" "$here/public/assets/og.png" <<'PY'
 import sys
