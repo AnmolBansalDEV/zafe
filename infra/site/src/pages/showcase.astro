@@ -23,10 +23,11 @@ import { getLabel, getNote, getUrl } from '../config';
        under a title card, and a light fixed nav keeps the way home in reach. -->
   <canvas class="world" aria-hidden="true"></canvas>
   <!-- The static fallback (no GPU, reduced motion, no JavaScript) shows stills rendered
-       from the same world (stills.sh); html.js hides them until story.js decides. -->
+       from the same world (stills.sh); html.js hides them until story.js decides. The
+       hero still is also the poster while the world loads. -->
   <picture class="still hero-still" aria-hidden="true">
     <source media="(max-aspect-ratio: 4/5)" srcset="/assets/stills/hero_tall.webp" width="780" height="1688" />
-    <img src="/assets/stills/hero_wide.webp" width="1440" height="900" alt="" loading="lazy" decoding="async" />
+    <img src="/assets/stills/hero_wide.webp" width="1440" height="900" alt="" fetchpriority="high" decoding="async" />
   </picture>
 
   <Nav light links={[{ href: '/', label: 'Home', mobile: true, back: true }]} />

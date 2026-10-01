@@ -202,8 +202,11 @@ Open
         to Search Console. Done 2026-10-01: home LCP (was none; now 2.0 s, Lighthouse
         99/100/100), /showcase CLS 0.384 → 0, a 404 page; the story heading, contrast and
         og.png were already fixed. /showcase still reports no LCP (its fade-in entrance)
-  - [ ] Check on a device: `pm get-app-links` shows the host verified; a link opens Join
-        cold and warm; with Zafe uninstalled it opens the page
+  - [x] Checked 2026-10-01 on the emulator (release APK signed with the upload key,
+        `ZAFE_LINK_HOST=zafe.cash`): `pm get-app-links` says `zafe.cash: verified`;
+        https and `zafe://` invite links open Join cold and warm (screenshots of Join are
+        black: it's a `SecureScreen`, FLAG_SECURE). Not yet checked: with Zafe
+        uninstalled the link opens the page
   - [ ] iOS: Associated Domains entitlement (`applinks:<host>`) and the team's app ID in
         the AASA, once iOS builds
 - [ ] iOS: `permission_handler` needs `PERMISSION_CAMERA=1` in the Podfile
