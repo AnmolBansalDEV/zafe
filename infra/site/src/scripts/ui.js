@@ -1,10 +1,10 @@
 // Pointer and text motion (docs/site.md, research notes on cursors and text).
 //
-// Pointer: the native cursor always stays (OS size and contrast settings must keep
-// working). On fine pointers without reduced motion a small companion follows it: the
-// upper half of the Seam mark. Over a "Get Zafe" pill the lower half slides in and the
-// mark is whole, and the pill leans toward the pointer. Over the 3D scenes it carries a
-// "Scroll" label.
+// Cursor: on fine pointers without reduced motion the system pointer is replaced by a
+// dot exactly on the pointer and a trailing ring (the system one stays until ours draws,
+// so a failed script never leaves the page without a pointer). Links swell the ring; on
+// a "Get Zafe" pill the ring wraps it, the pill leans toward the pointer and the dot
+// steps aside. Over the 3D scenes the ring carries a "Scroll" label.
 //
 // Text: headings rise word by word from a mask when they appear; two "unshield"
 // scrambles (the proposal caption, the encrypted chain fields). All of it sets
@@ -113,66 +113,82 @@ for (const el of document.querySelectorAll('.cta-card h2, .faq h2')) {
   ScrollTrigger.create({ trigger: el, start: 'top 85%', once: true, onEnter: () => rise(el) });
 }
 
-// ------------------------------------------------------------------ pointer companion
+// ------------------------------------------------------------------ custom cursor
 
 if (fine && !reduced) {
-  const SEAM_UPPER = 'M22 26.66Q22 22 26.66 22L71.6 22Q78 22 78 28.4L78 56.95Q78 58.25 76.7 58.25L49.77 58.25Q48.47 58.25 49.39 57.33L73.55 33.17Q74.47 32.25 73.17 32.25L23.3 32.25Q22 32.25 22 30.95Z';
-  const SEAM_LOWER = 'M22 43.05Q22 41.75 23.3 41.75L50.23 41.75Q51.53 41.75 50.61 42.67L26.45 66.83Q25.53 67.75 26.83 67.75L76.7 67.75Q78 67.75 78 69.05L78 73.34Q78 78 73.34 78L28.4 78Q22 78 22 71.6Z';
-  const cursor = document.createElement('div');
-  cursor.className = 'cursor';
+  const el = (cls, parent) => {
+    const e = document.createElement('div');
+    e.className = cls;
+    parent?.appendChild(e);
+    return e;
+  };
+  const cursor = el('cursor');
   cursor.setAttribute('aria-hidden', 'true');
-  const ns = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('viewBox', '18 18 64 64');
-  for (const [cls, d, fill] of [['upper', SEAM_UPPER, '#00736C'], ['lower', SEAM_LOWER, '#51DDD2']]) {
-    const path = document.createElementNS(ns, 'path');
-    path.setAttribute('class', cls);
-    path.setAttribute('d', d);
-    path.setAttribute('fill', fill);
-    svg.appendChild(path);
-  }
-  const label = document.createElement('span');
-  label.className = 'cursor-label';
+  const ring = el('cursor-ring', cursor);
+  const shape = el('ring-shape', ring);
+  const label = el('cursor-label', ring);
   label.textContent = 'Scroll';
-  cursor.append(svg, label);
+  const dot = el('cursor-dot', cursor);
   document.body.appendChild(cursor);
 
-  const toX = gsap.quickTo(cursor, 'x', { duration: 0.45, ease: 'power3.out' });
-  const toY = gsap.quickTo(cursor, 'y', { duration: 0.45, ease: 'power3.out' });
-  let snapped = null;
+  // The dot sits exactly on the pointer; the ring trails it.
+  const dotX = gsap.quickSetter(dot, 'x', 'px');
+  const dotY = gsap.quickSetter(dot, 'y', 'px');
+  const ringX = gsap.quickTo(ring, 'x', { duration: 0.35, ease: 'power3.out' });
+  const ringY = gsap.quickTo(ring, 'y', { duration: 0.35, ease: 'power3.out' });
   const scenes = [...document.querySelectorAll('.hero, .story, .islands, .cta-world')];
+  const CLICKABLE = 'a, button, summary, label, [role="button"]';
+  const TEXTY = '.island-card, .cta-card, .faq, .story-captions, h1, h2, p, nav, .threshold';
+  let pill = null;
 
-  window.addEventListener('pointermove', (e) => {
+  function onMove(e) {
+    // Swap the system pointer out only once ours is drawing.
+    document.documentElement.classList.add('cursor-on');
     cursor.classList.add('on');
-    if (snapped) {
-      const r = snapped.getBoundingClientRect();
-      // Sit on the pill's left end; the pill leans toward the pointer.
-      toX(r.left + 22);
-      toY(r.top + r.height / 2);
-      gsap.to(snapped, { x: (e.clientX - (r.left + r.width / 2)) * 0.22, y: (e.clientY - (r.top + r.height / 2)) * 0.3, duration: 0.4, ease: 'power3.out', overwrite: 'auto' });
+    dotX(e.clientX);
+    dotY(e.clientY);
+    if (pill) {
+      // The ring wraps the pill, which leans toward the pointer.
+      const r = pill.getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const lx = (e.clientX - cx) * 0.22;
+      const ly = (e.clientY - cy) * 0.3;
+      gsap.to(pill, { x: lx, y: ly, duration: 0.4, ease: 'power3.out', overwrite: 'auto' });
+      ringX(cx + lx);
+      ringY(cy + ly);
     } else {
-      toX(e.clientX + 16);
-      toY(e.clientY + 18);
+      ringX(e.clientX);
+      ringY(e.clientY);
     }
-    const t = e.target;
-    const overText = t.closest('a, button, input, textarea, .island-card, .cta-card, .faq, .story-captions, h1, h2, p, nav');
-    const inScene = !overText && scenes.some((el) => {
-      const r = el.getBoundingClientRect();
+    const t = e.target instanceof Element ? e.target : null;
+    const link = !pill && t?.closest(CLICKABLE);
+    cursor.classList.toggle('link', !!link);
+    const inScene = !link && !pill && !t?.closest(TEXTY) && scenes.some((s) => {
+      const r = s.getBoundingClientRect();
       return e.clientY >= r.top && e.clientY <= r.bottom;
     });
     cursor.classList.toggle('label', inScene);
-  });
-  document.addEventListener('pointerleave', () => cursor.classList.remove('on'));
+  }
+  window.addEventListener('pointermove', onMove, { passive: true });
+  document.documentElement.addEventListener('pointerleave', () => cursor.classList.remove('on'));
+  window.addEventListener('pointerdown', () => cursor.classList.add('down'));
+  window.addEventListener('pointerup', () => cursor.classList.remove('down'));
 
-  for (const pill of document.querySelectorAll('.pill')) {
-    pill.addEventListener('pointerenter', () => {
-      snapped = pill;
+  for (const p of document.querySelectorAll('.pill')) {
+    p.addEventListener('pointerenter', () => {
+      pill = p;
+      const r = p.getBoundingClientRect();
+      shape.style.width = `${r.width + 14}px`;
+      shape.style.height = `${r.height + 14}px`;
       cursor.classList.add('full');
     });
-    pill.addEventListener('pointerleave', () => {
-      snapped = null;
+    p.addEventListener('pointerleave', () => {
+      pill = null;
+      shape.style.width = '';
+      shape.style.height = '';
       cursor.classList.remove('full');
-      gsap.to(pill, { x: 0, y: 0, duration: 0.6, ease: 'elastic.out(1, 0.5)' });
+      gsap.to(p, { x: 0, y: 0, duration: 0.6, ease: 'elastic.out(1, 0.5)' });
     });
   }
 }

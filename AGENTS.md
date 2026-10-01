@@ -816,8 +816,8 @@ Learned while studying it:
   landing page bundles its motion (`src/scripts/story.js` → `world.js` Three.js world,
   `ui.js` pointer and text) as same-origin modules; `/join` loads only the hand-written
   `public/assets/join.js` (`<script is:inline src=…>`, never bundled; it's the only code
-  that sees the invite). agent-browser reports no fine pointer, so check the pointer
-  companion with `/?pointer=fine`; the 3D world needs a few seconds after each scroll
+  that sees the invite). agent-browser reports no fine pointer, so check the custom
+  cursor with `/?pointer=fine`; the 3D world needs a few seconds after each scroll
   jump before a screenshot.
   `astro.config.mjs` sets `inlineStylesheets: 'never'` and `build.format: 'file'`;
   `build.sh` greps the output and fails on any inline script/style/handler. Phone shots

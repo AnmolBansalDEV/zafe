@@ -15,11 +15,14 @@ when the page changes.
 - **The call to action looks down on the vault**; a big Z lights in the floor around it
   and the card sits low so the mark reads above it. The world pauses only while the FAQ
   or footer covers the whole screen.
-- **Pointer companion** (src/scripts/ui.js): the native cursor stays; on fine pointers
-  without reduced motion the upper half of the Seam follows it, with a "Scroll" label
-  over the scenes. On a "Get Zafe" pill the lower half slides in and the mark is whole,
-  and the pill leans toward the pointer. `?pointer=fine` forces it on for headless
-  checks.
+- **Custom cursor** (src/scripts/ui.js): the user didn't like a companion next to the
+  system pointer ("the mouse is still the plain old pointer"), so on fine pointers
+  without reduced motion the system pointer is replaced (`cursor: none`, added only once
+  ours draws): a dark dot exactly on the pointer (white halo, readable on teal) and a
+  trailing teal ring with a "Scroll" label over the scenes. Links swell the ring into a
+  soft teal disc; on a "Get Zafe" pill the ring wraps it, the pill leans toward the
+  pointer and the dot steps aside (the Seam-mark dot sat on the label). Touch devices
+  keep their native behaviour. `?pointer=fine` forces it on for headless checks.
 - **Text**: headings rise word by word from a mask; two "unshield" scrambles only (the
   proposal caption, the encrypted chain fields); an approvals counter (0, 1, 2 "of 2
   approvals") rolls as the shards seat. Custom splitter, not SplitText: no plugin, and
