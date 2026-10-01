@@ -441,7 +441,7 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 - [ ] U3: redpallas ciphersuite home + reddsa 0.5.x security-fix policy (frost#963)
 - [ ] U4: COCKTAIL-DKG Pallas + ZIP 312 keygen spec (zips#895, frost#1033)
 - [ ] U5: ZF confirms one-tap signing (pre-published commitments, PCZT-fixed alpha) is within the Re-Randomized FROST model — `upstream-asks.md` Q7 **(you: send with Q1)**
-- [ ] thus-spoke-zakura PR #119 (Ironwood fix, targets `dev`): follow up until merged
+- [ ] thus-spoke-zakura PR #124 (Ironwood fix, targets `main`; replaces #119, auto-closed when `dev` was deleted on 2026-09-30): rebased onto `main` aee7880 2026-10-01, all CI steps + all 3 Docker recovery tests pass locally; CI waits on maintainer approval. Follow up until merged
 - [ ] Zakura's faster prover once it supports Ironwood (V7)
 
 ## Known issues and tech debt

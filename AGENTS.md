@@ -463,7 +463,7 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
 - Coinbase to a **unified address lands in Ironwood**: fund a vault by mining to its address;
   coinbase matures after 100 blocks (mine ~120). Mining fees return via coinbase.
 - lightwalletd: `ghcr.io/zcashlabs/thus-spoke-zakura-lightwalletd:0.2.1` (v0.5.4+7, Ironwood-aware).
-- `ths` (thus-spoke-zakura) itself ran pre-Ironwood; fixed upstream in PR #119 (targets `dev`).
+- `ths` (thus-spoke-zakura) itself ran pre-Ironwood; fix upstream in PR #124 (targets `main`, replaces #119). Its explorer also labelled Ironwood txs "Fully transparent" until #124.
 
 ## Mobile findings (spec V7/V8)
 
