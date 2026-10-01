@@ -28,6 +28,8 @@ pub const MAX_MEMBERS: u16 = 15;
 const PERSONAL_ECHO: &[u8; 16] = b"Zafe_DKG_R1Echo_";
 const PERSONAL_TRANSCRIPT: &[u8; 16] = b"Zafe_DKG_Transcr";
 const PERSONAL_VAULT_SK: &[u8; 16] = b"Zafe_VaultSecret";
+const PERSONAL_SK_COMMIT: &[u8; 16] = b"Zafe_SkCommit___";
+const PERSONAL_ECHO_COMMITS: &[u8; 16] = b"Zafe_DKG_EchoSk_";
 const PERSONAL_IDENTIFIER: &[u8] = b"Zafe member identifier v1";
 
 pub type VaultId = [u8; 16];
@@ -42,6 +44,8 @@ pub enum KeygenError {
     WrongContributionCount { expected: usize, got: usize },
     #[error("received a package claiming to be from this member")]
     OwnPackageReceived,
+    #[error("a member's vault secret contribution doesn't match its round-1 commitment")]
+    ContributionMismatch,
     #[error("FROST: {0}")]
     Frost(#[from] redpallas::Error),
     #[error(transparent)]
@@ -261,6 +265,49 @@ impl SkContribution {
     pub fn as_bytes(&self) -> &[u8; 32] {
         &self.0
     }
+
+    /// `BLAKE2b-256("Zafe_SkCommit___", vault_id || member sig_pk || r)`: published in DKG
+    /// round 1, before anyone reveals a contribution, so no member can pick its `r` after
+    /// seeing the others' (which would let the last one grind `sk`).
+    pub fn commitment(&self, vault_id: &VaultId, member: &[u8; 32]) -> [u8; 32] {
+        let mut state = blake2b_256(PERSONAL_SK_COMMIT);
+        state.update(vault_id);
+        state.update(member);
+        state.update(&self.0);
+        finalize_32(state)
+    }
+}
+
+/// Checks a revealed `sk` contribution against the commitment `member` published in round 1.
+pub fn check_contribution(
+    vault_id: &VaultId,
+    member: &[u8; 32],
+    commitment: &[u8; 32],
+    revealed: &SkContribution,
+) -> Result<(), KeygenError> {
+    if revealed.commitment(vault_id, member) == *commitment {
+        Ok(())
+    } else {
+        Err(KeygenError::ContributionMismatch)
+    }
+}
+
+/// The round-2 echo every member compares: the round-1 echo extended with every member's
+/// `sk` commitment (by FROST identifier), so a member who sent different commitments to
+/// different members is caught like a different round-1 package.
+pub fn echo_with_commitments(
+    round1_echo: &[u8; 32],
+    commitments: &BTreeMap<Identifier, [u8; 32]>,
+) -> [u8; 32] {
+    let mut state = blake2b_256(PERSONAL_ECHO_COMMITS);
+    state.update(round1_echo);
+    for (id, c) in commitments {
+        let id_bytes = id.serialize();
+        state.update(&(id_bytes.len() as u32).to_le_bytes());
+        state.update(&id_bytes);
+        state.update(c);
+    }
+    finalize_32(state)
 }
 
 /// `sk = BLAKE2b-256("Zafe_VaultSecret", vault_id || transcript || r_1 || … || r_n)`,

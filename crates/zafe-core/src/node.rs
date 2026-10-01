@@ -293,6 +293,8 @@ struct Round1Msg {
     birthday_height: Option<u32>,
     /// Set by the creator only: the proposal expiry window, in blocks.
     proposal_expiry_blocks: Option<u32>,
+    /// Commitment to this member's `sk` contribution (revealed in round 2). Format 3.
+    sk_commitment: [u8; 32],
 }
 
 /// Collects opened envelopes by (kind, sender) from the inbox, keeping the cursor.
@@ -419,9 +421,12 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
         received: BTreeMap::new(),
     };
 
-    // Round 1: broadcast.
+    // Round 1: broadcast, with a commitment to this member's `sk` contribution.
     let round1 = Round1::start(params, frost_id(&me.public().sig_pk)?, rng).map_err(proto)?;
+    let contribution = SkContribution::generate(rng);
+    let my_commitment = contribution.commitment(&invite.mailbox, &me.public().sig_pk);
     let msg = Round1Msg {
+        sk_commitment: my_commitment,
         package: round1.package().serialize().map_err(proto)?,
         birthday_height: if is_creator {
             creator_birthday_height
@@ -458,8 +463,10 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
     };
     let mut expiry_blocks = msg.proposal_expiry_blocks;
     let mut received1 = BTreeMap::new();
+    let mut commitments = BTreeMap::from([(frost_id(&me.public().sig_pk)?, my_commitment)]);
     for (pk, bytes) in &r1 {
         let m: Round1Msg = version::decode(Format::DkgRound1, bytes)?;
+        commitments.insert(frost_id(pk)?, m.sk_commitment);
         if *pk == invite.creator {
             birthday_height = m.birthday_height;
             expiry_blocks = m.proposal_expiry_blocks;
@@ -482,14 +489,14 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
 
     // Round 2: echo hash (broadcast), round-2 packages and sk contributions (sealed).
     let (round2, outgoing) = round1.advance(received1).map_err(proto)?;
-    let echo = round2.echo();
+    // Members also agree on every `sk` commitment before any contribution counts.
+    let echo = crate::keygen::echo_with_commitments(&round2.echo(), &commitments);
     relay
         .send(
             &Envelope::public(me, invite.mailbox, seq.next_seq(), Kind::DkgEcho, &echo)
                 .map_err(proto)?,
         )
         .await?;
-    let contribution = SkContribution::generate(rng);
     for (to_id, package) in outgoing {
         let to = by_pk[&id_to_pk[&to_id]];
         let bytes = package.serialize().map_err(proto)?;
@@ -552,7 +559,11 @@ pub async fn run_keygen<P: Parameters, R: RngCore + CryptoRng>(
     contributions.insert(frost_id(&me.public().sig_pk)?, contribution);
     for (pk, bytes) in sk_msgs {
         let arr: [u8; 32] = bytes.as_slice().try_into().map_err(proto)?;
-        contributions.insert(frost_id(&pk)?, SkContribution::from_bytes(arr));
+        let id = frost_id(&pk)?;
+        let revealed = SkContribution::from_bytes(arr);
+        crate::keygen::check_contribution(&invite.mailbox, &pk, &commitments[&id], &revealed)
+            .map_err(|e| NodeError::Protocol(e.to_string()))?;
+        contributions.insert(id, revealed);
     }
     let output = dkg_result.finish(&contributions).map_err(proto)?;
 

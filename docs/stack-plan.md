@@ -44,7 +44,8 @@ Started 2026-10-01. The research and reasoning behind every item are in
       into Zodl's AGPL SDK.
 - [ ] CI: add `cargo deny` (licences, advisories). Consider `cargo vet`, since frost-tools
       requires it for new dependencies.
-- [ ] **Fix the `sk` last-contributor bias** before anything is published (§7). Commit to
+- [x] **Fix the `sk` last-contributor bias** (done 2026-10-01: `DKG_ROUND1` 3,
+      `keygen::check_contribution`, test `a_contribution_changed_after_seeing_the_others_is_rejected`). Commit to
       `H(r_i)` in DKG round 1 (bump `DKG_ROUND1`), reveal after the DKG, abort on a
       mismatch. Add a test where a member changes its contribution after seeing the
       others'. Update spec §7.4 and AGENTS.md.

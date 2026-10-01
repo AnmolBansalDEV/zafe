@@ -514,7 +514,8 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 
 ## Known issues and tech debt
 
-- [ ] **`sk` agreement: the last contributor can bias `sk`** (found 2026-10-01; same
+- [x] **`sk` agreement: the last contributor can bias `sk`** (fixed 2026-10-01: commit in
+      round 1, compare in the echo, check on reveal; `DKG_ROUND1` 3) (found 2026-10-01; same
       issue str4d raised on zips#895). `keygen::combine_vault_secret` hashes the `r_i`,
       which are sent after the DKG without a prior commitment, so a member that waits
       can grind its own. Low impact (it learns `sk` anyway, can't spend alone), but fix

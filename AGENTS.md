@@ -74,8 +74,11 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   Never use frost-tools' `from_sk_ak_incompatible_with_quantum_recoverability...` (not recoverable).
 - **DKG**: safety number confirmed out of band before starting; round-1 echo hashes must all
   match; round-2 packages and `sk` contributions are HPKE-sealed; every member signs the
-  descriptor. **Known gap**: `sk` contributions have no prior commitment, so the last
-  sender can bias `sk` (tracker "Known issues"); keep that in mind before changing keygen. `reddsa` 0.5.2's `post_dkg` normalizes `ak` to even Y (orchard rejects odd).
+  descriptor. Each `sk` contribution is committed in round 1 (`SkContribution::commitment`,
+  in `Round1Msg.sk_commitment`), the commitments are part of the echo every member
+  compares (`echo_with_commitments`), and a revealed `r_j` that doesn't match aborts
+  keygen: no member can choose its contribution after seeing the others'. `reddsa`
+  0.5.2's `post_dkg` normalizes `ak` to even Y (orchard rejects odd).
 - **Randomizer**: the FROST randomizer for each spend is the PCZT's own `alpha` (fixed before
   round 1 because `rk` feeds the sighash). Secure per the Re-Randomized FROST paper; matches
   frost-tools' `zcash-sign`. **Deviates from ZIP 312**, which says the Coordinator MUST
@@ -174,7 +177,7 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   (`SweepCard`, rows say "To vault"). A proposal's `nullifiers` include padding spends
   that match no note: filter to the wallet's notes before requiring them.
 - **Expiry**: `descriptor.proposal_expiry_blocks` (default 7 days; the creator picks 1-30
-  days, sent in its DKG round-1 message, `DKG_ROUND1` = 2); proposer sets expiry =
+  days, sent in its DKG round-1 message, `DKG_ROUND1` = 3 since the `sk` commitment); proposer sets expiry =
   `vault::expiry_height(target, window)` (rounded up to 144 blocks so it doesn't date the
   proposal); members accept window + 96 + 144 blocks. Never remove expiry: a
   complete one-tap group stays sendable until it.

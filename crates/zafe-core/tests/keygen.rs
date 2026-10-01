@@ -11,7 +11,10 @@ use reddsa::frost::redpallas::{
     rerandomized::{RandomizedParams, Randomizer},
     PallasBlake2b512,
 };
-use zafe_core::keygen::{round1_echo, KeygenError, KeygenParams, Round1};
+use zafe_core::keygen::{
+    check_contribution, combine_vault_secret, echo_with_commitments, round1_echo, KeygenError,
+    KeygenParams, Round1, SkContribution,
+};
 
 mod common;
 use common::{identifiers, params, run_keygen};
@@ -123,6 +126,85 @@ fn equivocating_relay_is_detected_by_echo() {
         round1_echo(&params, &honest).unwrap(),
         round1_echo(&params, &seen_by_2).unwrap()
     );
+}
+
+/// A member commits to its `sk` contribution in round 1: the commitment binds the
+/// contribution, the vault and the member, and members compare all commitments in the
+/// echo, so no member can choose its contribution after seeing the others'.
+#[test]
+fn sk_contributions_are_committed_first() {
+    let mut rng = StdRng::seed_from_u64(13);
+    let params = params(2, 3);
+    let ids = identifiers(&params);
+    let (a, b) = (
+        SkContribution::generate(&mut rng),
+        SkContribution::generate(&mut rng),
+    );
+    let (vault, member) = ([1u8; 16], [2u8; 32]);
+    let c = a.commitment(&vault, &member);
+    assert_eq!(
+        c,
+        SkContribution::from_bytes(*a.as_bytes()).commitment(&vault, &member)
+    );
+    assert_ne!(c, b.commitment(&vault, &member), "another contribution");
+    assert_ne!(c, a.commitment(&[9; 16], &member), "another vault");
+    assert_ne!(c, a.commitment(&vault, &[9; 32]), "another member");
+
+    // A member that shows different commitments to different members breaks the echo.
+    let echo = [7u8; 32];
+    let honest = BTreeMap::from([(ids[0], c), (ids[1], [3; 32]), (ids[2], [4; 32])]);
+    let mut equivocated = honest.clone();
+    equivocated.insert(ids[1], [5; 32]);
+    assert_ne!(
+        echo_with_commitments(&echo, &honest),
+        echo_with_commitments(&echo, &equivocated)
+    );
+    assert_ne!(
+        echo_with_commitments(&echo, &honest),
+        echo_with_commitments(&[8; 32], &honest),
+        "the round-1 packages still count"
+    );
+}
+
+/// The last member sees everyone else's contribution, then tries a different one of its
+/// own (to steer `sk`): the others reject it, because it no longer matches the commitment
+/// it published in round 1.
+#[test]
+fn a_contribution_changed_after_seeing_the_others_is_rejected() {
+    let mut rng = StdRng::seed_from_u64(14);
+    let params = params(2, 3);
+    let ids = identifiers(&params);
+    let vault = params.vault_id;
+    let members: Vec<[u8; 32]> = (0..3u8).map(|i| [i + 1; 32]).collect();
+    let contributions: Vec<SkContribution> =
+        (0..3).map(|_| SkContribution::generate(&mut rng)).collect();
+    let commitments: Vec<[u8; 32]> = contributions
+        .iter()
+        .zip(&members)
+        .map(|(c, m)| c.commitment(&vault, m))
+        .collect();
+    // Honest reveals pass.
+    for i in 0..3 {
+        check_contribution(&vault, &members[i], &commitments[i], &contributions[i]).unwrap();
+    }
+    // Member 2 grinds: it tries contributions until `sk` starts with a byte it likes.
+    let others = |last: SkContribution| {
+        BTreeMap::from([
+            (ids[0], contributions[0].clone()),
+            (ids[1], contributions[1].clone()),
+            (ids[2], last),
+        ])
+    };
+    let ground = (0..10_000u32)
+        .map(|_| SkContribution::generate(&mut rng))
+        .find(|c| combine_vault_secret(&vault, &[0; 32], &others(c.clone())).as_bytes()[0] == 0)
+        .expect("a ground contribution");
+    assert!(matches!(
+        check_contribution(&vault, &members[2], &commitments[2], &ground),
+        Err(KeygenError::ContributionMismatch)
+    ));
+    // Nor can it reuse another member's commitment for itself.
+    assert!(check_contribution(&vault, &members[2], &commitments[0], &contributions[0]).is_err());
 }
 
 #[test]

@@ -36,7 +36,8 @@ pub const IDENTITY_SEEDS: u16 = 1;
 pub const VAULT_MATERIAL: u16 = 1;
 /// DKG round-1 envelope payload.
 /// 2 (2026-09-30): the creator's message also carries the proposal expiry window.
-pub const DKG_ROUND1: u16 = 2;
+/// 3 (2026-10-01): every member's message carries a commitment to its `sk` contribution.
+pub const DKG_ROUND1: u16 = 3;
 /// Signing request (envelope payload, and the leader's `<id>.req` file).
 pub const SIGNING_REQUEST: u16 = 1;
 /// Signature shares answering a signing request (envelope payload).

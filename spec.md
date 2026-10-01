@@ -341,7 +341,7 @@ The descriptor contains the UFVK, so it is only ever stored or sent encrypted (l
 
 ZIP 2005 requires the participants to *privately agree* on `sk`. Zafe uses a contribution scheme so no single device's random number generator determines it:
 
-1. Each member i generates 32 random bytes `r_i` and HPKE-seals `r_i` to every other member.
+1. Each member i generates 32 random bytes `r_i` and, in DKG round 1, broadcasts the commitment `c_i = BLAKE2b-256("Zafe_SkCommit___", vaultId || sigPk_i || r_i)`. Members fold every commitment into the round-2 echo they compare (`echo_with_commitments`), so a member can't show different commitments to different members. Then each member HPKE-seals `r_i` to every other member, and each recipient aborts unless `r_j` matches `c_j`. Without the commitment the last member to send could wait for everyone else's `r` and grind its own (fixed 2026-10-01, `DKG_ROUND1` 3; the issue str4d raised on zips#895).
 2. `sk = BLAKE2b-256("Zafe_vault_sk" || vaultId || H(DKG transcript) || r_1 || … || r_N)`, with contributions ordered by `frostId`.
 3. Derive the key components (ZIP 2005 § "Changes to the Protocol Specification", § 4.2.3, `use_qsk = true`):
 

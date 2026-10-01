@@ -279,8 +279,10 @@ process. A second cdylib would not.
 
 ## 7. Risks and open issues
 
-- **Our `sk` agreement can be biased by the last contributor** (found 2026-10-01 while
-  checking str4d's zips#895 comment against `keygen.rs`).
+- **Fixed (2026-10-01): our `sk` agreement could be biased by the last contributor**
+  (found while checking str4d's zips#895 comment against `keygen.rs`). Each member now
+  commits to its contribution in DKG round 1, the commitments are part of the echo, and a
+  reveal that doesn't match aborts keygen. The original analysis:
   - How it works today: `combine_vault_secret` hashes `vault_id ‖ transcript ‖ r_1 … r_n`.
     The `r_i` are sent sealed *after* the DKG, with no earlier commitment.
   - The problem: a member that waits for everyone else's `r_i` can grind its own to pick
