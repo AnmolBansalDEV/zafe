@@ -3,6 +3,14 @@
 The landing page (`infra/site/src/pages/index.astro`) follows this brief. Keep it current
 when the page changes.
 
+## Round 12c (critique pass): nothing above minor, loop stopped
+
+Checked both pages again at 1440×900 and 390×844 (showcase with the world, its stills
+fallback and no-JS), plus nav clicks live. Only minor items left: "Single-key wallet"
+breaks at its hyphen on phones (the font subset has no non-breaking hyphen); the
+comparison is the one section without a tag; the world's mid-story framings are small on
+phones (world.js, untouched on purpose).
+
 ## Round 12b (critique pass): the hero phones, the share image, phone details
 
 Found (ranked): at 1200 px the two hero phones stood side by side (the back one was
