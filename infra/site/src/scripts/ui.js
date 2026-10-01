@@ -4,7 +4,7 @@
 // dot exactly on the pointer and a trailing ring (the system one stays until ours draws,
 // so a failed script never leaves the page without a pointer). Links swell the ring; on
 // a "Get Zafe" pill the ring wraps it, the pill leans toward the pointer and the dot
-// steps aside. Over the 3D scenes the ring carries a "Scroll" label.
+// steps aside.
 //
 // Text: headings rise word by word from a mask when they appear; two "unshield"
 // scrambles (the proposal caption, the encrypted chain fields). All of it sets
@@ -126,8 +126,6 @@ if (fine && !reduced) {
   cursor.setAttribute('aria-hidden', 'true');
   const ring = el('cursor-ring', cursor);
   const shape = el('ring-shape', ring);
-  const label = el('cursor-label', ring);
-  label.textContent = 'Scroll';
   const dot = el('cursor-dot', cursor);
   document.body.appendChild(cursor);
 
@@ -136,9 +134,7 @@ if (fine && !reduced) {
   const dotY = gsap.quickSetter(dot, 'y', 'px');
   const ringX = gsap.quickTo(ring, 'x', { duration: 0.35, ease: 'power3.out' });
   const ringY = gsap.quickTo(ring, 'y', { duration: 0.35, ease: 'power3.out' });
-  const scenes = [...document.querySelectorAll('.hero, .story, .islands, .cta-world')];
   const CLICKABLE = 'a, button, summary, label, [role="button"]';
-  const TEXTY = '.island-card, .cta-card, .faq, .story-captions, h1, h2, p, nav, .threshold';
   let pill = null;
 
   function onMove(e) {
@@ -164,11 +160,6 @@ if (fine && !reduced) {
     const t = e.target instanceof Element ? e.target : null;
     const link = !pill && t?.closest(CLICKABLE);
     cursor.classList.toggle('link', !!link);
-    const inScene = !link && !pill && !t?.closest(TEXTY) && scenes.some((s) => {
-      const r = s.getBoundingClientRect();
-      return e.clientY >= r.top && e.clientY <= r.bottom;
-    });
-    cursor.classList.toggle('label', inScene);
   }
   window.addEventListener('pointermove', onMove, { passive: true });
   document.documentElement.addEventListener('pointerleave', () => cursor.classList.remove('on'));

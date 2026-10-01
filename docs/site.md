@@ -19,7 +19,8 @@ when the page changes.
   system pointer ("the mouse is still the plain old pointer"), so on fine pointers
   without reduced motion the system pointer is replaced (`cursor: none`, added only once
   ours draws): a dark dot exactly on the pointer (white halo, readable on teal) and a
-  trailing teal ring with a "Scroll" label over the scenes. Links swell the ring into a
+  trailing teal ring (a "Scroll" label that followed it over the scenes was removed at the
+  user's request). Links swell the ring into a
   soft teal disc; on a "Get Zafe" pill the ring wraps it, the pill leans toward the
   pointer and the dot steps aside (the Seam-mark dot sat on the label). Touch devices
   keep their native behaviour. `?pointer=fine` forces it on for headless checks.
