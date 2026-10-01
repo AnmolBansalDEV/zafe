@@ -44,7 +44,12 @@ Future<void> exportHistory(BuildContext context, WidgetRef ref) async {
       dbKey: await ZafeSecureStore.instance.walletKey(vault.activeId!),
       seeds: vault.identity!,
       material: vault.material!,
-      names: MemberNames.toSigners(await MemberNames.read(vault.activeId!)),
+      names: MemberNames.toSigners(
+        MemberNames.merge(
+          ref.read(proposalsProvider).sharedNames,
+          await MemberNames.read(vault.activeId!),
+        ),
+      ),
     );
     final name = vault.summary!.name.replaceAll(
       RegExp(r'[^A-Za-z0-9_-]+'),

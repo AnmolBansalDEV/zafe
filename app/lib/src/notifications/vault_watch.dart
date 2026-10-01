@@ -322,13 +322,14 @@ Future<void> _checkVault(
         material: material,
       );
     } catch (_) {}
-    var proposals = (await rust.listProposals(
+    var list = await rust.listProposals(
       relayUrl: endpoints.relayUrl,
       stateDir: stateDir,
       seeds: seeds,
       material: material,
       tipHeight: height,
-    )).items;
+    );
+    var proposals = list.items;
     try {
       await rust.answerSigningRequests(
         relayUrl: endpoints.relayUrl,
@@ -366,13 +367,14 @@ Future<void> _checkVault(
         } catch (_) {}
       }
     }
-    proposals = (await rust.listProposals(
+    list = await rust.listProposals(
       relayUrl: endpoints.relayUrl,
       stateDir: stateDir,
       seeds: seeds,
       material: material,
       tipHeight: height,
-    )).items;
+    );
+    proposals = list.items;
     await VaultSummaries.write(
       v.id,
       actionable: actionableCount(proposals, height: height),
@@ -385,7 +387,9 @@ Future<void> _checkVault(
       hideAmounts: hideAmounts,
       received: received ?? const [],
       // Read here: this may run in a background isolate without the app's providers.
-      names: await MemberNames.read(v.id),
+      names: MemberNames.merge({
+        for (final n in list.sharedNames) n.keyHex: n.name,
+      }, await MemberNames.read(v.id)),
     );
     for (final u in updates) {
       await _notifications.show(

@@ -294,6 +294,69 @@ fn unknown_event_versions_are_ignored_after_creation() {
     );
 }
 
+fn name(name: &str) -> VaultEvent {
+    VaultEvent::Name { name: name.into() }
+}
+
+/// Members name themselves; the latest name per author wins, empty clears it, and an
+/// invalid name is ignored like any other invalid entry.
+#[test]
+fn members_share_their_names() {
+    let mut log = Log::new();
+    log.push(0, &log.created(&[0, 1, 2]));
+    log.push(0, &name("Alice"));
+    log.push(1, &name("Bob"));
+    log.push(0, &name("Alice K."));
+    log.push(1, &name(""));
+    log.push(2, &name(" padded "));
+    log.push(2, &name(&"x".repeat(33)));
+    log.push(2, &name("tab\there"));
+    log.push(3, &name("Mallory")); // not a member
+    let state = log.replay().unwrap();
+    let pk: Vec<_> = log.ids.iter().map(|i| i.public().sig_pk).collect();
+    assert_eq!(state.names.len(), 1);
+    assert_eq!(state.names[&pk[0]], "Alice K.");
+    assert_eq!(
+        state.ignored,
+        vec![
+            (5, VaultError::BadName(5)),
+            (6, VaultError::BadName(6)),
+            (7, VaultError::BadName(7)),
+            (8, VaultError::NotAMember(8)),
+        ]
+    );
+    // 32 characters (not bytes) is the limit.
+    log.push(2, &name(&"桜".repeat(32)));
+    assert_eq!(log.replay().unwrap().names[&pk[2]], "桜".repeat(32));
+}
+
+/// Version 2 only appended `Name`: a log written by version 1 still replays the same.
+#[test]
+fn version_1_events_still_replay() {
+    let v1 = |event: &VaultEvent| {
+        let mut bytes = event.to_bytes().unwrap();
+        bytes[..2].copy_from_slice(&1u16.to_le_bytes());
+        bytes
+    };
+    let mut log = Log::new();
+    let created = log.created(&[0, 1, 2]);
+    log.push_raw(0, &v1(&created));
+    log.push_raw(0, &v1(&proposal(1)));
+    log.push_raw(1, &v1(&vote(1, true)));
+    log.push(2, &vote(1, true));
+    let state = log.replay().expect("version 1 log replays");
+    assert!(state.ignored.is_empty());
+    assert_eq!(state.proposals[&[1; 16]].status, ProposalStatus::Approved);
+    // Version 0 never existed.
+    let mut zero = proposal(2).to_bytes().unwrap();
+    zero[..2].copy_from_slice(&0u16.to_le_bytes());
+    log.push_raw(0, &zero);
+    assert!(matches!(
+        log.replay().unwrap().ignored[..],
+        [(4, VaultError::UnsupportedVersion(_))]
+    ));
+}
+
 /// A descriptor from another version is fatal even when every member signed it.
 #[test]
 fn unknown_descriptor_version_is_fatal() {

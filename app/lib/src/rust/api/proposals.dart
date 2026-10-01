@@ -5,9 +5,10 @@
 
 import '../frb_generated.dart';
 import 'error.dart';
+import 'names.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `info`, `leader_dir`, `local_tip`, `memo_bytes`, `memo_text`, `nonce_store`, `parse_id`, `pool_store`, `request_file`
+// These functions are ignored because they are not marked as `pub`: `info`, `leader_dir`, `local_tip`, `memo_bytes`, `memo_text`, `nonce_store`, `parse_id`, `pool_store`, `request_file`, `shared_names`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `send_with_progress`
 
@@ -149,6 +150,20 @@ Future<void> rejectProposal({
   seeds: seeds,
   material: material,
   proposalId: proposalId,
+);
+
+/// Sets this member's display name for the other members (empty clears it). Logged only
+/// when it changes.
+Future<void> setMyName({
+  required String relayUrl,
+  required List<int> seeds,
+  required List<int> material,
+  required String name,
+}) => RustLib.instance.api.crateApiProposalsSetMyName(
+  relayUrl: relayUrl,
+  seeds: seeds,
+  material: material,
+  name: name,
 );
 
 /// Cancels a proposal this member authored (open or approved, not yet sent).
@@ -458,10 +473,19 @@ class ProposalList {
   /// members may see something this device can't, so the app asks to update.
   final int newerVersionEntries;
 
-  const ProposalList({required this.items, required this.newerVersionEntries});
+  /// Names members gave themselves in the log (this member's included). The app shows
+  /// its own local label first, then these.
+  final List<SignerName> sharedNames;
+
+  const ProposalList({
+    required this.items,
+    required this.newerVersionEntries,
+    required this.sharedNames,
+  });
 
   @override
-  int get hashCode => items.hashCode ^ newerVersionEntries.hashCode;
+  int get hashCode =>
+      items.hashCode ^ newerVersionEntries.hashCode ^ sharedNames.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -469,7 +493,8 @@ class ProposalList {
       other is ProposalList &&
           runtimeType == other.runtimeType &&
           items == other.items &&
-          newerVersionEntries == other.newerVersionEntries;
+          newerVersionEntries == other.newerVersionEntries &&
+          sharedNames == other.sharedNames;
 }
 
 enum ProposalStage {

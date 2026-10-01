@@ -1725,6 +1725,31 @@ pub async fn cancel<R: RngCore + CryptoRng>(
     Ok(())
 }
 
+/// Sets this member's display name for the other members (trimmed; empty clears it).
+/// Logged only when it changes. Members on an older app skip the entry.
+pub async fn set_name<R: RngCore + CryptoRng>(
+    relay: &RelayClient,
+    me: &Identity,
+    material: &VaultMaterial,
+    name: &str,
+    rng: &mut R,
+) -> Result<(), NodeError> {
+    let name = name.trim();
+    if !crate::vault::valid_name(name) {
+        return Err(NodeError::Protocol("not a valid display name".into()));
+    }
+    let (mut chain, mut state) = load_state(relay, me, material).await?;
+    let current = state.names.get(&me.public().sig_pk).map(String::as_str);
+    if current.unwrap_or("") == name {
+        return Ok(());
+    }
+    let event = VaultEvent::Name {
+        name: name.to_owned(),
+    };
+    append_event(relay, me, material, &mut chain, &mut state, &event, rng).await?;
+    Ok(())
+}
+
 fn member_by_frost_id(
     material: &VaultMaterial,
     id: &Identifier,

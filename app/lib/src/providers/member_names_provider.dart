@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/storage/member_names.dart';
+import 'proposals_provider.dart';
 import 'vault_provider.dart';
 
 /// Local names for the active vault's signers (key hex → name).
@@ -36,3 +37,12 @@ final memberNamesProvider =
     NotifierProvider<MemberNamesNotifier, Map<String, String>>(
       MemberNamesNotifier.new,
     );
+
+/// The names to show for the active vault's signers: this device's labels first, then
+/// the names members shared in the vault log.
+final signerNamesProvider = Provider<Map<String, String>>(
+  (ref) => MemberNames.merge(
+    ref.watch(proposalsProvider.select((s) => s.sharedNames)),
+    ref.watch(memberNamesProvider),
+  ),
+);

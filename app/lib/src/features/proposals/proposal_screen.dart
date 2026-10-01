@@ -289,7 +289,7 @@ class _ProposalScreenState extends ConsumerState<ProposalScreen> {
             me: me,
             send: send,
             height: height,
-            names: ref.watch(memberNamesProvider),
+            names: ref.watch(signerNamesProvider),
           ),
           const SizedBox(height: AppSpacing.lg),
           ..._actions(p, sent: sent, send: send, height: height),

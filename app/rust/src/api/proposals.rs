@@ -20,6 +20,7 @@ use zcash_protocol::memo::{Memo, MemoBytes};
 
 use super::{
     error::{ZafeError, ZafeErrorKind},
+    names::SignerName,
     vault::{identity, material, network, open_wallet, runtime, sent_txs, wallet_lock},
 };
 use crate::frb_generated::StreamSink;
@@ -353,6 +354,9 @@ pub struct ProposalList {
     /// Log entries written by a newer version of Zafe that this build skipped: other
     /// members may see something this device can't, so the app asks to update.
     pub newer_version_entries: u32,
+    /// Names members gave themselves in the log (this member's included). The app shows
+    /// its own local label first, then these.
+    pub shared_names: Vec<SignerName>,
 }
 
 /// Every proposal in the vault log, newest first. Also keeps this device ready for
@@ -380,7 +384,19 @@ pub fn list_proposals(
     Ok(ProposalList {
         items: info(&state, me.public().sig_pk, &state_dir),
         newer_version_entries: state.newer_version_entries() as u32,
+        shared_names: shared_names(&state),
     })
+}
+
+fn shared_names(state: &VaultState) -> Vec<SignerName> {
+    state
+        .names
+        .iter()
+        .map(|(pk, name)| SignerName {
+            key_hex: hex::encode(pk),
+            name: name.clone(),
+        })
+        .collect()
 }
 
 // --- Proposing and reviewing ------------------------------------------------------------
@@ -614,6 +630,26 @@ pub fn reject_proposal(
         &me,
         &m,
         id,
+        &mut OsRng,
+    ))?;
+    Ok(())
+}
+
+/// Sets this member's display name for the other members (empty clears it). Logged only
+/// when it changes.
+pub fn set_my_name(
+    relay_url: String,
+    seeds: Vec<u8>,
+    material: Vec<u8>,
+    name: String,
+) -> Result<(), ZafeError> {
+    let me = identity(&seeds)?;
+    let m = self::material(&material)?;
+    runtime().block_on(node::set_name(
+        &RelayClient::new(relay_url),
+        &me,
+        &m,
+        &name,
         &mut OsRng,
     ))?;
     Ok(())

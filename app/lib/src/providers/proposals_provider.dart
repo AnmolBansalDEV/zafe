@@ -41,6 +41,7 @@ class ProposalsState {
     this.sends = const {},
     this.newerVersionEntries = 0,
     this.refreshedAt,
+    this.sharedNames = const {},
   });
 
   final List<rust.ProposalInfo> items;
@@ -58,6 +59,9 @@ class ProposalsState {
   /// Vault log entries from a newer Zafe that this build skipped (ask to update).
   final int newerVersionEntries;
 
+  /// Names members gave themselves in the vault log (key hex → name).
+  final Map<String, String> sharedNames;
+
   rust.ProposalInfo? byId(String id) {
     for (final p in items) {
       if (p.id == id) return p;
@@ -73,6 +77,7 @@ class ProposalsState {
     Map<String, SendState>? sends,
     int? newerVersionEntries,
     DateTime? refreshedAt,
+    Map<String, String>? sharedNames,
   }) => ProposalsState(
     items: items ?? this.items,
     loaded: loaded ?? this.loaded,
@@ -80,6 +85,7 @@ class ProposalsState {
     sends: sends ?? this.sends,
     newerVersionEntries: newerVersionEntries ?? this.newerVersionEntries,
     refreshedAt: refreshedAt ?? this.refreshedAt,
+    sharedNames: sharedNames ?? this.sharedNames,
   );
 }
 
@@ -157,6 +163,7 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
         clearError: true,
         newerVersionEntries: list.newerVersionEntries,
         refreshedAt: DateTime.now(),
+        sharedNames: {for (final n in list.sharedNames) n.keyHex: n.name},
       );
       // Seen on screen: never announced from the background. Only while the app is in
       // the foreground; a refresh running in the background must not swallow news.
@@ -300,6 +307,18 @@ class ProposalsNotifier extends Notifier<ProposalsState> {
       seeds: vault.identity!,
       material: vault.material!,
       proposalId: id,
+    );
+    await refresh();
+  }
+
+  /// Sets this member's name for the other members (empty clears it).
+  Future<void> setMyName(String name) async {
+    final vault = _vault;
+    await rust.setMyName(
+      relayUrl: _endpoints.relayUrl,
+      seeds: vault.identity!,
+      material: vault.material!,
+      name: name,
     );
     await refresh();
   }

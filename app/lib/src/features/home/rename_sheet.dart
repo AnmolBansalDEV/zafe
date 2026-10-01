@@ -9,7 +9,11 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/mobile_text_field.dart';
 import '../../core/storage/vault_name.dart';
+import '../../core/errors/zafe_error_copy.dart';
+import '../../core/widgets/app_icon.dart';
+import '../../core/widgets/app_toast.dart';
 import '../../providers/member_names_provider.dart';
+import '../../providers/proposals_provider.dart';
 import '../../providers/vault_names_provider.dart';
 import '../../providers/vault_provider.dart';
 
@@ -35,6 +39,41 @@ Future<void> showRenameSignerSheet(
   );
   if (name != null) {
     await ref.read(memberNamesProvider.notifier).rename(keyHex, name);
+  }
+}
+
+/// This member's name for the other signers, shared through the vault log.
+Future<void> showMyNameSheet(BuildContext context, WidgetRef ref) async {
+  final me = ref.read(vaultProvider).myKeyHex;
+  if (me == null) return;
+  final current = ref.read(proposalsProvider).sharedNames[me] ?? '';
+  final name = await showAppMobileSheet<String>(
+    context: context,
+    builder: (sheet) => _RenameSheet(
+      title: 'Your name',
+      body:
+          'The other signers of this vault see it next to your approvals. '
+          'Their own name for you comes first on their phones.',
+      hint: 'e.g. Alice',
+      maxLength: MemberNames.maxLength,
+      current: current,
+      removeLabel: 'Remove name',
+    ),
+  );
+  if (name == null || MemberNames.clean(name) == current) return;
+  try {
+    await ref
+        .read(proposalsProvider.notifier)
+        .setMyName(MemberNames.clean(name));
+  } catch (e) {
+    if (context.mounted) {
+      showAppToast(
+        context,
+        zafeErrorMessage(e, fallback: 'Couldn\'t save your name. Try again.'),
+        iconName: AppIcons.warningCircle,
+        tone: AppToastTone.destructive,
+      );
+    }
   }
 }
 

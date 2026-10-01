@@ -77,6 +77,8 @@ enum Command {
     },
     /// List proposals.
     Proposals,
+    /// Set this member's display name for the other members (empty clears it).
+    Name { name: String },
     /// Verify a proposal independently and approve it. Never sends (scripts decide when):
     /// once approvals complete, run `zafe send` (one tap) or `request`, `respond` and
     /// `finalize` (interactive). The app sends by itself.
@@ -342,6 +344,11 @@ async fn main() -> Result<()> {
                 &mut rng,
             )?;
             println!("{}", zafe_core::backup::to_text(&bytes));
+        }
+        Command::Name { name } => {
+            let material = home.material()?;
+            node::set_name(&relay, &home.identity()?, &material, &name, &mut rng).await?;
+            println!("name set");
         }
         Command::Pool => {
             let material = home.material()?;

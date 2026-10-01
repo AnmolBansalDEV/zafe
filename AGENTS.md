@@ -224,6 +224,10 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   here. Bumps so far: `BACKUP` 1 → 2 (2026-09-30, signer names added to the contents;
   the header byte is the tag, not `version::split`, so `backup::decrypt` matches byte 1
   itself and migrates `ContentsV1` with no names; tested in `backup::tests`).
+  `VAULT_EVENT` 1 → 2 (2026-10-01, `VaultEvent::Name`): `VaultEvent::from_bytes` accepts
+  every tag from 1 to the current one (v2 only appended a variant), so v1 logs replay
+  unchanged (`version_1_events_still_replay`). An older app skips `Name` entries and
+  counts them as newer; nothing but names depends on them, so no gate was needed.
   **Pre-release: nothing reads the unversioned bytes from before 2026-09-30**; reset
   test devices (`adb shell pm clear xyz.zafe.zafe`), the harness
   (`scripts/app-harness.sh stop`) and relay DBs after pulling this change.
@@ -682,6 +686,13 @@ Learned while studying it:
   `Vec<SignerName>` (`api/names.rs`) to `export_vault_backup` / `export_history_csv`
   and back from `import_vault_backup`. Background checks read `names.json` themselves
   (`MemberNames.read`, no providers in that isolate) and pass `names:` to `vaultUpdates`.
+- **Shared names**: each member can also name *themselves* in the log
+  (`VaultEvent::Name`, `node::set_name`, bridge `set_my_name`; only the author, trimmed,
+  ≤ 32 chars, no control chars, empty clears). `ProposalList.shared_names` carries them;
+  display uses `MemberNames.merge(shared, local)` (`signerNamesProvider`): this phone's
+  label wins, then the shared name, then the short key. Tiles stay key-derived, so a
+  member calling themselves "Bob" still shows their own tile and key. "Your name" is the
+  sheet behind your own row on the Signers tab; the CLI has `zafe name`.
 - **CSV recipients import** (`features/send/recipients_csv.dart`): pure parser with the
   bridge validators injected (`checkAddress` for `kZafeNetwork`, `parseZec`,
   `memoLength`), so it's unit-tested without Rust. All-or-nothing.

@@ -14,6 +14,18 @@ void main() {
     expect(memberLabel(key), '97c9ce...123e');
   });
 
+  test('this phone\'s label wins over the name a member shared', () {
+    final other = 'b' * 64;
+    expect(
+      MemberNames.merge(
+        {key: 'Alice', other: 'Bob'},
+        {key: 'Alice (treasurer)'},
+      ),
+      {key: 'Alice (treasurer)', other: 'Bob'},
+    );
+    expect(MemberNames.merge(const {}, {key: 'A'}), {key: 'A'});
+  });
+
   test('names are trimmed, single-spaced and capped', () {
     expect(MemberNames.clean('  Alice \n  (treasurer) '), 'Alice (treasurer)');
     expect(MemberNames.clean('   '), '');

@@ -271,7 +271,12 @@ Open
       a named proposer / rejecters / canceller (unnamed signers aren't mentioned); the
       CSV's proposer and approvers columns read "Name (hexkey)" (approvers now `; `-
       separated). Not on a device yet
-- [ ] Share signer names via the log (today each device names signers on its own)
+- [x] Share signer names via the log (2026-10-01): each member names themselves
+      (`VaultEvent::Name`, event version 2; "Your name" on their own Signers row, CLI
+      `zafe name`); everyone sees it in signer rows, proposals, notifications and the CSV,
+      with this phone's own label taking precedence. Tests: `tests/vault.rs`
+      (`members_share_their_names`, `version_1_events_still_replay`), `node_keygen`
+      (over the relay), `member_names_test.dart`. Needs an on-device check
 - [ ] Endpoint settings editable (today: compile-time dart-defines, read-only)
 - [x] Endpoint settings editable (done 2026-09-30): Settings → Relay / Zcash server opens
       a sheet (format check: https except localhost/127.0.0.1/10.0.2.2 on regtest; then a

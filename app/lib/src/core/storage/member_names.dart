@@ -6,7 +6,15 @@ import 'zafe_paths.dart';
 
 /// Names this member gave the vault's other signers (signing key hex → name). Local to
 /// this device: never sent to the relay or other members. Encrypted backups carry them.
+/// Separately, each member can share their own name through the vault log
+/// (`ProposalList.sharedNames`); [merge] combines the two for display.
 class MemberNames {
+  /// The names to show: this device's labels win over the names members gave themselves.
+  static Map<String, String> merge(
+    Map<String, String> shared,
+    Map<String, String> local,
+  ) => {...shared, ...local};
+
   static Future<File> _file(String vaultId) async =>
       File('${(await ZafePaths.get()).vaultDir(vaultId)}/names.json');
 

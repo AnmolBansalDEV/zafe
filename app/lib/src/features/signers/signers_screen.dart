@@ -21,7 +21,7 @@ class SignersScreen extends ConsumerWidget {
     final vault = ref.watch(vaultProvider);
     final summary = vault.summary;
     if (summary == null) return const SizedBox.shrink();
-    final names = ref.watch(memberNamesProvider);
+    final names = ref.watch(signerNamesProvider);
     final me = vault.myKeyHex;
     final threshold = summary.threshold;
     final members = summary.members;
@@ -72,7 +72,7 @@ class SignersScreen extends ConsumerWidget {
                             me: me,
                             name: names[m],
                             onTap: m == me
-                                ? null
+                                ? () => showMyNameSheet(context, ref)
                                 : () => showRenameSignerSheet(context, ref, m),
                           ),
                       ],

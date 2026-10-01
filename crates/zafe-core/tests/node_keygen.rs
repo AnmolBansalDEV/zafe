@@ -4,7 +4,10 @@ use std::time::Duration;
 
 use rand::{rngs::StdRng, SeedableRng};
 use zafe_core::{
-    node::{create_vault, join_vault, membership, respond, run_keygen, seal, Invite, NodeError},
+    node::{
+        create_vault, join_vault, load_state, membership, respond, run_keygen, seal, set_name,
+        Invite, NodeError,
+    },
     relay_client::RelayClient,
     session::MemoryNonceStore,
     wallet::regtest_network,
@@ -140,6 +143,30 @@ async fn three_members_create_a_vault_over_the_relay() {
             .unwrap();
         assert_eq!(again.acknowledged, 0);
     }
+
+    // Members share their names through the log; the others see them on replay.
+    set_name(&relay, &ids[0], &a, "  Alice ", &mut r0)
+        .await
+        .unwrap();
+    set_name(&relay, &ids[1], &b, "Bob", &mut r1).await.unwrap();
+    let (chain, state) = load_state(&relay, &ids[2], &c).await.unwrap();
+    assert_eq!(state.names[&ids[0].public().sig_pk], "Alice", "trimmed");
+    assert_eq!(state.names[&ids[1].public().sig_pk], "Bob");
+    assert!(!state.names.contains_key(&ids[2].public().sig_pk));
+    // Setting the same name again logs nothing; clearing it does.
+    let entries = chain.len();
+    set_name(&relay, &ids[1], &b, "Bob", &mut r1).await.unwrap();
+    assert_eq!(
+        load_state(&relay, &ids[2], &c).await.unwrap().0.len(),
+        entries
+    );
+    set_name(&relay, &ids[1], &b, "", &mut r1).await.unwrap();
+    let (_, state) = load_state(&relay, &ids[0], &a).await.unwrap();
+    assert!(!state.names.contains_key(&ids[1].public().sig_pk));
+    // Invalid names are refused before anything is logged.
+    assert!(set_name(&relay, &ids[2], &c, &"x".repeat(33), &mut r2)
+        .await
+        .is_err());
 }
 
 #[tokio::test]

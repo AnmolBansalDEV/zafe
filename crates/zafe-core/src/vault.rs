@@ -55,6 +55,8 @@ pub enum VaultError {
     /// (two members proposed at the same time). At most one of them could be mined.
     #[error("entry {0}: spends a note another open proposal already spends")]
     NotesInUse(u64),
+    #[error("entry {0}: not a valid display name")]
+    BadName(u64),
 }
 
 /// Most commitments one `Commitments` event may carry.
@@ -280,6 +282,23 @@ pub enum VaultEvent {
         proposal: ProposalId,
         txid: [u8; 32],
     },
+    /// The author's display name for the other members (empty: no name). Only the
+    /// author can name themselves; a member's own label for them wins on their device.
+    /// Event version 2.
+    Name {
+        name: String,
+    },
+}
+
+/// Longest display name, in characters (as the app's local labels).
+pub const MAX_NAME_CHARS: usize = 32;
+
+/// Whether `name` is a display name the log accepts: trimmed, at most
+/// [`MAX_NAME_CHARS`] characters, no control characters. Empty clears the name.
+pub fn valid_name(name: &str) -> bool {
+    name.trim() == name
+        && name.chars().count() <= MAX_NAME_CHARS
+        && !name.chars().any(char::is_control)
 }
 
 impl From<DecodeError> for VaultError {
@@ -297,8 +316,14 @@ impl VaultEvent {
         Ok(version::encode(Format::VaultEvent, self)?)
     }
 
+    /// Reads the current version and every older one: version 2 only appended a variant,
+    /// so a version 1 body decodes as the same event.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, VaultError> {
-        Ok(version::decode(Format::VaultEvent, bytes)?)
+        let (found, body) = version::split(Format::VaultEvent, bytes)?;
+        if found == 0 || found > version::VAULT_EVENT {
+            version::check(Format::VaultEvent, found)?;
+        }
+        postcard::from_bytes(body).map_err(|_| VaultError::Encoding)
     }
 }
 
@@ -373,6 +398,8 @@ pub struct VaultState {
     pub ignored: Vec<(u64, VaultError)>,
     /// Pre-published commitments per member.
     pub pools: BTreeMap<[u8; 32], Pool>,
+    /// Display names members gave themselves (latest `Name` event per member).
+    pub names: BTreeMap<[u8; 32], String>,
 }
 
 impl VaultState {
@@ -406,6 +433,7 @@ impl VaultState {
             applied: first.header.index + 1,
             ignored: Vec::new(),
             pools: BTreeMap::new(),
+            names: BTreeMap::new(),
         };
         for entry in rest {
             state.apply_entry(entry, key);
@@ -616,6 +644,16 @@ impl VaultState {
                 }
                 p.status = ProposalStatus::Broadcast;
                 p.txid = Some(txid);
+            }
+            VaultEvent::Name { name } => {
+                if !valid_name(&name) {
+                    return Err(VaultError::BadName(index));
+                }
+                if name.is_empty() {
+                    self.names.remove(&author);
+                } else {
+                    self.names.insert(author, name);
+                }
             }
         }
         Ok(())

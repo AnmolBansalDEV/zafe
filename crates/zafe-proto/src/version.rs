@@ -19,7 +19,9 @@ pub const ENVELOPE: u16 = 1;
 /// Vault log entries (`EntryHeader::version`; signed, and the AEAD associated data).
 pub const LOG_ENTRY: u16 = 1;
 /// Vault log events (the decrypted plaintext of a log entry).
-pub const VAULT_EVENT: u16 = 1;
+/// 2 (2026-10-01): members' display names (`VaultEvent::Name`); version 1 events still
+/// decode (their variants keep their postcard index).
+pub const VAULT_EVENT: u16 = 2;
 /// The vault descriptor (`VaultDescriptor::version`, covered by every member's signature).
 pub const DESCRIPTOR: u16 = 1;
 /// Relay API request and response bodies (signed into every request).

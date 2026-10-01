@@ -517,7 +517,7 @@ class SignerRow extends StatelessWidget {
   /// This device's key (for "You"), if known.
   final String? me;
 
-  /// The name this device gave the signer, if any.
+  /// The name to show: this device's label for the signer, else the name they shared.
   final String? name;
   final Widget? trailing;
   final VoidCallback? onTap;
@@ -538,7 +538,9 @@ class SignerRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  memberLabel(keyHex, me: me, names: {keyHex: ?name}),
+                  isMe && (name?.isNotEmpty ?? false)
+                      ? 'You · $name'
+                      : memberLabel(keyHex, me: me, names: {keyHex: ?name}),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: named

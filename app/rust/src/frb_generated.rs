@@ -37,7 +37,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 714243047;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1942640586;
 
 // Section: executor
 
@@ -1315,6 +1315,47 @@ fn wire__crate__api__proposals__send_proposal_impl(
         },
     )
 }
+fn wire__crate__api__proposals__set_my_name_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::SseCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "set_my_name",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_relay_url = <String>::sse_decode(&mut deserializer);
+            let api_seeds = <Vec<u8>>::sse_decode(&mut deserializer);
+            let api_material = <Vec<u8>>::sse_decode(&mut deserializer);
+            let api_name = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| {
+                transform_result_sse::<_, crate::api::error::ZafeError>((move || {
+                    let output_ok = crate::api::proposals::set_my_name(
+                        api_relay_url,
+                        api_seeds,
+                        api_material,
+                        api_name,
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__mempool__stop_mempool_watch_impl(
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
     rust_vec_len_: i32,
@@ -2292,9 +2333,11 @@ impl SseDecode for crate::api::proposals::ProposalList {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_items = <Vec<crate::api::proposals::ProposalInfo>>::sse_decode(deserializer);
         let mut var_newerVersionEntries = <u32>::sse_decode(deserializer);
+        let mut var_sharedNames = <Vec<crate::api::names::SignerName>>::sse_decode(deserializer);
         return crate::api::proposals::ProposalList {
             items: var_items,
             newer_version_entries: var_newerVersionEntries,
+            shared_names: var_sharedNames,
         };
     }
 }
@@ -2623,11 +2666,12 @@ fn pde_ffi_dispatcher_primary_impl(
         31 => wire__crate__api__vault__run_keygen_impl(port, ptr, rust_vec_len, data_len),
         32 => wire__crate__api__vault__seal_vault_impl(port, ptr, rust_vec_len, data_len),
         33 => wire__crate__api__proposals__send_proposal_impl(port, ptr, rust_vec_len, data_len),
-        37 => wire__crate__api__vault__sync_vault_impl(port, ptr, rust_vec_len, data_len),
-        39 => wire__crate__api__tor__tor_enable_impl(port, ptr, rust_vec_len, data_len),
-        43 => wire__crate__api__vault__vault_membership_impl(port, ptr, rust_vec_len, data_len),
-        46 => wire__crate__api__mempool__watch_mempool_impl(port, ptr, rust_vec_len, data_len),
-        47 => wire__crate__api__watch__watch_vault_impl(port, ptr, rust_vec_len, data_len),
+        34 => wire__crate__api__proposals__set_my_name_impl(port, ptr, rust_vec_len, data_len),
+        38 => wire__crate__api__vault__sync_vault_impl(port, ptr, rust_vec_len, data_len),
+        40 => wire__crate__api__tor__tor_enable_impl(port, ptr, rust_vec_len, data_len),
+        44 => wire__crate__api__vault__vault_membership_impl(port, ptr, rust_vec_len, data_len),
+        47 => wire__crate__api__mempool__watch_mempool_impl(port, ptr, rust_vec_len, data_len),
+        48 => wire__crate__api__watch__watch_vault_impl(port, ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -2650,15 +2694,15 @@ fn pde_ffi_dispatcher_sync_impl(
         23 => wire__crate__api__proposals__parse_payment_request_impl(ptr, rust_vec_len, data_len),
         24 => wire__crate__api__proposals__parse_zec_impl(ptr, rust_vec_len, data_len),
         29 => wire__crate__api__proposals__restart_signing_impl(ptr, rust_vec_len, data_len),
-        34 => wire__crate__api__mempool__stop_mempool_watch_impl(ptr, rust_vec_len, data_len),
-        35 => wire__crate__api__watch__stop_vault_watch_impl(ptr, rust_vec_len, data_len),
-        36 => wire__crate__api__backup__suggest_backup_passphrase_impl(ptr, rust_vec_len, data_len),
-        38 => wire__crate__api__tor__tor_disable_impl(ptr, rust_vec_len, data_len),
-        40 => wire__crate__api__tor__tor_request_impl(ptr, rust_vec_len, data_len),
-        41 => wire__crate__api__tor__tor_set_dormant_impl(ptr, rust_vec_len, data_len),
-        42 => wire__crate__api__tor__tor_state_impl(ptr, rust_vec_len, data_len),
-        44 => wire__crate__api__vault__vault_summary_impl(ptr, rust_vec_len, data_len),
-        45 => wire__crate__api__vault__vault_viewing_key_impl(ptr, rust_vec_len, data_len),
+        35 => wire__crate__api__mempool__stop_mempool_watch_impl(ptr, rust_vec_len, data_len),
+        36 => wire__crate__api__watch__stop_vault_watch_impl(ptr, rust_vec_len, data_len),
+        37 => wire__crate__api__backup__suggest_backup_passphrase_impl(ptr, rust_vec_len, data_len),
+        39 => wire__crate__api__tor__tor_disable_impl(ptr, rust_vec_len, data_len),
+        41 => wire__crate__api__tor__tor_request_impl(ptr, rust_vec_len, data_len),
+        42 => wire__crate__api__tor__tor_set_dormant_impl(ptr, rust_vec_len, data_len),
+        43 => wire__crate__api__tor__tor_state_impl(ptr, rust_vec_len, data_len),
+        45 => wire__crate__api__vault__vault_summary_impl(ptr, rust_vec_len, data_len),
+        46 => wire__crate__api__vault__vault_viewing_key_impl(ptr, rust_vec_len, data_len),
         _ => unreachable!(),
     }
 }
@@ -3017,6 +3061,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::proposals::ProposalList {
         [
             self.items.into_into_dart().into_dart(),
             self.newer_version_entries.into_into_dart().into_dart(),
+            self.shared_names.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -3752,6 +3797,7 @@ impl SseEncode for crate::api::proposals::ProposalList {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Vec<crate::api::proposals::ProposalInfo>>::sse_encode(self.items, serializer);
         <u32>::sse_encode(self.newer_version_entries, serializer);
+        <Vec<crate::api::names::SignerName>>::sse_encode(self.shared_names, serializer);
     }
 }
 
