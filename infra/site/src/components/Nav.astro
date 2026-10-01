@@ -1,22 +1,32 @@
 ---
 // The nav: page links either side of the mark, the mark exactly centred (the intro lands
-// on it). `links` are the left-hand ones, which differ per page.
+// on it; the mark is always the way home). `links` are the left-hand ones, which differ
+// per page; on phones the mark moves to the left and only links marked `mobile` stay.
+// `light` is the showcase's: fixed over the world, small, a way home on the left and
+// Get Zafe on the right, nothing else.
 import Mark from './Mark.astro';
+import Icon from './Icon.astro';
 import { downloadUrl, sourceUrl } from '../config';
 
 interface Props {
-  links: { href: string; label: string }[];
+  links: { href: string; label: string; mobile?: boolean; back?: boolean }[];
+  light?: boolean;
 }
-const { links } = Astro.props;
+const { links, light = false } = Astro.props;
 ---
 
-<header class="nav">
+<header class:list={['nav', { 'nav-light': light }]}>
   <nav class="nav-side left" aria-label="Page">
-    {links.map((l) => <a href={l.href}>{l.label}</a>)}
+    {links.map((l) => (
+      <a href={l.href} class:list={{ 'nav-m': l.mobile, 'nav-back': l.back }}>
+        {l.back && <Icon name="chevron_backward" />}
+        {l.label}
+      </a>
+    ))}
   </nav>
   <a class="nav-logo" href="/" aria-label="Zafe home"><Mark /></a>
   <nav class="nav-side right" aria-label="Links">
-    <a href={sourceUrl} rel="noopener noreferrer">Source</a>
-    <a href={downloadUrl} rel="noopener noreferrer">Get Zafe</a>
+    {!light && <a href={sourceUrl} rel="noopener noreferrer">Source</a>}
+    <a class="nav-m" href={downloadUrl} rel="noopener noreferrer">Get Zafe</a>
   </nav>
 </header>

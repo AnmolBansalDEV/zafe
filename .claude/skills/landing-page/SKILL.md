@@ -11,10 +11,15 @@ world behind a scroll story (docs/site.md has every decision round). Read `docs/
 in memory (Vizor-like layout, light only, few words, logo motion).
 
 **Where motion goes** (the user's call, round eleven): the home page `/` stays calm, like
-safe.global (no JS, CSS reveals, stills of the world as pictures, honest security and
-testnet status, no invented stats or logos); the 3D story lives on `/showcase`, linked
-as "Watch it in 3D". Sections 3-4 below describe the showcase; build new home sections
-from the `lp-*` patterns in `index.astro`.
+safe.global (no JS, CSS reveals, honest security and testnet status, no invented stats
+or logos); the 3D story lives on `/showcase`, linked from the nav and "Watch it in 3D".
+**The two pages must never look alike** (round twelve, "showcase is the replica of the
+main site"): home pictures are the app's real screens in phone frames (`.lp-phone`), with
+one still of the world at most (the showcase teaser), never the same backdrop section
+after section; the showcase has its own entrance (no logo intro, a title card, a light
+fixed nav with the way home, a slim footer). Sections 3-4 below describe the showcase;
+build new home sections from the `lp-*` patterns in `index.astro`. Test nav clicks
+(logo, Home, Showcase) on both pages, desktop and phone, before shipping.
 
 ## 1. Brief: product, audience, the one idea
 

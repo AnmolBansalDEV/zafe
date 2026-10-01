@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Renders the stills of the 3D world that the static fallback shows (no GPU, reduced
 # motion, no JavaScript) and the social image, from the built site in capture mode
-# (/?still: full quality, the camera lands at once, the page's text hidden).
+# (/showcase?still: full quality, the camera lands at once, the page's text hidden).
 #
 #   ./build.sh && ./stills.sh     # needs agent-browser and Pillow (PYTHON=venv/bin/python)
 #
@@ -28,7 +28,7 @@ shoot() {
   local query=$1 w=$2 h=$3 scale=$4; shift 4
   $S set viewport "$w" "$h" "$scale" >/dev/null
   $S open about:blank >/dev/null
-  $S open "http://127.0.0.1:$port/?$query" >/dev/null
+  $S open "http://127.0.0.1:$port/showcase.html?$query" >/dev/null
   $S wait 9000 >/dev/null
   local pos=0
   while [ $# -ge 3 ]; do

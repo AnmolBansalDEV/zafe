@@ -814,7 +814,10 @@ Learned while studying it:
 - **Website** (`infra/site/`, Astro 7, static): a calm home page `/` (no JS; structured
   like safe.global, `lp-*` classes), the 3D story on `/showcase` (keep heavy motion off
   the home page: the user's call, a treasury product should feel sober), and the invite
-  page `/join`.
+  page `/join`. **The two pages must not look alike** (round 12): home shows the app's
+  real screens in phone frames (`.lp-phone`) and only one still of the world (the
+  `/showcase` teaser); the showcase has no logo intro, a fixed `light` nav (`Nav.astro`),
+  a title card and a slim footer. Nav links marked `mobile` are the only ones on phones.
   The whole design/build/verify/ship flow is the project skill `.claude/skills/landing-page`
   (`frames.sh` + `sheet.py` capture a scroll section frame by frame into a contact sheet).
   Chose Astro over Next.js (Vizor's site) to keep a strict CSP with no inline code: the
@@ -822,14 +825,14 @@ Learned while studying it:
   `ui.js` pointer and text) as same-origin modules; `/join` loads only the hand-written
   `public/assets/join.js` (`<script is:inline src=…>`, never bundled; it's the only code
   that sees the invite). agent-browser reports no fine pointer, so check the custom
-  cursor with `/?pointer=fine`; the 3D world needs a few seconds after each scroll
+  cursor with `/showcase?pointer=fine`; the 3D world needs a few seconds after each scroll
   jump before a screenshot. agent-browser renders WebGL in software, and the page skips
   the world on software renderers (and gives up at runtime if it stays under ~20 fps at
-  its lowest quality), so screenshots of the world need `/?world=always`.
+  its lowest quality), so screenshots of the world need `/showcase?world=always`.
   Cache headers live in `public/_headers` (`/assets/...` blocks; `vercel-output.sh`
   turns each into a Vercel route). The **static fallback** (no GPU, reduced motion, no
   JS) shows stills of the world rendered by `infra/site/stills.sh` (capture mode
-  `/?still`; also writes the social image `og.png`); re-run it after changing the world
+  `/showcase?still`; also writes the social image `og.png`); re-run it after changing the world
   or the story. `public/assets/boot.js` adds `html.js` before the first paint so the
   world's visitors never fetch the stills; anything only for the fallback goes under
   `:is(html:not(.js), html.stills)`.

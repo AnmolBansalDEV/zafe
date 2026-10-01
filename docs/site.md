@@ -3,6 +3,39 @@
 The landing page (`infra/site/src/pages/index.astro`) follows this brief. Keep it current
 when the page changes.
 
+## Decisions (2026-10-01, twelfth round): two pages that don't look alike
+
+The user: "their is no showcase in the top nav, the home doesn't take me to / route, same
+with clicking logo. we have mostly used the same background with stills on /, on
+showcase it's the replica of the main site."
+- **The nav "bug"**: clicks were never blocked. Reproduced in headless Chrome, locally
+  and on the live site, world on and off, scrolled, custom cursor on: Home and the logo
+  always reached `/`, and Lenis's `anchors` only handles same-page hashes. What made it
+  look broken: both pages replayed the same full-screen logo intro and opened on the same
+  render of the vault, so arriving on `/` looked like a reload of `/showcase`; on phones
+  the left links were hidden, so the showcase had no Home link at all; and the nav
+  scrolled away, so the 1100vh story had no way out.
+- **Nav** (`Nav.astro`): home has How it works, Security, **Showcase**; links marked
+  `mobile` stay on phones (the mark moves left, the marked links sit right). The
+  showcase gets a `light` nav: fixed, small, "‹ Home", the mark, Get Zafe.
+- **Home shows the product, not the world**: hero = two real phones (your light home
+  screen in front, Bob's dark review behind) over a faint dial; "How it works" = one
+  payment in three large phone cards, alternating sides (propose, check and approve,
+  the sending screen); one wide still of the world as the door to /showcase; features =
+  the review screen's checks ("Matches", Approve and sign), the real testnet tx card, a
+  privacy list; security = heading and the testnet warning on the left, three rows on
+  the right (no pillar columns); the call to action on the vault card colour with Bob's
+  home screen. One still left on the page (the teaser), was nine.
+- **Showcase is its own experience**: no logo intro (the world fades up from the paper),
+  a title card bottom left ("Zafe, in 3D" / "One payment, start to finish" / "Three
+  phones share one vault. Scroll to play.") with a scroll cue instead of buttons, the
+  islands' heading "What you didn't see" (was the home's feature heading), the ending
+  "Your turn" with "Back to home", a one-line footer. The world and story are unchanged.
+- `stills.sh` now opens `/showcase.html?still` (it still pointed at `/`, which no longer
+  has the world). Stills weren't re-rendered: the world didn't change. `og.png` still
+  shows the previous showcase hero copy; re-render it with `stills.sh` when Pillow is at
+  hand.
+
 ## Decisions (2026-10-01, eleventh round): a calm home page, the 3D on /showcase
 
 The user, mid-way through the fallback work: "for a multisig website having such

@@ -8,7 +8,6 @@
 // payment from the 2026-09-30 dry run.
 import Base from '../layouts/Base.astro';
 import Icon from '../components/Icon.astro';
-import Mark from '../components/Mark.astro';
 import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
 import { downloadUrl } from '../config';
@@ -17,19 +16,11 @@ import { downloadUrl } from '../config';
 <Base
   title="Zafe showcase: one private payment, start to finish"
   description="Watch a Zafe vault of three phones approve and send a private payment, in 3D."
-  bodyClass="home"
+  bodyClass="home showcase"
 >
   <script is:inline src="/assets/boot.js" slot="head"></script>
-  <!-- Intro (CSS only): the screen is the mark's tile, its two pieces lock, then it
-       collapses up into the nav logo while the page appears. Skipped with
-       prefers-reduced-motion. -->
-  <div class="intro" aria-hidden="true">
-    <div class="intro-veil"></div>
-    <div class="intro-ring"></div>
-    <div class="intro-ring second"></div>
-    <div class="intro-mark"><Mark /></div>
-  </div>
-
+  <!-- No logo intro here (that's the home page's): the world fades up from the paper
+       under a title card, and a light fixed nav keeps the way home in reach. -->
   <canvas class="world" aria-hidden="true"></canvas>
   <!-- The static fallback (no GPU, reduced motion, no JavaScript) shows stills rendered
        from the same world (stills.sh); html.js hides them until story.js decides. -->
@@ -38,14 +29,15 @@ import { downloadUrl } from '../config';
     <img src="/assets/stills/hero_wide.webp" width="1440" height="900" alt="" loading="lazy" decoding="async" />
   </picture>
 
-  <Nav links={[{ href: '/', label: 'Home' }, { href: '/#security', label: 'Security' }]} />
+  <Nav light links={[{ href: '/', label: 'Home', mobile: true, back: true }]} />
 
   <main>
+    <!-- A title card over the world, not the home page's hero: no buttons, a scroll cue. -->
     <section class="hero">
-      <p class="tag">Showcase</p>
+      <p class="sc-kicker">Zafe, in 3D</p>
       <h1>One payment,<br />start to finish</h1>
-      <p class="sub">Scroll to watch three phones share one vault, approve a payment and send it privately.</p>
-      <a class="pill" href={downloadUrl} rel="noopener noreferrer">Get Zafe</a>
+      <p class="sub">Three phones share one vault. Scroll to play.</p>
+      <p class="scroll-cue" aria-hidden="true"><span>Scroll</span><i></i></p>
     </section>
 
     <!-- The story: scrolling through this section plays one payment in the 3D world
@@ -97,8 +89,8 @@ import { downloadUrl } from '../config';
     <section id="features" class="islands" data-island="0" aria-label="Features">
       <div class="islands-pin">
         <header class="islands-head">
-          <p class="tag">Features</p>
-          <h2>Your treasury,<br />held together</h2>
+          <p class="tag">Behind it</p>
+          <h2>What you<br />didn&rsquo;t see</h2>
         </header>
         <article class="island-card i1">
           <img class="still island-still" src="/assets/stills/island_1.webp" width="900" height="598" alt="" loading="lazy" decoding="async" />
@@ -142,15 +134,16 @@ import { downloadUrl } from '../config';
       <div class="cta-pin">
         <img class="still cta-still" src="/assets/stills/above.webp" width="1440" height="900" alt="" loading="lazy" decoding="async" />
         <div class="cta-card">
-          <p class="tag">Ready when you are</p>
-          <h2>Open your vault</h2>
+          <p class="tag">That&rsquo;s Zafe</p>
+          <h2>Your turn</h2>
           <p>Two phones and a few testnet coins.</p>
           <a class="pill" href={downloadUrl} rel="noopener noreferrer">Get Zafe</a>
+          <p class="cta-back"><a href="/">Back to home</a></p>
         </div>
       </div>
     </section>
   </main>
 
-  <Footer />
+  <Footer slim />
   <script src="../scripts/story.js"></script>
 </Base>
