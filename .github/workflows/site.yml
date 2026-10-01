@@ -67,6 +67,7 @@ jobs:
           fi
 
       - name: Deploy
+        id: deploy
         if: steps.vercel.outputs.ready == 'true'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
@@ -79,3 +80,9 @@ jobs:
           url=$(npx --yes "$VERCEL_CLI" deploy --prebuilt $target --yes --token "$VERCEL_TOKEN")
           echo "$kind deployment: $url"
           echo "**$kind deployment:** $url" >> "$GITHUB_STEP_SUMMARY"
+          echo "production=$([ "$kind" = Production ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      # Bing & co. recrawl the sitemap's pages soon after a release; never fails the deploy.
+      - name: IndexNow
+        if: steps.deploy.outputs.production == 'true'
+        run: ./indexnow.sh || echo "::warning::IndexNow submission failed"

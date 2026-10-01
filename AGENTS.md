@@ -859,7 +859,10 @@ Learned while studying it:
   Email Routing); canonical, og:url/og:image, `sitemap.xml`, `robots.txt` and
   `.well-known/security.txt` (Astro endpoints in `src/pages/`; security.txt's `Expires`
   is build + 1 year, so redeploy at least yearly) derive from it. `build.sh` validates
-  only the two JSON files in `.well-known`.
+  only the two JSON files in `.well-known`. Registered in Google Search Console and Bing
+  Webmaster Tools (DNS TXT); each production deploy submits the sitemap's URLs to
+  IndexNow (`indexnow.sh`, key file `public/<key>.txt`, public by design; failures only
+  warn).
   Head tags live in `Base.astro` (props `title`, `description`, `socialTitle`, `jsonLd`,
   `noindex`); social image `/assets/og.png` (1200×630) in `config.ts`. `/join` stays
   `noindex`, out of the sitemap and **not** disallowed in robots.txt (Google must fetch
