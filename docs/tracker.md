@@ -449,8 +449,10 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 
 ## M3 / M4 — later (spec §16)
 
-- [ ] Rotation via DKG refresh (remove members; t fixed) (§10.2)
-- [ ] Migration to a new vault (change t or add members) (§10.3)
+- [ ] Rotation, same address and t (§10.2): add members by repair toward a new identifier
+      (§10.4.2; checked 2026-10-04 on our pins: 2-of-3 → 2-of-4 signs once members add the new
+      verifying share), remove members by DKG refresh (§10.4.1)
+- [ ] Migration to a new vault (change t, hostile removal) (§10.3)
 - [ ] Desktop builds (Vizor has desktop layouts to copy)
 - [ ] Self-hostable relay packaging; paid hosted tiers (D3 limits)
 - [ ] dApp SDK: proposal requests from third-party apps

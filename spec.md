@@ -581,7 +581,7 @@ Use this for add, remove or replace when every departing member is trusted to de
 | **Add** member | Repair toward a **new** identifier (§10.4.2) | ≥ t existing members (the helpers) + the new member | N+1, same t, same `ak` and address |
 | **Remove** member | DKG refresh among the remaining members, excluding the removed one (§10.4.1) | **All** remaining members | N−1, same t (requires N−1 ≥ t), same `ak` and address |
 | **Replace** (remove X, add Y) | Remove first, then add | All remaining members, then ≥ t of them + Y | N, same t |
-| **Change t** | **Not supported.** `frost-core` rejects a changed `min_signers` (`Error::InvalidMinSigners`) | — | Use **Migrate** (§10.3) |
+| **Change t** | **Not supported.** `frost-core` rejects a changed `min_signers` (`Error::InvalidMinSigners`); same-key resharing to a new t is an open request upstream (frost#1082) | — | Use **Migrate** (§10.3) |
 | **Proactive refresh** (no membership change) | DKG refresh among all members | All members | Same set; old shares made useless once deleted |
 
 Order matters for **Replace**: refresh first, then repair from the refreshed shares. Repairing first would give Y a share on the old polynomial that X's old share still combines with.
@@ -763,7 +763,7 @@ Flutter app with vault creation (invite link and QR), receive, balance, history,
 Batch payments, address book, rules, CSV export, encrypted backup and restore, repair, backup health. External security audit of zafe-core and the protocol before mainnet funds. **Mainnet gate:** the external audit, a hosted relay and a small end-to-end mainnet dry run, then a capped beta. (U1, ZF confirming the key derivation gives recoverable vaults, was answered 2026-10-01.)
 
 **M3: Membership**
-Rotation (refresh-based, per [VERIFY]), migration flow, desktop builds.
+Rotation (repair to add members, refresh to remove them, §10.2), migration flow, desktop builds.
 
 **M4: Platform**
 Self-hostable relay packaging and paid hosted tiers, dapp SDK (proposal requests from third-party apps), hardware members (Keystone/Ledger FROST support permitting), payment disclosures.
