@@ -490,9 +490,9 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 - [ ] **(you)** Post the Discord pointer in `#frost` (`upstream-asks.md`); follow up on answers
 - [x] U1: answered on frost#1094 (2026-10-01): change "very unlikely"; our own `sk`
       agreement works
-- [ ] Get `test-vectors/zip2005_use_qsk.json` cross-checked upstream: conradoplg
-      (frost#1094, 2026-10-01) prefers frost-tools over zcash-test-vectors; ask where in
-      the repo, then PR (`docs/stack-plan.md` phase 1)
+- [ ] Get `test-vectors/zip2005_use_qsk.json` cross-checked upstream: issue
+      frost-tools#609 + PR frost-tools#610 (2026-10-04, from the `zafe-cash/frost-tools`
+      fork): fixture + a Rust test that recomputes it from the ZIP; awaiting review
 - [x] U2: answered on frost#1094 (2026-09-21): an external-randomizer API will always
       exist (`sign()` may be un-deprecated). Keep the one `#[allow(deprecated)]` wrapper
 - [x] U3: answered (2026-10-01): moves to the FROST repo, same serialization. Switch

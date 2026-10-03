@@ -64,7 +64,7 @@ feel like it is very unlikely. Most work pending on zips#895 is regarding on how
 participants agree on sk; we plan to use the COCKTAIL-DKG protocol to do the DKG while
 simultaneously agree on sk. But if you have your own system that will also work."* So
 vaults derived per § 4.2.3 from Zafe's own `sk` agreement are expected to stay recoverable.
-Left: get our `use_qsk` vectors cross-checked (offer a PR to zcash-test-vectors).
+Vectors: conradoplg preferred frost-tools; issue frost-tools#609, PR frost-tools#610 (2026-10-04).
 
 **Context checked:**
 - ZIP 2005 (status Proposed; changes since 2026-07 are wording) has a normative "Usage with

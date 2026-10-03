@@ -56,9 +56,10 @@ Started 2026-10-01. The research and reasoning behind every item are in
 Each item: ask or comment first where noted, then a small PR. Record links in `tracker.md`
 "Upstream".
 
-- [ ] **ZIP 2005 `use_qsk` vectors** (conradoplg invited them on frost#1094). Ask on
-      the issue where they belong in frost-tools (likely `zcash-sign/tests/fixtures`),
-      then PR `zip2005_use_qsk.json` with the independent Python checker. *Our first
+- [ ] **ZIP 2005 `use_qsk` vectors** (conradoplg invited them on frost#1094). Opened
+      frost-tools#609 (issue) and #610 (PR, 2026-10-04): `zcash-sign/tests/fixtures/
+      zip2005_use_qsk.json` plus a Rust test written from the ZIP text; the Python
+      checker is linked, not included. Awaiting review. *Our first
       merged upstream PR.* (Replaces the tracker item that targeted zcash-test-vectors;
       a generator there is a later follow-up.)
 - [ ] **FROST book docs PR**: `book/src/zcash/technical-details.md` says to throw `sk`

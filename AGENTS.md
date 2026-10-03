@@ -1041,6 +1041,12 @@ Toolchain (installed by `~/android/install-toolchain.sh`; `source ~/android/env.
   on Discord (2026-10-01): U5 "fine"; a vault with `ak` from the DKG and `nk`/`qsk`/`rivk_ext`
   from `sk` with `use_qsk = true` is "the intended usage"; `use_qsk = false` does not
   conform to ZIP 2005 and is not quantum-recoverable.
+- **Contributing to frost-tools**: fork at `zafe-cash/frost-tools`; PRs are squashed, so
+  the PR title must be a Conventional Commit; no PR template; coordinate larger changes in
+  an issue first. CI = `cargo fmt --all -- --check`, `cargo clippy --all-targets -- -D
+  warnings`, `cargo test` (all quick). Deps go through `[workspace.dependencies]`.
+  `zcash-sign` still uses the fork's `from_sk_ak_incompatible...` (conradoplg: ignore
+  quantum recoverability for now, frost-tools#591). Our vectors: #609 / #610.
 - **Post-quantum**: every member holds `qsk`, so a discrete-log-breaking adversary needs
   only one member's `qsk` (ZIP 2005 says so; spec §2.3). Not fixable inside ZIP 2005.
 - COCKTAIL-DKG (frost#1033) not production-ready; Zafe uses frost-core DKG + own echo/transcript.
