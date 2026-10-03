@@ -32,3 +32,43 @@ bool isPaymentLink(String raw) =>
 /// Whether [link] waited too long to be shown at [now].
 bool paymentLinkExpired(PendingPaymentLink link, DateTime now) =>
     now.difference(link.receivedAt) > kPaymentLinkTtl;
+
+/// The least a payment to [recipients] addresses can cost under ZIP 317 (5,000 zats per
+/// action, at least 2 actions; each recipient needs an output). The real fee is known
+/// once the proposal is built and can be higher (more notes to spend, change).
+BigInt minimumFeeZat(int recipients) =>
+    BigInt.from(5000 * (recipients < 2 ? 2 : recipients));
+
+/// Whether a vault can pay a request, as far as this device knows before building it.
+enum FundsCheck {
+  /// Spendable funds cover the amount and the minimum fee.
+  enough,
+
+  /// Definitely not enough: see `shortByZat`.
+  short,
+
+  /// Can't tell (no amount in the link, or no balance known yet).
+  unknown,
+}
+
+/// Compares what a request needs ([requestedZat] plus [minimumFeeZat]) with a vault's
+/// [spendableZat] when this session synced it, else its last known [totalZat] (which
+/// can only prove a shortfall: part of it may be held or unconfirmed).
+({FundsCheck check, BigInt shortByZat}) checkFunds({
+  required BigInt requestedZat,
+  required int recipients,
+  BigInt? spendableZat,
+  BigInt? totalZat,
+}) {
+  final unknown = (check: FundsCheck.unknown, shortByZat: BigInt.zero);
+  if (requestedZat <= BigInt.zero) return unknown;
+  final needed = requestedZat + minimumFeeZat(recipients);
+  final have = spendableZat ?? totalZat;
+  if (have == null) return unknown;
+  if (have < needed) {
+    return (check: FundsCheck.short, shortByZat: needed - have);
+  }
+  return spendableZat != null
+      ? (check: FundsCheck.enough, shortByZat: BigInt.zero)
+      : unknown;
+}

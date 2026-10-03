@@ -32,6 +32,14 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
   bool _prompting = false;
   String? _message;
 
+  /// The app isn't in front (app switcher, notification shade, a system dialog): hide
+  /// the screen so the recent-apps card and anyone glancing at it see no balances.
+  bool _covered = false;
+
+  void _cover(bool covered) {
+    if (covered != _covered && mounted) setState(() => _covered = covered);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -49,6 +57,7 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _cover(state != AppLifecycleState.resumed);
     switch (state) {
       case AppLifecycleState.hidden || AppLifecycleState.paused:
         if (_awaySince == null) {
@@ -119,6 +128,7 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
             child: IgnorePointer(ignoring: locked, child: widget.child),
           ),
         ),
+        if (_covered && !locked) const PrivacyCover(),
         if (locked)
           LockScreen(
             busy: _prompting,
@@ -128,6 +138,39 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
       ],
     );
   }
+}
+
+/// Shown while the app isn't in front: the window colour and the lock tile, nothing
+/// else. Android 13+ shows the running app live in the app switcher, which no window
+/// flag short of blocking screenshots hides.
+class PrivacyCover extends StatelessWidget {
+  const PrivacyCover({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return ColoredBox(
+      color: colors.background.window,
+      child: Center(child: _LockTile(colors: colors)),
+    );
+  }
+}
+
+class _LockTile extends StatelessWidget {
+  const _LockTile({required this.colors});
+  final AppColors colors;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 72,
+    height: 72,
+    decoration: BoxDecoration(
+      color: colors.background.brandSubtle,
+      borderRadius: BorderRadius.circular(AppRadii.large),
+    ),
+    alignment: Alignment.center,
+    child: AppIcon(AppIcons.lock, size: 32, color: colors.icon.brand),
+  );
 }
 
 /// "Zafe is locked": shown over everything until the owner unlocks. Plain data, so it
@@ -158,22 +201,7 @@ class LockScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Spacer(),
-              Center(
-                child: Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    color: colors.background.brandSubtle,
-                    borderRadius: BorderRadius.circular(AppRadii.large),
-                  ),
-                  alignment: Alignment.center,
-                  child: AppIcon(
-                    AppIcons.lock,
-                    size: 32,
-                    color: colors.icon.brand,
-                  ),
-                ),
-              ),
+              Center(child: _LockTile(colors: colors)),
               const SizedBox(height: AppSpacing.md),
               Text(
                 'Zafe is locked',

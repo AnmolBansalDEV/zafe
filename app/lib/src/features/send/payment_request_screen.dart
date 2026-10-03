@@ -33,6 +33,7 @@ class PayFromVault {
     required this.threshold,
     required this.members,
     this.balanceZat,
+    this.spendableZat,
   });
   final String id;
   final String name;
@@ -41,7 +42,14 @@ class PayFromVault {
 
   /// Last known balance (null before the first sync).
   final BigInt? balanceZat;
+
+  /// Spendable now (only for vaults synced in this session).
+  final BigInt? spendableZat;
 }
+
+/// What [payments] ask for in total.
+BigInt requestedTotal(List<rust.ScannedPayment> payments) =>
+    payments.fold(BigInt.zero, (sum, p) => sum + p.amountZat);
 
 /// Opened by a `zcash:` payment link from another app or website. Shows what the link
 /// asks for, warns that anyone can make one, lets the owner pick the vault to pay from,
@@ -62,6 +70,9 @@ class _PaymentRequestScreenState extends ConsumerState<PaymentRequestScreen> {
     text: widget.link.raw,
   );
   String? _vaultId;
+
+  /// The owner tapped a vault (otherwise the default may move to one that can pay).
+  bool _picked = false;
   bool _confirmed = false;
   bool _busy = false;
   final Map<String, VaultSummaryInfo> _saved = {};
@@ -129,9 +140,24 @@ class _PaymentRequestScreenState extends ConsumerState<PaymentRequestScreen> {
             members: summary.members.length,
             balanceZat:
                 state.balances[v.id]?.totalZat ?? _saved[v.id]?.balanceZat,
+            spendableZat: state.balances[v.id]?.spendableZat,
           );
         }(),
     ];
+    // Default to a vault that can pay when the first choice can't.
+    final requested = requestedTotal(_request.payments);
+    bool short(PayFromVault v) =>
+        checkFunds(
+          requestedZat: requested,
+          recipients: _request.payments.length,
+          spendableZat: v.spendableZat,
+          totalZat: v.balanceZat,
+        ).check ==
+        FundsCheck.short;
+    final current = vaults.where((v) => v.id == _vaultId).firstOrNull;
+    if (!_picked && current != null && short(current)) {
+      _vaultId = vaults.where((v) => !short(v)).firstOrNull?.id ?? _vaultId;
+    }
     final tooMany = _request.payments.length > kMaxRecipients;
     return PaymentRequestView(
       payments: _request.payments,
@@ -140,7 +166,10 @@ class _PaymentRequestScreenState extends ConsumerState<PaymentRequestScreen> {
           : _request.problem,
       vaults: vaults,
       selectedId: _vaultId,
-      onSelect: (id) => setState(() => _vaultId = id),
+      onSelect: (id) => setState(() {
+        _vaultId = id;
+        _picked = true;
+      }),
       confirmed: _confirmed,
       onConfirm: () => setState(() => _confirmed = !_confirmed),
       hideBalances: ref.watch(privacyModeProvider),
@@ -204,6 +233,20 @@ class PaymentRequestView extends StatelessWidget {
       );
     }
     final selected = vaults.where((v) => v.id == selectedId).firstOrNull;
+    final requested = requestedTotal(payments);
+    ({FundsCheck check, BigInt shortByZat}) funds(PayFromVault v) => checkFunds(
+      requestedZat: requested,
+      recipients: payments.length,
+      spendableZat: v.spendableZat,
+      totalZat: v.balanceZat,
+    );
+    final selectedFunds = selected == null ? null : funds(selected);
+    final canPay =
+        selectedFunds != null && selectedFunds.check != FundsCheck.short;
+    final fee = amountWithTicker(
+      ZecAmount.fromZatoshi(minimumFeeZat(payments.length)).receipt.amountText,
+      hide: false,
+    );
     final sectionStyle = AppTypography.labelLarge.copyWith(
       color: colors.text.secondary,
     );
@@ -216,9 +259,7 @@ class PaymentRequestView extends StatelessWidget {
         children: [
           AppButton(
             expand: true,
-            onPressed: confirmed && selected != null && !busy
-                ? onContinue
-                : null,
+            onPressed: confirmed && canPay && !busy ? onContinue : null,
             child: const Text('Continue'),
           ),
           const SizedBox(height: AppSpacing.xs),
@@ -266,8 +307,12 @@ class PaymentRequestView extends StatelessWidget {
                 _VaultChoice(
                   vault: vaults[i],
                   selected: vaults[i].id == selectedId,
-                  // A single vault is shown, not offered.
-                  onTap: vaults.length > 1
+                  funds: funds(vaults[i]),
+                  // A single vault is shown, not offered; one that can't pay
+                  // can't be picked.
+                  onTap:
+                      vaults.length > 1 &&
+                          funds(vaults[i]).check != FundsCheck.short
                       ? () => onSelect(vaults[i].id)
                       : null,
                   hideBalance: hideBalances,
@@ -276,15 +321,27 @@ class PaymentRequestView extends StatelessWidget {
             ],
           ),
         ),
-        if (selected != null) ...[
+        if (selected != null && canPay) ...[
           const SizedBox(height: AppSpacing.s),
           Text(
             'Continue opens this payment in "${selected.name}" for review. '
             'Nothing is sent until ${selected.threshold} of ${selected.members} '
-            'signers approve it.',
+            'signers approve it.'
+            '${requested > BigInt.zero ? ' The network fee is at least $fee.' : ''}',
             style: AppTypography.bodySmall.copyWith(
               color: colors.text.secondary,
             ),
+          ),
+        ],
+        if (selected != null && !canPay) ...[
+          const SizedBox(height: AppSpacing.s),
+          Text(
+            vaults.length > 1
+                ? 'None of your vaults has enough to pay this request and the '
+                      'network fee (at least $fee).'
+                : '"${selected.name}" doesn\'t have enough to pay this request '
+                      'and the network fee (at least $fee).',
+            style: AppTypography.bodySmall.copyWith(color: colors.text.warning),
           ),
         ],
         const SizedBox(height: AppSpacing.md),
@@ -424,22 +481,30 @@ class _VaultChoice extends StatelessWidget {
   const _VaultChoice({
     required this.vault,
     required this.selected,
+    required this.funds,
     required this.onTap,
     required this.hideBalance,
   });
   final PayFromVault vault;
   final bool selected;
+  final ({FundsCheck check, BigInt shortByZat}) funds;
   final VoidCallback? onTap;
   final bool hideBalance;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final balance = vault.balanceZat;
+    final balance = vault.spendableZat ?? vault.balanceZat;
     final rule = '${vault.threshold} of ${vault.members} to approve';
+    final short = funds.check == FundsCheck.short;
+    final shortText = hideBalance
+        ? 'Not enough funds'
+        : 'Not enough funds: short by '
+              '${amountWithTicker(ZecAmount.fromZatoshi(funds.shortByZat).receipt.amountText, hide: false)}';
     final detail = balance == null
         ? rule
-        : '${amountWithTicker(ZecAmount.fromZatoshi(balance).balance.amountText, hide: hideBalance)} · $rule';
+        : '${amountWithTicker(ZecAmount.fromZatoshi(balance).balance.amountText, hide: hideBalance)}'
+              '${vault.spendableZat != null ? ' spendable' : ''} · $rule';
     final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
       child: Row(
@@ -466,6 +531,15 @@ class _VaultChoice extends StatelessWidget {
                     color: colors.text.secondary,
                   ),
                 ),
+                if (short) ...[
+                  const SizedBox(height: AppSpacing.xxs),
+                  Text(
+                    shortText,
+                    style: AppTypography.labelMedium.copyWith(
+                      color: colors.text.warning,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -479,7 +553,8 @@ class _VaultChoice extends StatelessWidget {
     if (onTap == null) return row;
     return AppTappable(
       onTap: onTap,
-      semanticsLabel: '${vault.name}${selected ? ', selected' : ''}',
+      semanticsLabel:
+          '${vault.name}${selected ? ', selected' : ''}${short ? ', $shortText' : ''}',
       child: ExcludeSemantics(child: row),
     );
   }

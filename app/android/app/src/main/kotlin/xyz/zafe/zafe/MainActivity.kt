@@ -4,6 +4,7 @@ import android.app.UiModeManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Build
+import android.os.Bundle
 import android.provider.Settings
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterFragmentActivity
@@ -12,6 +13,34 @@ import io.flutter.plugin.common.MethodChannel
 
 // A FragmentActivity so local_auth can show the biometric / screen-lock prompt.
 class MainActivity : FlutterFragmentActivity() {
+    /// A secret screen asked to block capture (`xyz.zafe/secure_screen`).
+    private var secureRequested = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // A wallet's balances and payments stay out of the recent-apps view (the card
+        // shows a blank window instead). Screenshots inside the app still work.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            setRecentsScreenshotEnabled(false)
+        }
+    }
+
+    // Before Android 13 there is no switch for the thumbnail alone: block capture while
+    // the app is in the background, which also blanks the thumbnail taken as it leaves.
+    override fun onPause() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+        super.onPause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU && !secureRequested) {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         // Screens showing secrets (invites, backups) block screenshots, screen recording
@@ -22,6 +51,7 @@ class MainActivity : FlutterFragmentActivity() {
                     "setSecure" -> {
                         val secure = call.arguments as? Boolean ?: false
                         runOnUiThread {
+                            secureRequested = secure
                             if (secure) {
                                 window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
                             } else {

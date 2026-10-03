@@ -67,6 +67,15 @@ final _grants = PayFromVault(
   threshold: 3,
   members: 5,
   balanceZat: BigInt.from(4825000000),
+  spendableZat: BigInt.from(4825000000),
+);
+final _petty = PayFromVault(
+  id: '0badc0de0badc0de0badc0de0badc0de',
+  name: 'Petty cash',
+  threshold: 1,
+  members: 2,
+  balanceZat: BigInt.from(60000000),
+  spendableZat: BigInt.from(60000000),
 );
 
 void main() {
@@ -108,18 +117,28 @@ void main() {
       ),
       (
         'payment_request_vaults',
-        1500,
+        1640,
         view(
           payments: [
             _p(_a, 250000000, memo: 'Invoice 2026-118'),
             _p(_b, 40000000),
           ],
-          vaults: [_treasury, _grants],
+          vaults: [_treasury, _grants, _petty],
           selected: _grants.id,
           confirmed: true,
         ),
       ),
       ('payment_request_no_amount', 1100, view(payments: [_p(_a, 0)])),
+      (
+        'payment_request_short',
+        1240,
+        view(
+          payments: [_p(_a, 125000000)],
+          vaults: [_petty],
+          selected: _petty.id,
+          confirmed: true,
+        ),
+      ),
       (
         'payment_request_problem',
         844,

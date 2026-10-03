@@ -855,7 +855,15 @@ Learned while studying it:
   doesn't lock the app again, and a cancelled prompt waits for a tap instead of
   re-prompting. No screen lock on the phone → the app unlocks (Settings warns). It is
   separate from "Require unlock to approve" (per action). Background engines are
-  unaffected. Not done: hiding content in the recent-apps thumbnail. Emulator test: the
+  unaffected. **Recent apps**: `MainActivity` calls `setRecentsScreenshotEnabled(false)`
+  (Android 13+; screenshots in the app still work) and below 13 sets `FLAG_SECURE` only
+  between `onPause` and `onResume` (never clearing one a `SecureScreen` asked for:
+  `secureRequested`). That flag doesn't hide the **live** tile Android 13+ shows for the
+  running app, so `AppLockGate` also draws `PrivacyCover` whenever the lifecycle isn't
+  `resumed` (switcher, notification shade, system dialogs, the unlock prompt). iOS:
+  `SceneDelegate` adds a launch-screen cover on `sceneWillResignActive` (untested: iOS
+  has never been built). Verified on the emulator 2026-10-04: blank recents card,
+  cover gone on return. Emulator test: the
   AVD has no screen lock (the lock then opens at once); `adb shell locksettings set-pin
   1234`, unlock with `adb shell input text 1234` + `KEYCODE_ENTER`, and `locksettings
   clear --old 1234` afterwards. The PIN prompt is a secure window (black screenshots;
@@ -872,7 +880,12 @@ Learned while studying it:
   `/payment-request` (exempt from the vault redirect: it picks its own vault).
   `PaymentRequestScreen`: "Check who sent this" warning, full address, the link's
   `label`/`message` shown as "(not verified)" (bridge `ScannedPayment.label/message`),
-  a "Pay from" vault picker when there are several, the approval rule, and Continue
+  a "Pay from" vault picker when there are several, the approval rule, a funds check
+  (`checkFunds`: amount + `minimumFeeZat` = 5,000 × max(2, recipients) against the
+  vault's spendable balance when synced this session, else its saved total, which can
+  only prove a shortfall; a vault that's short is marked "short by X", can't be picked,
+  and the default moves to one that can pay; nothing is built, so the real fee can be
+  higher), and Continue
   only after "I know who sent this..." is ticked; Continue switches vault and opens
   `/send` prefilled (`SendPrefill.fromLink`: review step, or amount when the link has
   none). Proposing still takes `confirmUnlock` and t approvals. Test:

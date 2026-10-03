@@ -152,6 +152,118 @@ void main() {
     expect(find.bySemanticsLabel(RegExp('^Treasury')), findsNothing);
   });
 
+  group('funds check', () {
+    BigInt z(int v) => BigInt.from(v);
+
+    test('the fee floor is 5,000 zats per action, at least two', () {
+      expect(minimumFeeZat(1), z(10000));
+      expect(minimumFeeZat(2), z(10000));
+      expect(minimumFeeZat(5), z(25000));
+    });
+
+    test('spendable funds decide when known', () {
+      final need = z(125000000) + minimumFeeZat(1);
+      expect(
+        checkFunds(
+          requestedZat: z(125000000),
+          recipients: 1,
+          spendableZat: need,
+        ).check,
+        FundsCheck.enough,
+      );
+      final short = checkFunds(
+        requestedZat: z(125000000),
+        recipients: 1,
+        spendableZat: need - z(1),
+        // A larger total doesn't help: part of it is held or unconfirmed.
+        totalZat: need * z(2),
+      );
+      expect(short.check, FundsCheck.short);
+      expect(short.shortByZat, z(1));
+    });
+
+    test('a saved total can only prove a shortfall', () {
+      expect(
+        checkFunds(requestedZat: z(100), recipients: 1, totalZat: z(50)).check,
+        FundsCheck.short,
+      );
+      expect(
+        checkFunds(
+          requestedZat: z(100),
+          recipients: 1,
+          totalZat: z(1000000),
+        ).check,
+        FundsCheck.unknown,
+      );
+    });
+
+    test('no amount or no balance: unknown', () {
+      expect(
+        checkFunds(
+          requestedZat: BigInt.zero,
+          recipients: 1,
+          spendableZat: BigInt.zero,
+        ).check,
+        FundsCheck.unknown,
+      );
+      expect(
+        checkFunds(requestedZat: z(100), recipients: 1).check,
+        FundsCheck.unknown,
+      );
+    });
+  });
+
+  testWidgets('a vault that can\'t pay is marked and can\'t be picked', (
+    tester,
+  ) async {
+    final poor = PayFromVault(
+      id: 'cc33',
+      name: 'Petty cash',
+      threshold: 1,
+      members: 2,
+      spendableZat: BigInt.from(1000),
+    );
+    String? paidFrom;
+    await _pump(
+      tester,
+      _Harness(vaults: [_treasury, poor], onContinue: (id) => paidFrom = id),
+    );
+    expect(_text('Not enough funds: short by'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('^Petty cash')), findsNothing);
+    await tester.tap(find.bySemanticsLabel(RegExp('^I know who sent this')));
+    await tester.pump();
+    await tester.tap(find.text('Continue'));
+    await tester.pump();
+    expect(paidFrom, 'aa11');
+  });
+
+  testWidgets('Continue stays off when the only vault can\'t pay', (
+    tester,
+  ) async {
+    var paid = false;
+    await _pump(
+      tester,
+      _Harness(
+        vaults: [
+          PayFromVault(
+            id: 'cc33',
+            name: 'Petty cash',
+            threshold: 1,
+            members: 2,
+            spendableZat: BigInt.from(1000),
+          ),
+        ],
+        onContinue: (_) => paid = true,
+      ),
+    );
+    expect(_text('doesn\'t have enough'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel(RegExp('^I know who sent this')));
+    await tester.pump();
+    await tester.tap(find.text('Continue'));
+    await tester.pump();
+    expect(paid, isFalse);
+  });
+
   testWidgets('an unpayable link says why and offers nothing to pay', (
     tester,
   ) async {
