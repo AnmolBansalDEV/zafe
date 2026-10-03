@@ -517,6 +517,9 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       coverage of coinbase receipts (`is_coinbase`), since ths mines to its own wallet
 - [ ] `ths stop` leaves a foreground `ths start` running (0.3.0): issue zcashlabs/thus-spoke-zakura#145,
       fix PR #146 (2026-10-04). Follow up until merged; then `down.sh` could drop the SIGINT
+- [ ] Proposed `ths start --detach` for scripts/CI (thus-spoke-zakura#147, 2026-10-04): opt-in,
+      foreground stays the default (their #14). If accepted, send the PR; then `up.sh` becomes
+      `ths start --detach` and `down.sh` `ths stop`
 - [ ] Zakura's faster prover (V7): **supports Ironwood now** (zakura-core/common 2.2.0,
       2026-09-30, forked from orchard 0.15.5; MIT/Apache-2.0). Optimized Halo 2/Pasta with
       AArch64 assembly; zakura-bench (i7, 1 core): warm 2-action Ironwood proof 2.85 s →
