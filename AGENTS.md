@@ -506,7 +506,7 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   (multiple of 10, at most 32730). Offsets in use: harness 0, `regtest_e2e` 30000,
   `bridge_e2e` 30100, `m0-e2e.sh` 30200. `down.sh` sends SIGINT, then `ths stop`.
   Gotcha (0.3.0): `ths stop` deletes the environment but leaves the foreground launcher
-  running; only SIGINT ends it.
+  running; only SIGINT ends it (fix: thus-spoke-zakura PR #146, issue #145).
 - **Funding**: ths mines to its own wallet, so vaults are funded from the faucet:
   `fund.sh <ua> [notes]` = `notes` x 5 ZEC (the faucet's maximum) to the Ironwood receiver,
   then 12 blocks so they pass the default confirmation policy. One note per proposal that
