@@ -8,8 +8,8 @@ MINER_ADDRESS=${1:?usage: up.sh <miner-unified-address>}
 NAME=${ZAFE_REGTEST_NAME:-zafe-regtest}
 RPC_PORT=${ZAFE_REGTEST_RPC_PORT:-18232}
 LWD_PORT=${ZAFE_REGTEST_LWD_PORT:-9067}
-ZAKURA_IMAGE=zakuracore/zakura:1.4.0
-LWD_IMAGE=ghcr.io/zcashlabs/thus-spoke-zakura-lightwalletd:0.2.1
+ZAKURA_IMAGE=zakuracore/zakura:1.6.0
+LWD_IMAGE=ghcr.io/zcashlabs/thus-spoke-zakura-lightwalletd:0.3.0
 DIR=$(cd "$(dirname "$0")" && pwd)
 CONFIG_DIR=$(mktemp -d "${TMPDIR:-/tmp}/$NAME.XXXXXX")
 

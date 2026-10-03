@@ -510,8 +510,15 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 - [ ] **(you)** Answer Daira's question on how ZIP 2005 could be clearer (draft in chat,
       2026-10-01); offer a zips PR if she wants one
 - [x] U5 conformance: ZF accepts the ZIP 312 deviation (conradoplg, 2026-10-01)
-- [ ] thus-spoke-zakura PR #124 (Ironwood fix, targets `main`; replaces #119, auto-closed when `dev` was deleted on 2026-09-30): rebased onto `main` aee7880 2026-10-01, all CI steps + all 3 Docker recovery tests pass locally; CI waits on maintainer approval. Follow up until merged
-- [ ] Zakura's faster prover once it supports Ironwood (V7)
+- [x] thus-spoke-zakura PR #124 merged 2026-10-01, released in v0.3.0 (2026-10-02); `infra/regtest` pins its images. Was: (Ironwood fix, targets `main`; replaces #119, auto-closed when `dev` was deleted on 2026-09-30): rebased onto `main` aee7880 2026-10-01, all CI steps + all 3 Docker recovery tests pass locally; CI waits on maintainer approval. Follow up until merged
+- [ ] Zakura's faster prover (V7): **supports Ironwood now** (zakura-core/common 2.2.0,
+      2026-09-30, forked from orchard 0.15.5; MIT/Apache-2.0). Optimized Halo 2/Pasta with
+      AArch64 assembly; zakura-bench (i7, 1 core): warm 2-action Ironwood proof 2.85 s →
+      0.57 s, key build ~2.2 s → ~0.3 s. Adopting it means swapping the whole stack to the
+      `zakura-*` forks (orchard, pczt, client-backend/sqlite still rc, keys, reddsa with
+      `frost`), as Vizor did; mixing with crates.io types duplicates them. Next: spike
+      branch, `scripts/android-bench.sh`, regtest e2e + zcash-sign cross-check. No Android
+      numbers published yet.
 
 ## Known issues and tech debt
 

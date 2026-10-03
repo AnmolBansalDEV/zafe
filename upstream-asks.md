@@ -180,3 +180,5 @@ The **Zakura node itself supports NU6.3 on regtest**. Started with `"NU5"`, `"NU
 **Ask:** activate every NU6.x (including NU6.3) at height 1 by default, or behind a flag (e.g. `ths start --ironwood`). Make the faucet and "send" route through the Ironwood pool, since Orchard stops accepting deposits after NU6.3. That would make `ths` usable for testing Ironwood apps like Zafe. Zebra's own regtest default already activates every NU6.x at height 1.
 
 **Zafe's workaround until then:** run `zakuracore/zakura:1.4.0` and the `ths` lightwalletd image directly with our own NU6.3 config (`infra/regtest/`).
+
+**Resolved (2026-10-02):** our PR #124 merged and shipped in `ths` v0.3.0 (Zakura 1.6.0, NU6.1-6.3 at height 1, Ironwood wallet). `infra/regtest/` now pins v0.3.0's images.

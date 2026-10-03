@@ -494,13 +494,17 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
 
 ## Regtest (infra/regtest)
 
-- Node: `zakuracore/zakura:1.4.0`; NU5..NU6.3 all at height 1, `disable_pow = true`.
+- Node: `zakuracore/zakura:1.6.0` (what `ths` v0.3.0 runs); NU5..NU6.3 all at height 1, `disable_pow = true`.
 - NU6.1's activation block needs a ZIP 271 lockbox disbursement: use the **zero-value marker**
   `t26YoyZ1iPgiMEWL4zGUm74eVWfhyDMXzY2` amount 0, or blocks are rejected.
 - Coinbase to a **unified address lands in Ironwood**: fund a vault by mining to its address;
   coinbase matures after 100 blocks (mine ~120). Mining fees return via coinbase.
-- lightwalletd: `ghcr.io/zcashlabs/thus-spoke-zakura-lightwalletd:0.2.1` (v0.5.4+7, Ironwood-aware).
-- `ths` (thus-spoke-zakura) itself ran pre-Ironwood; fix upstream in PR #124 (targets `main`, replaces #119). Its explorer also labelled Ironwood txs "Fully transparent" until #124.
+- lightwalletd: `ghcr.io/zcashlabs/thus-spoke-zakura-lightwalletd:0.3.0` (Ironwood-aware).
+- Keep both pins on the latest `ths` release (`crates/ths-cli/src/runtime.rs` `ZAKURA_IMAGE`;
+  lightwalletd is tagged with the release version), so our tests catch its bugs. `ths`
+  v0.3.0 (2026-10-02, our PR #124) activates NU6.1-6.3 at height 1 with the same lockbox
+  marker; it doesn't set `disable_pow`. We still start the two containers ourselves
+  (`up.sh`) rather than through `ths start`: tests need their own ports and names.
 
 ## Mobile findings (spec V7/V8)
 
