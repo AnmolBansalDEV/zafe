@@ -26,7 +26,7 @@ const { links, light = false } = Astro.props;
   </nav>
   <a class="nav-logo" href="/" aria-label="Zafe home"><Mark /></a>
   <nav class="nav-side right" aria-label="Links">
-    {!light && downloadUrl && <a href={sourceUrl} rel="noopener noreferrer">Source</a>}
-    <a class="nav-m" href={getUrl} rel="noopener noreferrer">{getLabel}</a>
+    {!light && downloadUrl && <a href={sourceUrl} target="_blank" rel="noopener noreferrer">Source</a>}
+    <a class="nav-m" href={getUrl} target="_blank" rel="noopener noreferrer">{getLabel}</a>
   </nav>
 </header>

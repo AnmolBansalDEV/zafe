@@ -13,19 +13,19 @@ const { slim = false } = Astro.props;
   <footer class="foot-slim">
     <a href="/" class="foot-slim-home"><img src="/assets/zafe.svg" alt="" width="28" height="28" /><span>Zafe</span></a>
     <p>No cookies. No analytics.</p>
-    <a href={sourceUrl} rel="noopener noreferrer">Source</a>
+    <a href={sourceUrl} target="_blank" rel="noopener noreferrer">Source</a>
   </footer>
 ) : (
   <footer class="foot">
     <div class="foot-top">
       <p class="foot-brand"><img src="/assets/zafe.svg" alt="" width="52" height="52" /><span>Privacy,<br />held together.</span></p>
       <ul>
-        {downloadUrl && <li><a href={downloadUrl} rel="noopener noreferrer">Android</a></li>}
+        {downloadUrl && <li><a href={downloadUrl} target="_blank" rel="noopener noreferrer">Android</a></li>}
         <li><a href="/showcase">Showcase</a></li>
-        <li><a href={sourceUrl} rel="noopener noreferrer">Source</a></li>
-        <li><a href={specUrl} rel="noopener noreferrer">Spec</a></li>
+        <li><a href={sourceUrl} target="_blank" rel="noopener noreferrer">Source</a></li>
+        <li><a href={specUrl} target="_blank" rel="noopener noreferrer">Spec</a></li>
         <li><a href="/#security">Security</a></li>
-        <li><a href={`${sourceUrl}/issues`} rel="noopener noreferrer">Support</a></li>
+        <li><a href={`${sourceUrl}/issues`} target="_blank" rel="noopener noreferrer">Support</a></li>
       </ul>
     </div>
     <div class="foot-bottom">

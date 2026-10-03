@@ -93,7 +93,7 @@ const jsonLd = {
         <h1>The multisig<br />nobody can see</h1>
         <p class="sub">One private vault for your team. Nothing moves until enough of you approve.</p>
         <div class="lp-actions">
-          <a class="pill" href={getUrl} rel="noopener noreferrer">{getLabel}</a>
+          <a class="pill" href={getUrl} target="_blank" rel="noopener noreferrer">{getLabel}</a>
           <a class="lp-more" href="/showcase">Watch it in 3D <Icon name="chevron_forward" /></a>
         </div>
       </div>
@@ -207,7 +207,7 @@ const jsonLd = {
         </li>
         <li>
           <Icon name="book" />
-          <div><h3>Open source</h3><p>The app, the relay and the <a href={specUrl} rel="noopener noreferrer">spec</a> are all <a href={sourceUrl} rel="noopener noreferrer">public</a>.</p></div>
+          <div><h3>Open source</h3><p>The app, the relay and the <a href={specUrl} target="_blank" rel="noopener noreferrer">spec</a> are all <a href={sourceUrl} target="_blank" rel="noopener noreferrer">public</a>.</p></div>
         </li>
       </ul>
     </section>
@@ -240,7 +240,7 @@ const jsonLd = {
             <p>{item.a}</p>
           </details>
         ))}
-        <p class="more">More in the <a href={specUrl} rel="noopener noreferrer">spec</a>.</p>
+        <p class="more">More in the <a href={specUrl} target="_blank" rel="noopener noreferrer">spec</a>.</p>
       </div>
     </section>
 
@@ -251,7 +251,7 @@ const jsonLd = {
           <p class="tag plain">Ready when you are</p>
           <h2>Open your vault</h2>
           <p>{getNote}</p>
-          <a class="pill" href={getUrl} rel="noopener noreferrer">{getLabel}</a>
+          <a class="pill" href={getUrl} target="_blank" rel="noopener noreferrer">{getLabel}</a>
         </div>
         <div class="lp-cta-art" aria-hidden="true"><img class="lp-phone" src="/assets/screens/story_bob_home_dark.webp" width="780" height="1688" alt="" loading="lazy" decoding="async" /></div>
       </div>
