@@ -511,6 +511,11 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
       2026-10-01); offer a zips PR if she wants one
 - [x] U5 conformance: ZF accepts the ZIP 312 deviation (conradoplg, 2026-10-01)
 - [x] thus-spoke-zakura PR #124 merged 2026-10-01, released in v0.3.0 (2026-10-02); `infra/regtest` pins its images. Was: (Ironwood fix, targets `main`; replaces #119, auto-closed when `dev` was deleted on 2026-09-30): rebased onto `main` aee7880 2026-10-01, all CI steps + all 3 Docker recovery tests pass locally; CI waits on maintainer approval. Follow up until merged
+- [x] Regtest runs through `ths` itself (2026-10-04): `infra/regtest/up.sh` starts `ths start`
+      in the background, vaults are funded from the faucet (`fund.sh`), mined with `ths mine`;
+      `regtest_e2e`, `bridge_e2e` and `m0-e2e.sh` pass (faster: bridge 98 s → 40 s). Lost:
+      coverage of coinbase receipts (`is_coinbase`), since ths mines to its own wallet
+- [ ] *(idea)* Report upstream: `ths stop` leaves a foreground `ths start` running (0.3.0)
 - [ ] Zakura's faster prover (V7): **supports Ironwood now** (zakura-core/common 2.2.0,
       2026-09-30, forked from orchard 0.15.5; MIT/Apache-2.0). Optimized Halo 2/Pasta with
       AArch64 assembly; zakura-bench (i7, 1 core): warm 2-action Ironwood proof 2.85 s →

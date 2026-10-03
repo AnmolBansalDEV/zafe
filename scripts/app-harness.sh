@@ -9,9 +9,10 @@
 #   scripts/app-harness.sh seal           B seals (after the app joined); prints safety number
 #   scripts/app-harness.sh keygen         CLI members run keygen in the background (app joins in)
 #   scripts/app-harness.sh each ARGS      run the zafe CLI as every CLI member in turn
-#   scripts/app-harness.sh fund           regtest up, mining to the vault; 120 blocks
+#   scripts/app-harness.sh fund           regtest up (ths), faucet notes to the vault
 #   scripts/app-harness.sh mine N         mine N blocks
-#   scripts/app-harness.sh resume         after a restart: containers, relay, adb reverse
+#   scripts/app-harness.sh resume         after a restart: relay, adb reverse, and a fresh
+#                                         ths chain, funded again (ths never keeps a chain)
 #   scripts/app-harness.sh cli WHO ARGS   run the zafe CLI as one member (sync, approve, respond, ...)
 #   scripts/app-harness.sh stop           stop everything and delete the state
 set -euo pipefail
@@ -24,10 +25,13 @@ ZAFE="$ROOT/target/debug/zafe"
 member() { local who=$1; shift; "$ZAFE" --home "$WORK/$who" "$@"; }
 # CLI members: B plus the others that join (ZAFE_MEMBERS - 1 in total; the app is the last seat).
 others() { cat "$WORK/others"; }
-mine() {
-  curl -sf -X POST -H 'content-type: application/json' \
-    --data "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"generate\",\"params\":[$1]}" \
-    http://127.0.0.1:18232 >/dev/null
+# ths environment `zafe-regtest` on its default ports (lightwalletd 9067).
+mine() { "${THS:-ths}" --name zafe-regtest mine "$1" >/dev/null; }
+fund() {
+  local addr
+  addr=$(member B vault show | sed -n 's/^address //p')
+  "$ROOT/infra/regtest/up.sh"
+  "$ROOT/infra/regtest/fund.sh" "$addr" "${ZAFE_FUND_NOTES:-6}"
 }
 
 relay_up() {
@@ -60,17 +64,18 @@ case "${1:-}" in
       nohup "$ZAFE" --home "$WORK/$who" vault keygen --safety-number "$SN" > "$WORK/k$who" 2>&1 &
     done
     ;;
-  fund)
-    ADDR=$(member B vault show | sed -n 's/^address //p')
-    "$ROOT/infra/regtest/up.sh" "$ADDR"
-    mine 120
-    echo "funded $ADDR"
-    ;;
+  fund) fund ;;
   resume)
-    # After a machine or emulator restart: same relay DB, members and chain.
+    # After a machine or emulator restart: same relay DB and members. ths always starts a
+    # new chain, so the vault is funded again and the CLI members' wallets start over. The
+    # app's wallet still holds the old chain: if it doesn't recover, remove and restore the
+    # vault on the device (untested).
     cargo build -q -p zafe-cli -p zafe-relay
-    docker start zafe-regtest-zakura zafe-regtest-lightwalletd >/dev/null
     relay_up
+    if [[ -f "$WORK/B/vault.bin" ]]; then
+      fund
+      for who in B $(others); do rm -f "$WORK/$who"/wallet.sqlite*; done
+    fi
     echo "resumed (state in $WORK)"
     ;;
   mine) mine "${2:-1}" ;;

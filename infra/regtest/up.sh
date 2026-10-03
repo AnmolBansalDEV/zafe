@@ -1,37 +1,42 @@
 #!/usr/bin/env bash
-# Starts a disposable Ironwood regtest network: a Zakura node and lightwalletd.
-#   infra/regtest/up.sh <miner-unified-address>
-# Env: ZAFE_REGTEST_NAME (default zafe-regtest), ZAFE_REGTEST_RPC_PORT (18232),
-#      ZAFE_REGTEST_LWD_PORT (9067). Everything binds to 127.0.0.1.
+# Starts a disposable Ironwood regtest network with `ths` (thus-spoke-zakura): a Zakura node,
+# lightwalletd and ths's own wallet, which mines and runs the faucet. Fund addresses with
+# fund.sh; mine with `ths --name <name> mine N`.
+#   infra/regtest/up.sh
+# Env: ZAFE_REGTEST_NAME (default zafe-regtest), ZAFE_REGTEST_PORT_OFFSET (default 0, a
+#      multiple of 10, at most 32730): Zakura RPC on 18232 + offset, lightwalletd on
+#      9067 + offset, ths's dashboard on 32805 + offset. Everything binds to 127.0.0.1.
+#      THS (default `ths` on PATH) must be version THS_VERSION below.
 set -euo pipefail
-MINER_ADDRESS=${1:?usage: up.sh <miner-unified-address>}
+THS_VERSION=0.3.0
+THS=${THS:-ths}
 NAME=${ZAFE_REGTEST_NAME:-zafe-regtest}
-RPC_PORT=${ZAFE_REGTEST_RPC_PORT:-18232}
-LWD_PORT=${ZAFE_REGTEST_LWD_PORT:-9067}
-ZAKURA_IMAGE=zakuracore/zakura:1.6.0
-LWD_IMAGE=ghcr.io/zcashlabs/thus-spoke-zakura-lightwalletd:0.3.0
+OFFSET=${ZAFE_REGTEST_PORT_OFFSET:-0}
 DIR=$(cd "$(dirname "$0")" && pwd)
-CONFIG_DIR=$(mktemp -d "${TMPDIR:-/tmp}/$NAME.XXXXXX")
+STATE=${ZAFE_REGTEST_STATE:-$HOME/.cache/zafe-regtest}
 
-sed "s|\${MINER_ADDRESS}|$MINER_ADDRESS|" "$DIR/zakurad.toml.template" > "$CONFIG_DIR/zakurad.toml"
-chmod -R a+rX "$CONFIG_DIR"
+found=$("$THS" --version 2>/dev/null | awk '{print $2}') || true
+if [[ "$found" != "$THS_VERSION" ]]; then
+  echo "need ths $THS_VERSION (found: ${found:-none}). Install it with:" >&2
+  echo "  curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/zcashlabs/thus-spoke-zakura/main/install.sh | THS_VERSION=$THS_VERSION sh" >&2
+  exit 1
+fi
 
 "$DIR/down.sh" >/dev/null 2>&1 || true
-docker network create "$NAME" >/dev/null
-docker run -d --name "$NAME-zakura" --network "$NAME" --network-alias zakura \
-  --label "zafe.regtest=$NAME" -p "127.0.0.1:$RPC_PORT:18232" \
-  -v "$CONFIG_DIR:/config:ro" --entrypoint zakurad "$ZAKURA_IMAGE" -c /config/zakurad.toml start >/dev/null
+mkdir -p "$STATE"
+LOG="$STATE/$NAME.log"
+# `ths start` stays in the foreground and deletes the environment when interrupted; run it
+# in its own session so it outlives this script, and keep its pid for down.sh.
+setsid nohup "$THS" --name "$NAME" start --no-open --port-offset "$OFFSET" > "$LOG" 2>&1 < /dev/null &
+echo $! > "$STATE/$NAME.pid"
 
-rpc() { curl -sf -X POST -H 'content-type: application/json' \
-  --data "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"$1\",\"params\":${2:-[]}}" "http://127.0.0.1:$RPC_PORT"; }
-for _ in $(seq 60); do rpc getblockchaininfo >/dev/null 2>&1 && break; sleep 1; done
-# lightwalletd needs at least one block to start.
-rpc generate '[1]' >/dev/null
-
-docker run -d --name "$NAME-lightwalletd" --network "$NAME" --label "zafe.regtest=$NAME" \
-  --user 0:0 -p "127.0.0.1:$LWD_PORT:9067" "$LWD_IMAGE" \
-  --no-tls-very-insecure --grpc-bind-addr 0.0.0.0:9067 --rpchost zakura --rpcport 18232 \
-  --rpcuser unused --rpcpassword unused --data-dir /tmp/lwd --log-file /dev/stdout >/dev/null
-
-echo "zakura rpc:   http://127.0.0.1:$RPC_PORT"
-echo "lightwalletd: http://127.0.0.1:$LWD_PORT"
+# The first start pulls the runtime images.
+for _ in $(seq 600); do
+  grep -q "is ready" "$LOG" && break
+  if ! kill -0 "$(cat "$STATE/$NAME.pid")" 2>/dev/null; then
+    echo "ths failed to start $NAME:" >&2; tail -20 "$LOG" >&2; exit 1
+  fi
+  sleep 0.5
+done
+grep -q "is ready" "$LOG" || { echo "ths did not start $NAME in time:" >&2; tail -20 "$LOG" >&2; exit 1; }
+"$THS" --name "$NAME" endpoints

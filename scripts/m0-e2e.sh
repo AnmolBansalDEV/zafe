@@ -3,14 +3,15 @@
 # vault through the relay, the vault is funded on a local Ironwood regtest chain, A
 # proposes a payment, B and C verify, approve and sign, and A broadcasts it.
 #
-# Needs Docker. Run from the repository root: scripts/m0-e2e.sh
+# Needs Docker and `ths` (see infra/regtest/up.sh). Run from the repository root: scripts/m0-e2e.sh
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/zafe-m0.XXXXXX")
 RELAY_PORT=${ZAFE_M0_RELAY_PORT:-48787}
-export ZAFE_REGTEST_NAME=zafe-m0 ZAFE_REGTEST_RPC_PORT=48232 ZAFE_REGTEST_LWD_PORT=49067
-export ZAFE_RELAY="http://127.0.0.1:$RELAY_PORT" ZAFE_LIGHTWALLETD="http://127.0.0.1:$ZAFE_REGTEST_LWD_PORT"
+# ths moves every port by the offset: lightwalletd on 39267.
+export ZAFE_REGTEST_NAME=zafe-m0 ZAFE_REGTEST_PORT_OFFSET=30200
+export ZAFE_RELAY="http://127.0.0.1:$RELAY_PORT" ZAFE_LIGHTWALLETD="http://127.0.0.1:$((9067 + ZAFE_REGTEST_PORT_OFFSET))"
 
 cargo build -q -p zafe-cli -p zafe-relay
 cargo build -q -p zafe-core --example vault_address
@@ -25,11 +26,7 @@ trap cleanup EXIT
 
 step() { printf '\n== %s\n' "$*"; }
 member() { local who=$1; shift; "$ZAFE" --home "$WORK/$who" "$@"; }
-mine() {
-  curl -sf -X POST -H 'content-type: application/json' \
-    --data "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"generate\",\"params\":[$1]}" \
-    "http://127.0.0.1:$ZAFE_REGTEST_RPC_PORT" >/dev/null
-}
+mine() { "${THS:-ths}" --name "$ZAFE_REGTEST_NAME" mine "$1" >/dev/null; }
 wait_lwd() {  # wait until lightwalletd serves height $1
   for _ in $(seq 120); do
     h=$(member A sync 2>/dev/null | awk '{print $2}') || true
@@ -76,10 +73,13 @@ ADDR=$(member A vault show | sed -n 's/^address //p')
 [[ "$(member B vault show | sed -n 's/^address //p')" == "$ADDR" ]]
 [[ "$(member C vault show | sed -n 's/^address //p')" == "$ADDR" ]]
 
-step "regtest chain mining to the vault address"
-"$ROOT/infra/regtest/up.sh" "$ADDR"
-mine 120
-wait_lwd 121
+step "regtest chain (ths); the faucet funds the vault"
+"$ROOT/infra/regtest/up.sh"
+"$ROOT/infra/regtest/fund.sh" "$ADDR" 3
+TIP=$(curl -sf -X POST -H 'content-type: application/json' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"getblockcount","params":[]}' \
+  "http://127.0.0.1:$((18232 + ZAFE_REGTEST_PORT_OFFSET))" | sed 's/.*"result":\([0-9]*\).*/\1/')
+wait_lwd "$TIP"
 for who in A B C; do echo "$who: $(member "$who" sync)"; done
 
 step "A proposes 1 ZEC to an outside recipient"

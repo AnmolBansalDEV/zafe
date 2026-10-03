@@ -181,4 +181,6 @@ The **Zakura node itself supports NU6.3 on regtest**. Started with `"NU5"`, `"NU
 
 **Zafe's workaround until then:** run `zakuracore/zakura:1.4.0` and the `ths` lightwalletd image directly with our own NU6.3 config (`infra/regtest/`).
 
-**Resolved (2026-10-02):** our PR #124 merged and shipped in `ths` v0.3.0 (Zakura 1.6.0, NU6.1-6.3 at height 1, Ironwood wallet). `infra/regtest/` now pins v0.3.0's images.
+**Resolved (2026-10-02):** our PR #124 merged and shipped in `ths` v0.3.0 (Zakura 1.6.0, NU6.1-6.3 at height 1, Ironwood wallet). Since 2026-10-04 `infra/regtest/` runs `ths` itself (`ths start`, faucet, `ths mine`); our own Zakura config is gone.
+
+**Possible follow-up (not filed):** in 0.3.0, `ths --name X stop` from another shell deletes the environment but leaves the foreground `ths start` launcher running (it only exits on a signal). `infra/regtest/down.sh` sends SIGINT instead.

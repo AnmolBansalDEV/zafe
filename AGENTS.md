@@ -24,7 +24,7 @@ cargo test --workspace                                        # ~68 tests, 3 ign
 ZAFE_REGEN_VECTORS=1 cargo test -p zafe-core --test zip2005_vectors
 python3 scripts/check_zip2005_vectors.py
 
-# Live Ironwood regtest (Docker): in-process end-to-end spend
+# Live Ironwood regtest (Docker + `ths`, see Regtest below): in-process end-to-end spend
 cargo test -p zafe-core --test regtest_e2e -- --ignored --nocapture
 # M0 acceptance: three separate `zafe` CLI processes through the relay on regtest
 scripts/m0-e2e.sh
@@ -59,7 +59,7 @@ crates/zafe-proto   identities, signed/HPKE envelopes, vault log, relay API type
                     (no Zcash deps, so the relay can use it)
 crates/zafe-relay   blind axum relay on SQLite (ZAFE_RELAY_DB), push hook, pruning
 crates/zafe-cli     `zafe` binary: headless member for tests (dev-only plain-file state)
-infra/regtest       Zakura + lightwalletd regtest with NU6.3 active (up.sh / down.sh)
+infra/regtest       regtest through `ths` with NU6.3 active (up.sh / fund.sh / down.sh)
 infra/relay         relay Dockerfile, fly.toml template, VPS recipe (systemd + Caddy),
                     backups; README says what the user must do to deploy (not deployed)
 scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
@@ -494,21 +494,30 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
 
 ## Regtest (infra/regtest)
 
-- Node: `zakuracore/zakura:1.6.0` (what `ths` v0.3.0 runs); NU5..NU6.3 all at height 1, `disable_pow = true`.
-- NU6.1's activation block needs a ZIP 271 lockbox disbursement: use the **zero-value marker**
-  `t26YoyZ1iPgiMEWL4zGUm74eVWfhyDMXzY2` amount 0, or blocks are rejected.
-- Coinbase to a **unified address lands in Ironwood**: fund a vault by mining to its address;
-  coinbase matures after 100 blocks (mine ~120). Mining fees return via coinbase.
-- lightwalletd: `ghcr.io/zcashlabs/thus-spoke-zakura-lightwalletd:0.3.0` (Ironwood-aware).
-- Keep both pins on the latest `ths` release (`crates/ths-cli/src/runtime.rs` `ZAKURA_IMAGE`;
-  lightwalletd is tagged with the release version), so our tests catch its bugs. `ths`
-  v0.3.0 (2026-10-02, our PR #124) activates NU6.1-6.3 at height 1 with the same lockbox
-  marker; it doesn't set `disable_pow` (costs only ~3 s per 120 blocks: 15.9 s vs 12.7 s).
-  We still start the two containers ourselves (`up.sh`) rather than through `ths start`
-  because our tests mine coinbase straight to the vault's address; `ths` mines to its own
-  wallet and funds others with `ths faucet` (≤ 5 ZEC each). `ths` already has `--name`
-  (isolated `ths-<name>-*` environments) and `start --port-offset` (multiples of 10);
-  `start` stays in the foreground and deletes the environment when interrupted.
+- **Regtest is `ths`** (thus-spoke-zakura, pinned `THS_VERSION` in `up.sh`, currently 0.3.0:
+  Zakura 1.6.0 + its lightwalletd, NU5..NU6.3 at height 1), so our tests also exercise ths
+  and catch its bugs. Keep the pin on the latest ths release. Install:
+  `curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/zcashlabs/thus-spoke-zakura/main/install.sh | THS_VERSION=0.3.0 sh`
+  (to `~/.local/bin`; `THS=/path/to/ths` overrides). `up.sh` refuses another version.
+- `up.sh` runs `ths --name $ZAFE_REGTEST_NAME start --no-open --port-offset
+  $ZAFE_REGTEST_PORT_OFFSET` under `setsid nohup` (it stays in the foreground and deletes
+  the environment when interrupted), pid + log in `~/.cache/zafe-regtest/`, and waits for
+  "is ready" (~10 s). Ports: RPC 18232, lightwalletd 9067, dashboard 32805, each + offset
+  (multiple of 10, at most 32730). Offsets in use: harness 0, `regtest_e2e` 30000,
+  `bridge_e2e` 30100, `m0-e2e.sh` 30200. `down.sh` sends SIGINT, then `ths stop`.
+  Gotcha (0.3.0): `ths stop` deletes the environment but leaves the foreground launcher
+  running; only SIGINT ends it.
+- **Funding**: ths mines to its own wallet, so vaults are funded from the faucet:
+  `fund.sh <ua> [notes]` = `notes` x 5 ZEC (the faucet's maximum) to the Ironwood receiver,
+  then 12 blocks so they pass the default confirmation policy. One note per proposal that
+  holds notes at the same time (reservation), so tests ask for several. Faucet receipts are
+  ordinary payments: nothing tests coinbase receipts (`is_coinbase`) any more.
+  Mine with `ths --name <name> mine N` (fast; proof of work on costs ~3 s per 120 blocks).
+- Every start is a **fresh chain** (ths keeps none), so `app-harness.sh resume` refunds
+  the vault and deletes the CLI members' wallets.
+- Background (no longer our config): NU6.1's activation block needs a ZIP 271 lockbox
+  disbursement; ths uses the zero-value marker `t26YoyZ1iPgiMEWL4zGUm74eVWfhyDMXzY2`.
+  Coinbase to a unified address lands in Ironwood.
 
 ## Mobile findings (spec V7/V8)
 

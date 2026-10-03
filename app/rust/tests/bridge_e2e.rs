@@ -2,7 +2,7 @@
 //! for three members on a live Ironwood regtest chain: create/join/seal, keygen, fund,
 //! sync, propose, review, approve, answer signing requests, and send.
 //!
-//! Needs Docker. `cargo test -p rust_lib_zafe --test bridge_e2e -- --ignored --nocapture`
+//! Needs Docker and `ths` (see `infra/regtest/up.sh`). `cargo test -p rust_lib_zafe --test bridge_e2e -- --ignored --nocapture`
 
 use std::{path::PathBuf, process::Command, thread, time::Duration};
 
@@ -14,10 +14,14 @@ use rust_lib_zafe::api::{
 };
 
 const NAME: &str = "zafe-bridge";
-const RPC_PORT: u16 = 48332;
-const LWD_PORT: u16 = 49167;
+// ths moves every port by this offset: Zakura RPC 48332, lightwalletd 39167.
+const PORT_OFFSET: u16 = 30100;
+const LWD_PORT: u16 = 9067 + PORT_OFFSET;
 const RELAY_PORT: u16 = 48887;
+/// 5 ZEC faucet notes the vault starts with.
+const FUND_NOTES: u32 = 6;
 
+/// A `ths` (thus-spoke-zakura) environment started by `infra/regtest/up.sh`.
 struct Regtest;
 
 impl Regtest {
@@ -27,37 +31,36 @@ impl Regtest {
             .join(name)
     }
 
-    fn start(miner_address: &str) -> Self {
+    fn start() -> Self {
         let status = Command::new(Self::script("up.sh"))
-            .arg(miner_address)
             .env("ZAFE_REGTEST_NAME", NAME)
-            .env("ZAFE_REGTEST_RPC_PORT", RPC_PORT.to_string())
-            .env("ZAFE_REGTEST_LWD_PORT", LWD_PORT.to_string())
+            .env("ZAFE_REGTEST_PORT_OFFSET", PORT_OFFSET.to_string())
             .status()
             .expect("run up.sh");
         assert!(status.success(), "regtest failed to start");
         Self
     }
 
+    /// Several 5 ZEC faucet notes, confirmed.
+    fn fund(&self, address: &str, notes: u32) {
+        let status = Command::new(Self::script("fund.sh"))
+            .args([address, &notes.to_string()])
+            .env("ZAFE_REGTEST_NAME", NAME)
+            .status()
+            .expect("run fund.sh");
+        assert!(status.success(), "funding failed");
+    }
+
     fn mine(&self, blocks: u32) {
-        let out = Command::new("curl")
-            .args([
-                "-s",
-                "-X",
-                "POST",
-                "-H",
-                "content-type: application/json",
-                "--data",
-            ])
-            .arg(format!(
-                r#"{{"jsonrpc":"2.0","id":1,"method":"generate","params":[{blocks}]}}"#
-            ))
-            .arg(format!("http://127.0.0.1:{RPC_PORT}"))
+        let ths = std::env::var("THS").unwrap_or_else(|_| "ths".into());
+        let out = Command::new(ths)
+            .args(["--name", NAME, "mine", &blocks.to_string()])
             .output()
-            .expect("curl");
+            .expect("run ths mine");
         assert!(
-            String::from_utf8_lossy(&out.stdout).contains("\"result\""),
-            "generate failed"
+            out.status.success(),
+            "ths mine failed: {}",
+            String::from_utf8_lossy(&out.stderr)
         );
     }
 }
@@ -192,9 +195,9 @@ fn payment_flow_through_bridge() {
         })
         .collect();
 
-    // Fund the vault by mining to it; coinbase matures after 100 blocks.
-    let chain = Regtest::start(&summary.address);
-    chain.mine(120);
+    // Fund the vault from the ths faucet: one note per proposal that holds notes at once.
+    let chain = Regtest::start();
+    chain.fund(&summary.address, FUND_NOTES);
     let sync = |m: &Member| {
         vault::sync_vault(
             m.db_dir.clone(),
@@ -208,7 +211,7 @@ fn payment_flow_through_bridge() {
     };
     let mut balance = sync(&members[0]);
     for _ in 0..60 {
-        if balance.height >= 121 && balance.spendable_zat > 0 {
+        if balance.spendable_zat > 0 {
             break;
         }
         thread::sleep(Duration::from_secs(1));
@@ -229,13 +232,13 @@ fn payment_flow_through_bridge() {
         .unwrap()
         .starts_with(b"SQLite format 3"));
 
-    // The mining rewards show up as received payments (coinbase, mined, with block times).
+    // The faucet payments show up as received payments (mined, with block times).
     let received_list = |m: &Member| {
         received::list_received(m.db_dir.clone(), m.db_key.clone(), m.material.clone()).unwrap()
     };
     let incoming = received_list(&members[0]);
     assert!(!incoming.is_empty(), "no received payments listed");
-    assert!(incoming.iter().all(|r| r.is_coinbase
+    assert!(incoming.iter().all(|r| !r.is_coinbase
         && r.mined_height > 0
         && r.block_time_secs > 0
         && r.confirmations >= 1));
@@ -492,7 +495,7 @@ fn payment_flow_through_bridge() {
     // The vault's own payment (and its change) is not an incoming payment.
     let incoming_after = received_list(&members[2]);
     assert!(incoming_after.iter().all(|r| r.txid != txid));
-    assert!(incoming_after.iter().all(|r| r.is_coinbase));
+    assert_eq!(incoming_after.len(), incoming.len());
 
     // --- One tap. Every member refreshed its proposal list above, which published its
     // commitments, so this proposal is signed at approval time: A and B each approve once,
@@ -700,7 +703,7 @@ fn payment_flow_through_bridge() {
     assert_eq!(s.stage, ProposalStage::Sent);
 
     // History export (CSV): both sent payments with payee, amount, fee and memo, plus the
-    // mining rewards received. A signer named on this device shows as "Name (hexkey)".
+    // faucet payments received. A signer named on this device shows as "Name (hexkey)".
     let a_key = rust_lib_zafe::api::vault::identity_public_key(a.seeds.clone()).unwrap();
     let csv = rust_lib_zafe::api::history::export_history_csv(
         relay.clone(),
@@ -725,7 +728,11 @@ fn payment_flow_through_bridge() {
     assert!(sent
         .iter()
         .any(|l| l.contains(&txid2) && l.contains(",-0.50000000,")));
-    assert!(lines.iter().filter(|l| l.contains(",received,")).count() >= 100);
+    assert_eq!(
+        lines.iter().filter(|l| l.contains(",received,")).count(),
+        FUND_NOTES as usize,
+        "{csv}"
+    );
 
     // --- Pending incoming payments. A second vault (2-of-2: D creates, E joins) is paid by
     // the first one. E's app watches lightwalletd's mempool, so the payment is listed as

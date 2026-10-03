@@ -1,9 +1,9 @@
-//! End-to-end on a local Ironwood regtest network (Zakura + lightwalletd in Docker):
-//! a 2-of-3 vault is funded by mining to its address, every member syncs its own wallet,
+//! End-to-end on a local Ironwood regtest network (`ths`: Zakura + lightwalletd in Docker):
+//! a 2-of-3 vault is funded from the `ths` faucet, every member syncs its own wallet,
 //! one member proposes a payment, members approve and sign, and the transaction is
 //! proven, broadcast, mined and seen by the recipient.
 //!
-//! Needs Docker. Run with:
+//! Needs Docker and `ths` (see `infra/regtest/up.sh`). Run with:
 //!   cargo test -p zafe-core --test regtest_e2e -- --ignored --nocapture
 
 use std::{collections::BTreeMap, path::PathBuf, process::Command};
@@ -31,55 +31,69 @@ mod common;
 use common::{params, run_keygen};
 
 const NAME: &str = "zafe-e2e";
-const RPC_PORT: u16 = 38232;
-const LWD_PORT: u16 = 39067;
+// ths moves every port by this offset: Zakura RPC 48232, lightwalletd 39067.
+const PORT_OFFSET: u16 = 30000;
+const LWD_PORT: u16 = 9067 + PORT_OFFSET;
 
+/// A `ths` (thus-spoke-zakura) environment started by `infra/regtest/up.sh`.
 struct Regtest;
 
 impl Regtest {
-    fn start(miner_address: &str) -> Self {
-        let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../infra/regtest/up.sh");
-        let status = Command::new(script)
-            .arg(miner_address)
+    fn script(name: &str) -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../infra/regtest")
+            .join(name)
+    }
+
+    fn start() -> Self {
+        let status = Command::new(Self::script("up.sh"))
             .env("ZAFE_REGTEST_NAME", NAME)
-            .env("ZAFE_REGTEST_RPC_PORT", RPC_PORT.to_string())
-            .env("ZAFE_REGTEST_LWD_PORT", LWD_PORT.to_string())
+            .env("ZAFE_REGTEST_PORT_OFFSET", PORT_OFFSET.to_string())
             .status()
             .expect("run up.sh");
         assert!(status.success(), "regtest failed to start");
         Self
     }
 
-    fn rpc(&self, method: &str, params: &str) -> String {
-        let out = Command::new("curl")
-            .args([
-                "-s",
-                "-X",
-                "POST",
-                "-H",
-                "content-type: application/json",
-                "--data",
-            ])
-            .arg(format!(
-                r#"{{"jsonrpc":"2.0","id":1,"method":"{method}","params":{params}}}"#
-            ))
-            .arg(format!("http://127.0.0.1:{RPC_PORT}"))
-            .output()
-            .expect("curl");
-        String::from_utf8_lossy(&out.stdout).into_owned()
+    /// Several 5 ZEC faucet notes, confirmed.
+    fn fund(&self, address: &str, notes: u32) {
+        let status = Command::new(Self::script("fund.sh"))
+            .args([address, &notes.to_string()])
+            .env("ZAFE_REGTEST_NAME", NAME)
+            .status()
+            .expect("run fund.sh");
+        assert!(status.success(), "funding failed");
     }
 
     fn mine(&self, blocks: u32) {
-        let reply = self.rpc("generate", &format!("[{blocks}]"));
-        assert!(reply.contains("\"result\""), "generate failed: {reply}");
+        let ths = std::env::var("THS").unwrap_or_else(|_| "ths".into());
+        let out = Command::new(ths)
+            .args(["--name", NAME, "mine", &blocks.to_string()])
+            .output()
+            .expect("run ths mine");
+        assert!(
+            out.status.success(),
+            "ths mine failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
     }
 }
 
 impl Drop for Regtest {
     fn drop(&mut self) {
-        let script = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../infra/regtest/down.sh");
-        let _ = Command::new(script).env("ZAFE_REGTEST_NAME", NAME).status();
+        let _ = Command::new(Self::script("down.sh"))
+            .env("ZAFE_REGTEST_NAME", NAME)
+            .status();
     }
+}
+
+async fn chain_tip(client: &mut zafe_core::wallet::Client) -> u64 {
+    client
+        .get_latest_block(zcash_client_backend::proto::service::ChainSpec::default())
+        .await
+        .expect("chain tip")
+        .into_inner()
+        .height
 }
 
 async fn wait_for_lightwalletd_height(client: &mut zafe_core::wallet::Client, height: u64) {
@@ -117,12 +131,14 @@ async fn vault_pays_on_regtest() {
     .encode(&network);
     println!("vault address: {vault_ua}");
 
-    // 2. Start regtest paying coinbase to the vault; mine past coinbase maturity.
-    let chain = Regtest::start(&vault_ua);
-    chain.mine(120);
+    // 2. Start regtest and fund the vault from the ths faucet: several notes, so the
+    // reservation checks below have notes to spare.
+    let chain = Regtest::start();
+    chain.fund(&vault_ua, 4);
     let lwd = format!("http://127.0.0.1:{LWD_PORT}");
     let mut client = connect(&lwd).await.expect("lightwalletd");
-    wait_for_lightwalletd_height(&mut client, 121).await;
+    let funded = chain_tip(&mut client).await;
+    wait_for_lightwalletd_height(&mut client, funded).await;
 
     // 3. Each member keeps its own wallet database and syncs independently.
     let dir = tempdir();
