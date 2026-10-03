@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'core/security/app_lock_gate.dart';
 import 'core/theme/app_theme_host.dart';
 import 'core/theme/material_theme.dart';
 import 'features/backup/backup_prompt_screen.dart';
@@ -25,12 +26,17 @@ import 'features/proposals/proposal_screen.dart';
 import 'features/proposals/sending_screen.dart';
 import 'features/receive/receive_screen.dart';
 import 'features/received/received_screen.dart';
+import 'core/widgets/app_icon.dart';
+import 'core/widgets/app_toast.dart';
+import 'features/send/payment_link.dart';
+import 'features/send/payment_request_screen.dart';
 import 'features/send/send_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/recover/recover_screen.dart';
 import 'features/settings/vault_protection_screen.dart';
 import 'features/signers/replace_signer_screen.dart';
 import 'features/settings/viewing_key_screen.dart';
+import 'providers/device_lock_provider.dart';
 import 'providers/tor_provider.dart';
 import 'providers/mempool_watch_provider.dart';
 import 'providers/theme_mode_provider.dart';
@@ -110,6 +116,56 @@ final _routerProvider = Provider<GoRouter>((ref) {
     openInviteLink();
   });
 
+  // Payment links (`zcash:`) open the payment request screen, which warns, shows the
+  // details and lets the owner pick a vault; nothing is proposed without their tick and
+  // the send flow after it. A link waits while the app is locked, during key generation
+  // and on the backup prompt, and is dropped once it waited past `kPaymentLinkTtl`.
+  void openPaymentLink() {
+    final link = paymentLinks.value;
+    if (link == null) return;
+    void tell(String message) {
+      final context = router.routerDelegate.navigatorKey.currentContext;
+      if (context == null) return;
+      showAppToast(
+        context,
+        message,
+        iconName: AppIcons.warningCircle,
+        duration: const Duration(seconds: 4),
+      );
+    }
+
+    if (paymentLinkExpired(link, DateTime.now())) {
+      paymentLinks.value = null;
+      tell(kPaymentLinkExpiredMessage);
+      return;
+    }
+    if (ref.read(appLockedProvider)) return;
+    final vaults = ref.read(vaultProvider);
+    if (!vaults.vaults.any((v) => v.ready)) {
+      paymentLinks.value = null;
+      tell(kPaymentLinkNoVaultMessage);
+      return;
+    }
+    if (vaults.isSettingUp && (vaults.membership?.sealed ?? false)) return;
+    final here = router.routerDelegate.currentConfiguration.uri.path;
+    if (here == '/backup-prompt') return;
+    paymentLinks.value = null;
+    // A newer link replaces the one on screen.
+    here == '/payment-request'
+        ? router.pushReplacement('/payment-request', extra: link)
+        : router.push('/payment-request', extra: link);
+  }
+
+  paymentLinks.addListener(openPaymentLink);
+  ref.onDispose(() => paymentLinks.removeListener(openPaymentLink));
+  ref.listen(appLockedProvider, (_, _) => scheduleMicrotask(openPaymentLink));
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    void retry() => scheduleMicrotask(openPaymentLink);
+    router.routerDelegate.addListener(retry);
+    ref.onDispose(() => router.routerDelegate.removeListener(retry));
+    openPaymentLink();
+  });
+
   return router = GoRouter(
     initialLocation: initial,
     redirect: (context, state) {
@@ -131,6 +187,8 @@ final _routerProvider = Provider<GoRouter>((ref) {
         '/scan-recipient',
         '/scan-recovery',
       ].any(loc.startsWith);
+      // Picks its own vault, so it also opens while another one is being added.
+      if (loc == '/payment-request') return null;
       if (vault.hasVault && !inVault) return '/home';
       if (!vault.hasVault && inVault) {
         return vault.isSettingUp ? '/setup' : '/welcome';
@@ -236,6 +294,12 @@ final _routerProvider = Provider<GoRouter>((ref) {
             page(const SecureScreen(child: ViewingKeyScreen())),
       ),
       GoRoute(
+        path: '/payment-request',
+        pageBuilder: (_, state) => page(
+          PaymentRequestScreen(link: state.extra! as PendingPaymentLink),
+        ),
+      ),
+      GoRoute(
         path: '/send',
         pageBuilder: (_, state) =>
             page(SendScreen(prefill: state.extra as SendPrefill?)),
@@ -275,6 +339,8 @@ class ZafeApp extends ConsumerWidget {
         darkTheme: buildMaterialDarkTheme(),
         themeMode: themeMode,
         routerConfig: ref.watch(_routerProvider),
+        // Over every route, sheet and toast: the app lock.
+        builder: (context, child) => AppLockGate(child: child!),
       ),
     );
   }

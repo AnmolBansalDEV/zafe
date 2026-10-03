@@ -80,6 +80,14 @@
 				<string>zafe</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>xyz.zafe.zafe.payment</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>zcash</string>
+			</array>
+		</dict>
 	</array>
 	<key>FlutterDeepLinkingEnabled</key>
 	<false/>

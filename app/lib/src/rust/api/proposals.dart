@@ -663,14 +663,28 @@ class ScannedPayment {
   /// Text memo (empty if none or not text).
   final String memo;
 
+  /// What the link calls the recipient (ZIP 321 `label`; empty if none). Written by
+  /// whoever made the link: show it as the link's claim, never as verified.
+  final String label;
+
+  /// The link's note to the payer (ZIP 321 `message`; empty if none). Same caveat.
+  final String message;
+
   const ScannedPayment({
     required this.address,
     required this.amountZat,
     required this.memo,
+    required this.label,
+    required this.message,
   });
 
   @override
-  int get hashCode => address.hashCode ^ amountZat.hashCode ^ memo.hashCode;
+  int get hashCode =>
+      address.hashCode ^
+      amountZat.hashCode ^
+      memo.hashCode ^
+      label.hashCode ^
+      message.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -679,7 +693,9 @@ class ScannedPayment {
           runtimeType == other.runtimeType &&
           address == other.address &&
           amountZat == other.amountZat &&
-          memo == other.memo;
+          memo == other.memo &&
+          label == other.label &&
+          message == other.message;
 }
 
 class ScannedRequest {

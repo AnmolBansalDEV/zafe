@@ -15,6 +15,7 @@ import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/app_toast.dart';
 import '../../core/widgets/mobile/mobile_list_row.dart';
 import '../../core/widgets/mobile/mobile_surface_card.dart';
+import '../../core/security/app_lock.dart';
 import '../../core/security/unlock_gate.dart';
 import '../../providers/device_lock_provider.dart';
 import '../../providers/endpoints_provider.dart';
@@ -42,6 +43,7 @@ class SettingsScreen extends ConsumerWidget {
     final hideAmounts = ref.watch(privacyModeProvider);
     final themeMode = ref.watch(themeModeProvider);
     final requireUnlock = ref.watch(requireUnlockProvider);
+    final appLock = ref.watch(appLockDelayProvider);
     final hasScreenLock = ref.watch(hasScreenLockProvider).value;
     final me = vault.myKeyHex;
     final endpoints = ref.watch(endpointsProvider);
@@ -159,6 +161,15 @@ class SettingsScreen extends ConsumerWidget {
                           value: hideAmounts ? 'On' : 'Off',
                           onTap: () =>
                               ref.read(privacyModeProvider.notifier).toggle(),
+                        ),
+                        row(
+                          icon: appLock == AppLockDelay.off
+                              ? AppIcons.unlock
+                              : AppIcons.lock,
+                          label: 'Lock app',
+                          value: appLock.label,
+                          chevron: true,
+                          onTap: () => _pickAppLock(context, ref, appLock),
                         ),
                         row(
                           icon: requireUnlock ? AppIcons.lock : AppIcons.unlock,
@@ -366,6 +377,41 @@ class SettingsScreen extends ConsumerWidget {
     await ref.read(requireUnlockProvider.notifier).set(!current);
   }
 
+  /// Turning the app lock off or making it wait longer needs an unlock; making it
+  /// stricter doesn't.
+  Future<void> _pickAppLock(
+    BuildContext context,
+    WidgetRef ref,
+    AppLockDelay current,
+  ) async {
+    final selected = await showAppMobileSheet<AppLockDelay>(
+      context: context,
+      builder: (_) => _OptionsSheet<AppLockDelay>(
+        title: 'Lock app',
+        current: current,
+        options: [
+          for (final d in AppLockDelay.values)
+            (
+              d,
+              d == AppLockDelay.off ? AppIcons.unlock : AppIcons.lock,
+              d.label,
+            ),
+        ],
+      ),
+    );
+    if (selected == null || selected == current || !context.mounted) return;
+    if (current.weakenedBy(selected) &&
+        !await confirmUnlock(
+          context,
+          ref,
+          reason: 'Unlock to change the app lock',
+          always: true,
+        )) {
+      return;
+    }
+    await ref.read(appLockDelayProvider.notifier).set(selected);
+  }
+
   Future<void> _pickTheme(
     BuildContext context,
     WidgetRef ref,
@@ -373,7 +419,15 @@ class SettingsScreen extends ConsumerWidget {
   ) async {
     final selected = await showAppMobileSheet<ThemeMode>(
       context: context,
-      builder: (_) => _ThemeSheet(current: current),
+      builder: (_) => _OptionsSheet<ThemeMode>(
+        title: 'Theme',
+        current: current,
+        options: const [
+          (ThemeMode.system, AppIcons.monitor, 'System (Auto)'),
+          (ThemeMode.light, AppIcons.day, 'Light'),
+          (ThemeMode.dark, AppIcons.night, 'Dark'),
+        ],
+      ),
     );
     if (selected != null && selected != current) {
       await ref.read(themeModeProvider.notifier).set(selected);
@@ -510,28 +564,29 @@ class _Group extends StatelessWidget {
 }
 
 /// Theme picker: option cards with a radio mark, committed with Update.
-class _ThemeSheet extends StatefulWidget {
-  const _ThemeSheet({required this.current});
-  final ThemeMode current;
+/// Pick one of a few options (theme, app lock); pops the chosen value on "Update".
+class _OptionsSheet<T> extends StatefulWidget {
+  const _OptionsSheet({
+    required this.title,
+    required this.options,
+    required this.current,
+  });
+  final String title;
+  final List<(T, String, String)> options;
+  final T current;
 
   @override
-  State<_ThemeSheet> createState() => _ThemeSheetState();
+  State<_OptionsSheet<T>> createState() => _OptionsSheetState<T>();
 }
 
-class _ThemeSheetState extends State<_ThemeSheet> {
-  late ThemeMode _selected = widget.current;
-
-  static const _options = [
-    (ThemeMode.system, AppIcons.monitor, 'System (Auto)'),
-    (ThemeMode.light, AppIcons.day, 'Light'),
-    (ThemeMode.dark, AppIcons.night, 'Dark'),
-  ];
+class _OptionsSheetState<T> extends State<_OptionsSheet<T>> {
+  late T _selected = widget.current;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     return MobileModalScaffold(
-      title: 'Theme',
+      title: widget.title,
       onClose: () => Navigator.of(context).pop(),
       bodyGap: AppSpacing.md,
       bottomPadding: AppSpacing.base,
@@ -539,7 +594,7 @@ class _ThemeSheetState extends State<_ThemeSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          for (final (mode, icon, label) in _options) ...[
+          for (final (mode, icon, label) in widget.options) ...[
             Semantics(
               button: true,
               selected: mode == _selected,

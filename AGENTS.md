@@ -844,6 +844,43 @@ Learned while studying it:
   act on approvals the owner already gave with an unlock. `local_auth` 3.x needs
   `MainActivity : FlutterFragmentActivity` (else `uiUnavailable` → every gated action is
   blocked), `USE_BIOMETRIC`, and iOS `NSFaceIDUsageDescription`.
+- **App lock** (spec §14; `core/security/app_lock.dart` pure rules,
+  `app_lock_gate.dart` `AppLockGate` = `MaterialApp.builder`, so the lock screen covers
+  routes, sheets and toasts while the screen underneath stays mounted with input, focus
+  and semantics excluded). Locks at launch when a vault exists and on resume after the
+  "Lock app" delay (`zafe_app_lock`: off / immediately / 1 min default / 5 min, read in
+  the bootstrap; weakening it needs an unlock). `appLockedProvider` holds the state.
+  Gotcha: the device-credential prompt is another activity, so the app goes `hidden`
+  behind it; `DeviceAuth.prompting` marks that so unlocking (or a `confirmUnlock`)
+  doesn't lock the app again, and a cancelled prompt waits for a tap instead of
+  re-prompting. No screen lock on the phone → the app unlocks (Settings warns). It is
+  separate from "Require unlock to approve" (per action). Background engines are
+  unaffected. Not done: hiding content in the recent-apps thumbnail. Emulator test: the
+  AVD has no screen lock (the lock then opens at once); `adb shell locksettings set-pin
+  1234`, unlock with `adb shell input text 1234` + `KEYCODE_ENTER`, and `locksettings
+  clear --old 1234` afterwards. The PIN prompt is a secure window (black screenshots;
+  read it with `agent-device snapshot`); one Back cancels it, a second leaves the app.
+  Verified 2026-10-04: launch lock, cancel without re-prompt, "Immediately" without a
+  relock loop, weakening asks for the PIN.
+- **Payment links** (`zcash:`, ZIP 321; "Pay with Zcash" on a site or another app):
+  Android intent filter + iOS `CFBundleURLSchemes`; `services/invite_links.dart` reads
+  `app_links`' **string** stream (a payment link reaches Rust exactly as delivered) into
+  `paymentLinks` (`features/send/payment_link.dart`, latest wins). `app.dart`'s
+  `openPaymentLink` waits while locked, during keygen and on `/backup-prompt`, drops a
+  link older than `kPaymentLinkTtl` (10 min, Vizor's rule: an old link must not turn
+  into a payment on some later unlock) or with no ready vault (toast), then pushes
+  `/payment-request` (exempt from the vault redirect: it picks its own vault).
+  `PaymentRequestScreen`: "Check who sent this" warning, full address, the link's
+  `label`/`message` shown as "(not verified)" (bridge `ScannedPayment.label/message`),
+  a "Pay from" vault picker when there are several, the approval rule, and Continue
+  only after "I know who sent this..." is ticked; Continue switches vault and opens
+  `/send` prefilled (`SendPrefill.fromLink`: review step, or amount when the link has
+  none). Proposing still takes `confirmUnlock` and t approvals. Test:
+  `adb shell "am start -a android.intent.action.VIEW -d 'zcash:<ua>?amount=1&label=Shop'"`.
+  Preview: `flutter test tool/screens/payment_request_render_test.dart`. Verified on the
+  emulator 2026-10-04: cold start through the lock, warm link, Continue → Review
+  ("PAYMENT REQUEST"). Backing out to the launcher ends the activity, so a link still
+  waiting behind the lock is gone when the app is reopened from the launcher.
 - **Backups** (spec §12.2; `zafe_core::backup`, bridge `api/backup.rs`, app `features/backup/`):
   `ZAFEBAK` v2 = header (Argon2id params, salt, nonce; authenticated as AEAD data) +
   XChaCha20-Poly1305 of {identity seeds, material, invite, signer names}; **never nonces**
@@ -922,7 +959,7 @@ Learned while studying it:
   -Pdart-defines=<base64 of NAME=value>`. Landing site + `assetlinks.json`/AASA:
   `infra/site/` (README). iOS Associated Domains not added yet (iOS has never been built;
   the entitlement breaks signing without a team). `services/invite_links.dart` feeds
-  `inviteLinks` (its stream also delivers the launch link); `app.dart` opens
+  `inviteLinks` and `paymentLinks` (its stream also delivers the launch link); `app.dart` opens
   `/welcome` + push `/join?invite=` (calling `beginAddVault` when a vault is active) and
   defers while keys are being made or on `/backup-prompt`. Test on a device with
   `adb shell "am start -a android.intent.action.VIEW -d 'zafe://join?invite=zafe-invite-v1:...'"`

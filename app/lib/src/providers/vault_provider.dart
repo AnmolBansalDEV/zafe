@@ -13,7 +13,8 @@ import '../core/storage/vault_summaries.dart';
 import '../core/storage/zafe_paths.dart';
 import '../core/storage/zafe_secure_store.dart';
 import '../rust/api/vault.dart' as rust;
-import 'device_lock_provider.dart' show kRequireUnlockKey;
+import '../core/security/app_lock.dart';
+import 'device_lock_provider.dart' show kAppLockKey, kRequireUnlockKey;
 import 'endpoints_provider.dart';
 import 'privacy_mode_provider.dart' show kPrivacyModeKey;
 import 'theme_mode_provider.dart' show kThemeModeKey, themeModeFromName;
@@ -29,6 +30,7 @@ class VaultBootstrap {
     this.privacyMode = false,
     this.themeMode = ThemeMode.system,
     this.requireUnlock = true,
+    this.appLock = AppLockDelay.standard,
     this.endpoints = ZafeEndpoints.defaults,
     this.useTor = false,
   });
@@ -37,6 +39,7 @@ class VaultBootstrap {
   final bool privacyMode;
   final ThemeMode themeMode;
   final bool requireUnlock;
+  final AppLockDelay appLock;
   final ZafeEndpoints endpoints;
 
   /// "Use Tor" (the route was already switched in `main()`; see `torProvider`).
@@ -64,6 +67,7 @@ class VaultBootstrap {
       privacyMode: prefs.getBool(kPrivacyModeKey) ?? false,
       themeMode: themeModeFromName(prefs.getString(kThemeModeKey)),
       requireUnlock: prefs.getBool(kRequireUnlockKey) ?? true,
+      appLock: AppLockDelay.fromName(prefs.getString(kAppLockKey)),
       endpoints: ZafeEndpoints.fromPrefs(prefs),
       useTor: prefs.getBool(kUseTorKey) ?? false,
     );

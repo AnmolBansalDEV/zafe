@@ -86,6 +86,7 @@ class DeviceAuth {
       return UnlockOutcome.failed;
     }
     if (!hasLock) return UnlockOutcome.noScreenLock;
+    _prompting++;
     try {
       final ok = await _authenticator.authenticate(reason);
       return ok ? UnlockOutcome.unlocked : UnlockOutcome.cancelled;
@@ -93,8 +94,16 @@ class DeviceAuth {
       return outcomeForError(e.code);
     } catch (_) {
       return UnlockOutcome.failed;
+    } finally {
+      _prompting--;
     }
   }
+
+  static int _prompting = 0;
+
+  /// True while a system unlock prompt is up. The PIN screen is another activity, so
+  /// the app goes to the background behind it; the app lock must not count that.
+  static bool get prompting => _prompting > 0;
 
   static UnlockOutcome outcomeForError(LocalAuthExceptionCode code) =>
       switch (code) {

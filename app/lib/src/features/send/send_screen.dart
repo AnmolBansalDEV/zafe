@@ -35,11 +35,19 @@ import 'recipients_csv.dart';
 
 enum _Step { recipient, amount, review }
 
-/// Payments to propose again (an expired proposal): opens the review step prefilled.
+/// Payments to propose again (an expired proposal), or from a `zcash:` payment link:
+/// opens the review step prefilled, or the amount step when the link left it out.
 class SendPrefill {
-  const SendPrefill({required this.payments, required this.autoSend});
+  const SendPrefill({
+    required this.payments,
+    required this.autoSend,
+    this.fromLink = false,
+  });
   final List<rust.PaymentInput> payments;
   final bool autoSend;
+
+  /// From a payment link (the review card says "payment request").
+  final bool fromLink;
 }
 
 /// Most recipients in one proposal (spec: batch payments, 1..50).
@@ -94,7 +102,8 @@ class _SendScreenState extends ConsumerState<SendScreen> {
             .checkAddress(networkName: kZafeNetwork, address: p.address)
             .valid,
       );
-      if (allValid) _step = _Step.review;
+      final complete = prefill.payments.every((p) => p.amountZat > BigInt.zero);
+      if (allValid) _step = complete ? _Step.review : _Step.amount;
     }
   }
 
@@ -198,7 +207,7 @@ class _SendScreenState extends ConsumerState<SendScreen> {
   /// Puts `p` in the fields.
   void _edit(rust.PaymentInput p) {
     _address.text = p.address;
-    _amount.text = zecDecimal(p.amountZat);
+    _amount.text = p.amountZat == BigInt.zero ? '' : zecDecimal(p.amountZat);
     _memo = p.memo;
     _check = rust.checkAddress(networkName: kZafeNetwork, address: p.address);
   }
@@ -655,7 +664,9 @@ class _SendScreenState extends ConsumerState<SendScreen> {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       children: [
         PaymentCard(
-          label: batch ? 'NEW BATCH PAYMENT' : 'NEW PAYMENT',
+          label: widget.prefill?.fromLink ?? false
+              ? (batch ? 'BATCH PAYMENT REQUEST' : 'PAYMENT REQUEST')
+              : (batch ? 'NEW BATCH PAYMENT' : 'NEW PAYMENT'),
           amountText: amount.amountText,
           address: address,
           recipients: payments.length,

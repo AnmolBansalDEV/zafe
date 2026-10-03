@@ -2757,10 +2757,14 @@ impl SseDecode for crate::api::proposals::ScannedPayment {
         let mut var_address = <String>::sse_decode(deserializer);
         let mut var_amountZat = <u64>::sse_decode(deserializer);
         let mut var_memo = <String>::sse_decode(deserializer);
+        let mut var_label = <String>::sse_decode(deserializer);
+        let mut var_message = <String>::sse_decode(deserializer);
         return crate::api::proposals::ScannedPayment {
             address: var_address,
             amount_zat: var_amountZat,
             memo: var_memo,
+            label: var_label,
+            message: var_message,
         };
     }
 }
@@ -3652,6 +3656,8 @@ impl flutter_rust_bridge::IntoDart for crate::api::proposals::ScannedPayment {
             self.address.into_into_dart().into_dart(),
             self.amount_zat.into_into_dart().into_dart(),
             self.memo.into_into_dart().into_dart(),
+            self.label.into_into_dart().into_dart(),
+            self.message.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -4459,6 +4465,8 @@ impl SseEncode for crate::api::proposals::ScannedPayment {
         <String>::sse_encode(self.address, serializer);
         <u64>::sse_encode(self.amount_zat, serializer);
         <String>::sse_encode(self.memo, serializer);
+        <String>::sse_encode(self.label, serializer);
+        <String>::sse_encode(self.message, serializer);
     }
 }
 

@@ -28,6 +28,14 @@ fn plain_addresses_and_payment_links() {
     assert!(one.problem.is_empty(), "{}", one.problem);
     assert_eq!(one.payments[0].amount_zat, 125_000_000);
     assert_eq!(one.payments[0].memo, "Grant #7");
+    assert!(one.payments[0].label.is_empty() && one.payments[0].message.is_empty());
+
+    // The link's own label and message come through (percent-decoded) for display.
+    let uri = format!("zcash:{a}?amount=2&label=Coffee%20shop&message=Order%20%2342");
+    let labelled = parse_payment_request("regtest".into(), uri);
+    assert!(labelled.problem.is_empty(), "{}", labelled.problem);
+    assert_eq!(labelled.payments[0].label, "Coffee shop");
+    assert_eq!(labelled.payments[0].message, "Order #42");
 
     // Several recipients become a batch.
     let uri = format!("zcash:?address={a}&amount=1&address.1={b}&amount.1=0.5");

@@ -54,6 +54,15 @@
                 <category android:name="android.intent.category.BROWSABLE"/>
                 <data android:scheme="zafe" android:host="join"/>
             </intent-filter>
+            <!-- ZIP 321 payment links: zcash:<address>?amount=... ("Pay with Zcash" on a
+                 website or in another app). Opens the payment request screen; never pays
+                 by itself. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="zcash"/>
+            </intent-filter>
             <!-- Invite App Links: https://<ZAFE_LINK_HOST>/join#<invite> (host from the
                  dart-define, see build.gradle.kts). Verified against the site's
                  /.well-known/assetlinks.json (infra/site/); without a host it matches

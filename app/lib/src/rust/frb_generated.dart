@@ -2836,12 +2836,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ScannedPayment dco_decode_scanned_payment(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 3)
-      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return ScannedPayment(
       address: dco_decode_String(arr[0]),
       amountZat: dco_decode_u_64(arr[1]),
       memo: dco_decode_String(arr[2]),
+      label: dco_decode_String(arr[3]),
+      message: dco_decode_String(arr[4]),
     );
   }
 
@@ -3622,10 +3624,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_address = sse_decode_String(deserializer);
     var var_amountZat = sse_decode_u_64(deserializer);
     var var_memo = sse_decode_String(deserializer);
+    var var_label = sse_decode_String(deserializer);
+    var var_message = sse_decode_String(deserializer);
     return ScannedPayment(
       address: var_address,
       amountZat: var_amountZat,
       memo: var_memo,
+      label: var_label,
+      message: var_message,
     );
   }
 
@@ -4331,6 +4337,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.address, serializer);
     sse_encode_u_64(self.amountZat, serializer);
     sse_encode_String(self.memo, serializer);
+    sse_encode_String(self.label, serializer);
+    sse_encode_String(self.message, serializer);
   }
 
   @protected

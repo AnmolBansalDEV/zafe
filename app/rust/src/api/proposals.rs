@@ -82,6 +82,11 @@ pub struct ScannedPayment {
     pub amount_zat: u64,
     /// Text memo (empty if none or not text).
     pub memo: String,
+    /// What the link calls the recipient (ZIP 321 `label`; empty if none). Written by
+    /// whoever made the link: show it as the link's claim, never as verified.
+    pub label: String,
+    /// The link's note to the payer (ZIP 321 `message`; empty if none). Same caveat.
+    pub message: String,
 }
 
 pub struct ScannedRequest {
@@ -113,6 +118,8 @@ pub fn parse_payment_request(network_name: String, text: String) -> ScannedReque
                         .memo()
                         .map(|m| memo_text(m.as_slice()))
                         .unwrap_or_default(),
+                    label: p.label().cloned().unwrap_or_default(),
+                    message: p.message().cloned().unwrap_or_default(),
                 })
                 .collect::<Vec<_>>(),
             Err(_) => return fail("This payment link can't be read".into()),
@@ -122,6 +129,8 @@ pub fn parse_payment_request(network_name: String, text: String) -> ScannedReque
             address: text.to_owned(),
             amount_zat: 0,
             memo: String::new(),
+            label: String::new(),
+            message: String::new(),
         }]
     };
     if payments.is_empty() {

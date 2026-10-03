@@ -706,8 +706,15 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
   `app/rust/tests/payment_request.rs`. The invite card has "Share QR image" (PNG, white
   background, quiet zone) now that the screen blocks screenshots; Join's scanner can read
   it with "Choose image". Emulator: picked a QR image → amount, recipient and memo filled.
-  Not done: opening `zcash:` links from other apps (intent filter), live-camera test on a
-  phone
+  Not done: live-camera test on a phone. Opening `zcash:` links from other apps: done
+  2026-10-04 (see below)
+- [x] `zcash:` links from other apps + app lock (2026-10-04): intent filter / URL scheme,
+  payment request screen (warning, unverified label/message, vault picker, explicit
+  "I know who sent this" tick, then Send prefilled), link held until unlock and dropped
+  after 10 min; app-wide lock at launch and after a background delay (Settings → Lock
+  app). AGENTS.md "App lock" / "Payment links". Follow-ups: hide content in the
+  recent-apps thumbnail while locked or backgrounded; iOS untested (never built);
+  propose-up-front precheck (idea below)
 - *(idea)* Propose from a request: a scanned/pasted/opened `zcash:` URI shows a card that
   prechecks and builds the proposal up front (`lib/src/features/send/widgets/payment_request_host.dart`,
   `lib/src/features/send/services/payment_request_precheck.dart`)
