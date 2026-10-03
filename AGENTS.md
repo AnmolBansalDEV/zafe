@@ -472,6 +472,10 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
   `LaunchBackground` colour set (+ the storyboard fallback); keep them equal to
   `background.window` (#080B0B / #F1F5F5). Android 12+ splash
   attributes sit in the base `styles.xml` with `tools:targetApi="31"` (no `values-v31`).
+  The splash follows the app's theme setting, not just the OS: `AppThemeHost` sends it
+  over `xyz.zafe/window_appearance` (`setBrightness`), and on Android 12+ `MainActivity`
+  calls `UiModeManager.setApplicationNightMode`, which the OS persists for the next
+  launch's splash. Android < 12 and iOS (no handler yet) still follow the OS theme.
   Check resources without a Gradle build: `aapt2 compile --dir res` + `aapt2 link` against
   `platforms/android-36/android.jar`.
 - **Screen previews without a device**: `flutter test tool/screens/home_render_test.dart`

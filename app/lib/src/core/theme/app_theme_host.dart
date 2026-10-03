@@ -29,7 +29,7 @@ class AppThemeHost extends StatelessWidget {
       data: appThemeData,
       child: _MacOSWindowAppearanceSync(
         brightness: brightness,
-        child: _IOSWindowAppearanceSync(
+        child: _NativeAppearanceSync(
           themeMode: themeMode,
           brightness: brightness,
           child: _AndroidSystemBarsSync(brightness: brightness, child: child),
@@ -83,8 +83,8 @@ class _MacOSWindowAppearanceSyncState
   Widget build(BuildContext context) => widget.child;
 }
 
-class _IOSWindowAppearanceSync extends StatefulWidget {
-  const _IOSWindowAppearanceSync({
+class _NativeAppearanceSync extends StatefulWidget {
+  const _NativeAppearanceSync({
     required this.themeMode,
     required this.brightness,
     required this.child,
@@ -95,25 +95,25 @@ class _IOSWindowAppearanceSync extends StatefulWidget {
   final Widget child;
 
   @override
-  State<_IOSWindowAppearanceSync> createState() =>
-      _IOSWindowAppearanceSyncState();
+  State<_NativeAppearanceSync> createState() =>
+      _NativeAppearanceSyncState();
 }
 
-class _IOSWindowAppearanceSyncState extends State<_IOSWindowAppearanceSync> {
+class _NativeAppearanceSyncState extends State<_NativeAppearanceSync> {
   @override
   void initState() {
     super.initState();
-    _IOSWindowAppearance.sync(widget.themeMode, widget.brightness);
+    _NativeAppearance.sync(widget.themeMode, widget.brightness);
   }
 
   @override
-  void didUpdateWidget(covariant _IOSWindowAppearanceSync oldWidget) {
+  void didUpdateWidget(covariant _NativeAppearanceSync oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.themeMode == widget.themeMode &&
         oldWidget.brightness == widget.brightness) {
       return;
     }
-    _IOSWindowAppearance.sync(widget.themeMode, widget.brightness);
+    _NativeAppearance.sync(widget.themeMode, widget.brightness);
   }
 
   @override
@@ -218,14 +218,17 @@ abstract final class _MacOSWindowAppearance {
   }
 }
 
-abstract final class _IOSWindowAppearance {
+/// Hands the theme setting to the OS. On Android 12+ this sets the app's own
+/// night mode, which the system splash screen uses on the next launch (it is
+/// drawn before Flutter starts, so it can't read our prefs).
+abstract final class _NativeAppearance {
   static const _channel = MethodChannel('xyz.zafe/window_appearance');
 
   static ThemeMode? _lastThemeMode;
   static Brightness? _lastResolvedBrightness;
 
   static void sync(ThemeMode themeMode, Brightness resolvedBrightness) {
-    if (kIsWeb || !Platform.isIOS) return;
+    if (kIsWeb || !(Platform.isIOS || Platform.isAndroid)) return;
     if (_lastThemeMode == themeMode &&
         _lastResolvedBrightness == resolvedBrightness) {
       return;
@@ -250,7 +253,7 @@ abstract final class _IOSWindowAppearance {
     } catch (error) {
       _lastThemeMode = null;
       _lastResolvedBrightness = null;
-      debugPrint('IOSWindowAppearance: sync failed: $error');
+      debugPrint('NativeAppearance: sync failed: $error');
     }
   }
 }
