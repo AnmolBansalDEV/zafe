@@ -16,7 +16,7 @@ set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 out="$here/dist"
 package="xyz.zafe.zafe"
-repo="https://github.com/AnmolBansalDEV/zafe"
+repo="https://github.com/zafe-cash/zafe"
 download="${ZAFE_DOWNLOAD_URL:-}"
 source_url="${ZAFE_SOURCE_URL:-$repo}"
 

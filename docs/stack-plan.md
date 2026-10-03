@@ -31,9 +31,10 @@ Started 2026-10-01. The research and reasoning behind every item are in
 
 ## Phase 0: home and hygiene (week 1)
 
-- [ ] **(you)** Create the GitHub org **`zafe-cash`** (free, matches zafe.cash; `zafe`
-      is taken by a user) and transfer `AnmolBansalDEV/zafe` there (GitHub redirects
-      old links). Keep the app and crates in one repo until a second consumer exists.
+- [x] GitHub org **`zafe-cash`** (free, matches zafe.cash; `zafe` is taken by a user);
+      the repo moved there as `zafe-cash/zafe` on 2026-10-03 (GitHub redirects the old
+      `AnmolBansalDEV/zafe` links). Keep the app and crates in one repo until a second
+      consumer exists.
 - [ ] **(you)** Reserve the crate names on crates.io once the first crate is publishable.
       Free on 2026-10-01: `zafe-protocol`, `zafe-proto`, `zafe-coordinator`,
       `zafe-relay`, `zafe-core`, `zafe-vault`, `zafe`. Don't publish placeholder crates:

@@ -6,7 +6,7 @@ members = ["crates/zafe-core", "crates/zafe-proto", "crates/zafe-relay", "crates
 edition = "2021"
 rust-version = "1.88"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/AnmolBansalDEV/zafe"
+repository = "https://github.com/zafe-cash/zafe"
 
 # Security-critical crates are pinned exactly (spec §4.4). Bumps require review.
 [workspace.dependencies]

@@ -22,8 +22,8 @@ Last updated: 2026-10-01 (stack plan; Verdigris + Seam brand implemented; note r
       the unrelated `colosseum-copilot` skill left the repo (now in `~/.claude/skills`);
       the site's calls to action say "View code" and link the repo until
       `ZAFE_DOWNLOAD_URL` is set.
-  - [x] `AnmolBansalDEV/zafe` is public (2026-10-01, rescanned first); description and
-        homepage link the site.
+  - [x] The repo is public (2026-10-01, rescanned first); description and homepage link
+        the site. Moved to `zafe-cash/zafe` on 2026-10-03.
   - [ ] **(you)** Post the preview (Zypherpunk Discord).
   - [ ] After the relay is deployed: testnet APK in GitHub Releases, set
         `ZAFE_DOWNLOAD_URL` in the site build ("Get Zafe" comes back), second post.
