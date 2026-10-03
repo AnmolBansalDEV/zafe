@@ -1067,6 +1067,11 @@ Toolchain (installed by `~/android/install-toolchain.sh`; `source ~/android/env.
   `sk = H(n ‖ len(payload_1) ‖ payload_1 ‖ …)`; Zafe's own scheme differs. Align when
   COCKTAIL-DKG ships with Pallas (the WIP frost#1032 has none).
 - RedPallas FROST ciphersuite moving out of `reddsa` (frost#963); stay on 0.5.2 until then.
+- **Changing t** (frost#1082, open, not a ZF priority): `frost-core` refresh keeps
+  `min_signers`; resharing (Desmedt-Jajodia/GRR98) works on redpallas with the `internals`
+  feature (`zafe-core/tests/reshare.rs`, a dev-dependency only; spec §10.4.4). Not shipped:
+  own crypto, needs spec + audit and one-time ceremony keys first. Kept old shares always
+  still sign at the old t.
 
 ## Machine hygiene
 

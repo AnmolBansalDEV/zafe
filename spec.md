@@ -581,7 +581,7 @@ Use this for add, remove or replace when every departing member is trusted to de
 | **Add** member | Repair toward a **new** identifier (§10.4.2) | ≥ t existing members (the helpers) + the new member | N+1, same t, same `ak` and address |
 | **Remove** member | DKG refresh among the remaining members, excluding the removed one (§10.4.1) | **All** remaining members | N−1, same t (requires N−1 ≥ t), same `ak` and address |
 | **Replace** (remove X, add Y) | Remove first, then add | All remaining members, then ≥ t of them + Y | N, same t |
-| **Change t** | **Not supported.** `frost-core` rejects a changed `min_signers` (`Error::InvalidMinSigners`); same-key resharing to a new t is an open request upstream (frost#1082) | — | Use **Migrate** (§10.3) |
+| **Change t** | **Resharing** (§10.4.4). Not in `frost-core`, whose refresh rejects a changed `min_signers` (`Error::InvalidMinSigners`); asked upstream in frost#1082 | ≥ old t members (the dealers) + every member of the new set | New n and t, same `ak` and address. Until it is built, **Migrate** (§10.3) |
 | **Proactive refresh** (no membership change) | DKG refresh among all members | All members | Same set; old shares made useless once deleted |
 
 Order matters for **Replace**: refresh first, then repair from the refreshed shares. Repairing first would give Y a share on the old polynomial that X's old share still combines with.
@@ -592,6 +592,9 @@ Every operation starts as a `MEMBERSHIP` proposal with t approvals, and finishes
 - A removed member **keeps full view access**: they hold `sk` and the UFVK, so they can see all past and future vault activity.
 - A removed member keeps `qsk`.
 - A removed member's old share still combines with any other member's **pre-refresh** share. If a remaining member kept or backed up an old share, the removed member plus that member (t in total, for t = 2) can spend. Only migration removes this risk.
+- **Raising t doesn't bind the old group.** Old shares stay shares of the same key, so any old t who kept theirs can still sign at the old threshold (§10.4.4). This is inherent to keeping the key, not a gap in the protocol.
+
+So the UI offers rotation for **friendly** changes (a lost phone, adding someone, raising t as a precaution) and says it trusts everyone to delete old keys; anything **hostile** (removing someone who may not cooperate, raising t because a member isn't trusted) goes to migration.
 
 ### 10.4 FROST mechanics (open item V5, researched 2026-09-29 against `frost-core` 3.0.0)
 
@@ -625,14 +628,33 @@ Every operation starts as a `MEMBERSHIP` proposal with t approvals, and finishes
 - **Refresh and repair messages are asynchronous.** They go through the relay mailboxes like the DKG. Each part only needs the others' messages from the previous part, so members can do their part whenever they open the app. A session times out after 7 days and restarts.
 - Signing proposals pause while a refresh is running, because shares are changing.
 
+#### 10.4.4 Resharing: changing t on the same key (checked 2026-10-04)
+
+`frost-core` 3.0.0 can't change t, but the maths can: FROST shares are Shamir shares of `ask`, and **resharing** (Desmedt-Jajodia 1997; GRR98; the same scheme as Human Network's Algorithm 4, `holonym-foundation/whitepapers`) moves them to a new set with a new threshold while the key stays `ak`.
+
+- **Dealers:** at least the **old t** members of the old set. Dealer `h` takes `λ_h · share_h` (its Lagrange coefficient over the dealer set, at 0) as the constant term of a random polynomial of degree `t_new − 1`, broadcasts Feldman commitments to the coefficients, and seals one evaluation to each member of the new set.
+- **Receivers:** every member of the new set checks, against the **old** public key package: each dealer's constant-term commitment equals `λ_h · verifying_share_h` (else that dealer dealt something other than its share), their sum equals `ak` (else abort), and each received evaluation matches the dealer's commitments. Its new share is the sum of the evaluations; new verifying shares follow, and a test signature by the new set (§10.4.1) runs before anyone deletes the old package.
+- **Lowering t needs the old t to agree**, so a minority can't weaken the vault. Raising t needs every member of the new set online to receive.
+- The redpallas even-Y form is kept (`ak` never changes).
+- **Not built.** `crates/zafe-core/tests/reshare.rs` shows it on our pins with `frost-core`'s `internals` feature (2-of-3 → 3-of-4 → 2-of-3, same key; below-t dealer sets and dishonest dealers rejected). Shipping it means our own cryptographic code: a written spec and the external audit first. liangping's branch on frost#1082 implements the same scheme but doesn't check the constant-term commitments against the old verifying shares and the group key, so a bad dealer could silently move the group to another key.
+
+**What no resharing can do: revoke a kept old share.** An old share is a share of the *same* key, so any old t who kept theirs can still sign at the old threshold, forever. Proactive security only *assumes* deletion; nothing enforces it: phone enclaves can't do Pallas arithmetic, so shares live in app memory and a member who roots their phone can copy one; app attestation proves the app only at the moment it attests; Zcash has no scripts to refuse an old-key signature; and a new key means a new address (it commits to `ak`). So:
+- Raising t never makes things worse: t old members willing to keep and combine shares could already spend before the change. It protects against *honest* members' old shares leaking later (a sold phone, an old backup), not against people already able to collude.
+- Only **migration** (§10.3) revokes.
+- **Unapproved-spend alert** (planned): every member's wallet sees the vault's spends. A spend whose transaction matches no proposal in the vault log means keys were used outside Zafe (old shares, or t compromised devices); the app alerts loudly. It doesn't stop the theft but tells the group at once.
+
+**Forward secrecy of ceremony messages.** Refresh and resharing only help against an attacker who wasn't recording. Today every envelope is HPKE-sealed to the recipient's **long-term** X25519 identity key (the sender's half is ephemeral, the recipient's static), and the relay holds ciphertext until it is acknowledged (≤ 30 days; anyone on the path can keep it). Whoever later gets a member's identity key opens every recorded message to that member: DKG round-2 packages, `sk` contributions, repair sigmas, reshare deals, signing requests (with `alpha`). That gives them the member's *old* shares, and an old share plus another member's share from the same round undoes the refresh (Human Network §2.3, §4.1). Before refresh or resharing ships, each ceremony uses **one-time encryption keys**: every participant publishes a fresh X25519 key signed with its identity key, deals are sealed to it, and the private key is deleted when the ceremony ends (like Signal's pre-keys). Human Network uses forward-secure PKE (CHK03, key-evolving); for a handful of phones and rare ceremonies, one-time keys do the same job. Signing rounds can follow later (they carry `alpha`).
+
 ### 10.3 Migrate (new vault)
 
-Use this for hostile removal, changing t, or when rotation isn't supported.
+Use this for hostile removal, changing t until resharing (§10.4.4) is built, or when rotation isn't supported. It is the only way to revoke old shares.
 
 1. The new member set creates a new vault (§7).
 2. A `MIGRATE` proposal in the old vault moves all funds to the new vault's address. It needs t approvals from the old members, may take several transactions if there are many notes, and costs fees.
 3. The old vault is marked `archived`. Its history stays viewable.
 4. Payers must be told the new address. The UI provides a "share new address" step.
+
+**Late payments (migrate + reshare):** payments keep arriving at the old address for a while. To let the new group sweep them, migration can also reshare the *old* key to the new member set (§10.4.4); the new vault's members then sweep the old address into the new one. Remaining risk: colluding old members who kept their shares can race that sweep for funds that land after the move. It is small and shrinks as payers update.
 
 ---
 
@@ -704,12 +726,14 @@ Restore the backup, then sync the vault log from the relay, then resync the wall
 - Members actually compare safety numbers during setup.
 - Members' devices and OS secure storage are not compromised.
 - Upstream libraries (`frost-core`, `reddsa`, `orchard`, `pczt`, librustzcash) are correct.
-- In a rotation, departing members delete their shares (only migration removes this assumption).
+- In a rotation or reshare, departing members delete their shares, and every member deletes old shares and old backups (only migration removes this assumption; §10.4.4).
+- Ceremony messages aren't recorded by someone who later steals a member's identity key, until one-time ceremony keys ship (§10.4.4).
 
 ### 13.3 What is impossible (tell users plainly)
 
 - On-chain rules, timelocks, or recovery modules.
 - Revoking a former member's view access without migrating.
+- Revoking a kept old key share without migrating: whoever kept old shares can sign at the old threshold (§10.4.4).
 - Recovering funds with fewer than t keys.
 - Showing the public or DAO non-members spending totals without giving someone a viewing key or per-payment disclosures.
 
@@ -763,7 +787,7 @@ Flutter app with vault creation (invite link and QR), receive, balance, history,
 Batch payments, address book, rules, CSV export, encrypted backup and restore, repair, backup health. External security audit of zafe-core and the protocol before mainnet funds. **Mainnet gate:** the external audit, a hosted relay and a small end-to-end mainnet dry run, then a capped beta. (U1, ZF confirming the key derivation gives recoverable vaults, was answered 2026-10-01.)
 
 **M3: Membership**
-Rotation (repair to add members, refresh to remove them, §10.2), migration flow, desktop builds.
+Rotation (repair to add members, refresh to remove them, resharing to change t, §10.2), one-time ceremony keys (§10.4.4), migration flow with late-payment sweeps, unapproved-spend alert, desktop builds.
 
 **M4: Platform**
 Self-hostable relay packaging and paid hosted tiers, dapp SDK (proposal requests from third-party apps), hardware members (Keystone/Ledger FROST support permitting), payment disclosures.
@@ -797,7 +821,7 @@ Self-hostable relay packaging and paid hosted tiers, dapp SDK (proposal requests
 | ~~V2~~ | **Resolved (2026-09-29):** use the PCZT's `α` as the FROST randomizer (§9.5.1). Checked against frost-tools @ `06c0dbdb` (`zcash-sign/src/sign.rs`, `frost-client/src/coordinator/round_2.rs`), frost @ `0966bd15` (`frost-rerandomized`), ZIP 312, and ePrint 2024/436 | — |
 | ~~V3~~ | **Resolved:** `pczt` 0.9.3 `roles::low_level_signer::Signer::{sign_ironwood_with, sign_orchard_with}`, then `action.spend().alpha()` and `action.apply_signature(sighash, sig)` (in `orchard` 0.15.5 `pczt/signer.rs`); the v6 sighash is `v6_signature_hash(&pczt.into_effects(), SignableInput::Shielded, …)`; dummy spends are signed by the IO Finalizer | — |
 | ~~V4~~ | **Resolved (2026-09-29):** lightwalletd ≥ v0.5 (on Zebra ≥ 6.0) and `zcash_client_backend` 0.24 support Ironwood. Public mainnet endpoints are unconfirmed, so Zafe runs its own and checks servers on connect (§8.1) | — |
-| ~~V5~~ | **Resolved (2026-09-29):** `frost-core` 3.0.0 supports DKG refresh (can remove members, N shrinks, t fixed) and repair (lost share or new identifier, ≥ t helpers). Changing t → migrate. Repair output isn't verified, so Zafe adds verifying-share checks and a test signature before old shares are deleted. See §10.2 and §10.4 | — |
+| ~~V5~~ | **Resolved (2026-09-29):** `frost-core` 3.0.0 supports DKG refresh (can remove members, N shrinks, t fixed) and repair (lost share or new identifier, ≥ t helpers). Changing t → resharing in our own code (§10.4.4, checked 2026-10-04) or migrate. Repair output isn't verified, so Zafe adds verifying-share checks and a test signature before old shares are deleted. See §10.2 and §10.4 | — |
 | ~~V6~~ | **Resolved (2026-09-29):** `pczt` 0.9.3 `roles::updater::Updater::set_ironwood_spend_witnesses` sets or refreshes spend witnesses (and hence the anchor) **after** signing without changing the sighash, as long as proofs haven't been created yet. Proving happens after signing, at broadcast time. `Builder` also supports deferring anchors until proving. Evidence: `pczt` tests `wallet_can_set_ironwood_witness_after_signing` and `builder_can_defer_anchors_until_proving` | — |
 | V7 | **Measured on a phone (2026-09-29).** Nothing Phone A024, Snapdragon SM8735 (1× Cortex-X4 + 7× A720), Android 16, via `scripts/android-bench.sh`. Proving-key build / 2-action Ironwood proof: 1 thread **3.4 s / 4.6 s**, 2 threads 2.6 / 3.5 s, 4 threads 2.2 / 2.2 s, 8 threads **2.1 s / 1.7 s**, ~113 MB peak. Pinned to the two slowest cores (A720 @ 2.0 GHz, a mid-range proxy): 6.5 s / 8.9 s single-threaded, 4.5 s / 4.8 s on two. Round 2 (verify + FROST sign): **12 ms, 6.8 MB peak** (25 ms pinned). The desktop i7 is only ~1.4× faster than this phone. **Estimate for budget phones** (Cortex-A55-class cores, not measured): about 2–3× slower per core than the pinned run, so roughly 10–25 s to build the key and prove. Acceptable for a leader-only, once-per-payment step with a progress bar. Build the proving key once per app session and reuse it. Still open: a real low-end device run, and Zakura's faster prover when it supports Ironwood | M1 |
 | V8 | **Feasible (resolved in design; device prototype pending).** Round 2 (full PCZT verification plus FROST signing) takes ~10 ms and **~6 MB peak memory for the whole process**, well inside an iOS Notification Service Extension's 24 MB / ~30 s budget. Design: approval (round 1) is always an explicit user action in the app. Round 2 runs **automatically in the NSE** on a push, and only for a signing request that matches a proposal the member already approved; every §9.3 check runs again, so it never signs anything new. The NSE needs the key share and vault secret in a Keychain access group shared with the extension (`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`, because the phone may be locked), a cached chain tip, and the PCZT fetched from the log. No wallet database and no proving. Pushes must be visible alert pushes with `mutable-content` (silent pushes are throttled). Fallback: sign on next app open. Android: an FCM high-priority data message, then sign in `onMessageReceived` or expedited WorkManager | M1 |

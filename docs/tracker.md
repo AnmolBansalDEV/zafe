@@ -452,7 +452,18 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
 - [ ] Rotation, same address and t (§10.2): add members by repair toward a new identifier
       (§10.4.2; checked 2026-10-04 on our pins: 2-of-3 → 2-of-4 signs once members add the new
       verifying share), remove members by DKG refresh (§10.4.1)
-- [ ] Migration to a new vault (change t, hostile removal) (§10.3)
+- [ ] Change t on the same key by resharing (spec §10.4.4): own code (not in frost-core,
+      frost#1082), spec + external audit first; reference test `zafe-core/tests/reshare.rs`
+      (2-of-3 → 3-of-4 → 2-of-3, dishonest dealers caught). Rotation for friendly changes
+      only: kept old shares still sign at the old t, nothing can prevent that
+- [ ] One-time ceremony encryption keys (spec §10.4.4): forward secrecy for DKG, refresh,
+      reshare and repair messages (today sealed to long-term identity keys); must ship
+      before refresh/reshare. Later maybe signing rounds (they carry `alpha`)
+- [ ] Migration to a new vault (hostile removal, change t until resharing ships) (§10.3),
+      optionally resharing the old key to the new set so it can sweep late payments to
+      the old address
+- [ ] Unapproved-spend alert (spec §10.4.4): a vault spend matching no proposal in the log
+      → loud alert on every member's phone (old shares or compromised devices used)
 - [ ] Desktop builds (Vizor has desktop layouts to copy)
 - [ ] Self-hostable relay packaging; paid hosted tiers (D3 limits)
 - [ ] dApp SDK: proposal requests from third-party apps

@@ -12,6 +12,7 @@ repository = "https://github.com/zafe-cash/zafe"
 [workspace.dependencies]
 reddsa = { version = "=0.5.2", default-features = false, features = ["std", "frost", "serde"] }
 frost-rerandomized = { version = "=3.0.0", features = ["serde"] }
+frost-core = "=3.0.0"
 orchard = { version = "=0.15.5", default-features = false, features = ["std", "circuit", "multicore"] }
 pczt = { version = "=0.9.3", features = ["orchard", "signer", "prover", "io-finalizer", "spend-finalizer", "tx-extractor"] }
 zcash_primitives = "=0.30.1"
