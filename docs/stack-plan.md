@@ -73,7 +73,11 @@ Each item: ask or comment first where noted, then a small PR. Record links in `t
 - [ ] **zips#895 review**: (a) a builder-chosen α as an explicitly allowed option, (b)
       our commit-then-reveal fix for the bias str4d raised, (c) an offer to cross-check
       the `sk` derivation with our vectors.
-- [ ] **frost-tools #433** (send group info and threshold in the DKG): ask, then PR.
+- [ ] **frost-tools #433** (send group info and threshold in the DKG): design posted on
+      the issue 2026-10-04; implemented and tested on `zafe-cash/frost-tools`
+      `feat/dkg-send-threshold` (frost-client only: the creator sends `{threshold,
+      description}` encrypted before Round 1; not pushed). PR once conradoplg answers.
+      Book docs follow-up in the frost repo.
 - [ ] **frost-tools #488** (2-input PCZT signing): a regression test, for reputation.
 - [ ] **zcash-test-vectors #130** (Ironwood v6 sighash): cross-check with our code and
       post the result as a review.
