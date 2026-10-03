@@ -122,8 +122,13 @@ void main() {
     await tester.pump();
     expect(paidFrom, isNull, reason: 'not before the owner confirms');
 
+    // Only the chosen vault is on the page; the others are behind "Change".
+    expect(find.text('Grants'), findsNothing);
+    await tester.tap(find.text('Change'));
+    await tester.pumpAndSettle();
     await tester.tap(find.bySemanticsLabel(RegExp('^Grants')));
-    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('Treasury'), findsNothing);
     expect(_text('"Grants"'), findsOneWidget);
     expect(_text('3 of 5'), findsWidgets);
 
@@ -148,8 +153,9 @@ void main() {
     expect(_text('Name in the link (not verified)'), findsOneWidget);
     expect(_text('"Coffee shop"'), findsOneWidget);
     expect(_text('Message in the link (not verified)'), findsOneWidget);
-    // One vault: shown, not offered as a choice.
-    expect(find.bySemanticsLabel(RegExp('^Treasury')), findsNothing);
+    // One vault: shown, nothing to change.
+    expect(find.text('Treasury'), findsOneWidget);
+    expect(find.bySemanticsLabel('Change vault'), findsNothing);
   });
 
   group('funds check', () {
@@ -228,8 +234,16 @@ void main() {
       tester,
       _Harness(vaults: [_treasury, poor], onContinue: (id) => paidFrom = id),
     );
+    // The page shows the chosen vault only; the sheet marks the one that's short.
+    expect(_text('Not enough funds'), findsNothing);
+    await tester.tap(find.text('Change'));
+    await tester.pumpAndSettle();
     expect(_text('Not enough funds: short by'), findsOneWidget);
-    expect(find.bySemanticsLabel(RegExp('^Petty cash')), findsNothing);
+    await tester.tap(find.text('Petty cash'));
+    await tester.pumpAndSettle();
+    expect(find.text('Pay from'), findsWidgets, reason: 'sheet stays open');
+    await tester.tap(find.bySemanticsLabel('Close'));
+    await tester.pumpAndSettle();
     await tester.tap(find.bySemanticsLabel(RegExp('^I know who sent this')));
     await tester.pump();
     await tester.tap(find.text('Continue'));

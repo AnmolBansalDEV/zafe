@@ -880,7 +880,8 @@ Learned while studying it:
   `/payment-request` (exempt from the vault redirect: it picks its own vault).
   `PaymentRequestScreen`: "Check who sent this" warning, full address, the link's
   `label`/`message` shown as "(not verified)" (bridge `ScannedPayment.label/message`),
-  a "Pay from" vault picker when there are several, the approval rule, a funds check
+  "Pay from" showing only the chosen vault, with "Change" (a sheet of every vault) when
+  there are several (the user asked not to list them all on the page), the approval rule, a funds check
   (`checkFunds`: amount + `minimumFeeZat` = 5,000 × max(2, recipients) against the
   vault's spendable balance when synced this session, else its saved total, which can
   only prove a shortfall; a vault that's short is marked "short by X", can't be picked,
@@ -892,7 +893,10 @@ Learned while studying it:
   `adb shell "am start -a android.intent.action.VIEW -d 'zcash:<ua>?amount=1&label=Shop'"`.
   Preview: `flutter test tool/screens/payment_request_render_test.dart`. Verified on the
   emulator 2026-10-04: cold start through the lock, warm link, Continue → Review
-  ("PAYMENT REQUEST"). Backing out to the launcher ends the activity, so a link still
+  ("PAYMENT REQUEST"). Full e2e 2026-10-04: two vaults made with CLI members (B1/C1,
+  B2/C2 + the app; 15 and 5 ZEC), link for 2 ZEC, picked the non-active vault, proposed,
+  app + C2 approved, interactive send (C2 `respond`), recipient +2, payer −2.0001 (fee
+  10,000 zats = the shown minimum). Backing out to the launcher ends the activity, so a link still
   waiting behind the lock is gone when the app is reopened from the launcher.
 - **Backups** (spec §12.2; `zafe_core::backup`, bridge `api/backup.rs`, app `features/backup/`):
   `ZAFEBAK` v2 = header (Argon2id params, salt, nonce; authenticated as AEAD data) +

@@ -715,7 +715,11 @@ passphrase and already-on-this-phone refusals, backup prompt after creating a va
   app). AGENTS.md "App lock" / "Payment links". Done the same day: content hidden in
   the recent-apps view, and a cheap funds check per vault on the request page.
   Follow-ups: iOS untested (never built); exact fee via a build-without-logging
-  precheck (idea below)
+  precheck (idea below); a vault whose relay mailbox is gone ("relay returned 404:
+  unknown mailbox", e.g. after a relay DB reset) shows the generic "Something went
+  wrong": say "This vault isn't on this relay" instead; on the emulator the app
+  sometimes shows a ~12% white veil (#262929 instead of #080B0B) over the Flutter
+  surface, also with the main build and not in the app's view tree (cause unknown)
 - *(idea)* Propose from a request: a scanned/pasted/opened `zcash:` URI shows a card that
   prechecks and builds the proposal up front (`lib/src/features/send/widgets/payment_request_host.dart`,
   `lib/src/features/send/services/payment_request_precheck.dart`)

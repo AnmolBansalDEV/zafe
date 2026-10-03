@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/config/network_config.dart';
 import '../../core/formatting/zec_amount.dart';
+import '../../core/layout/mobile/app_mobile_sheet.dart';
 import '../../core/layout/mobile/zafe_screen.dart';
 import '../../core/privacy/amount_display.dart';
 import '../../core/storage/vault_summaries.dart';
@@ -211,6 +212,38 @@ class PaymentRequestView extends StatelessWidget {
   final bool hideBalances;
   final bool busy;
 
+  /// Every vault in a sheet; one that can't pay is shown but can't be picked.
+  Future<void> _pickVault(
+    BuildContext context,
+    ({FundsCheck check, BigInt shortByZat}) Function(PayFromVault) funds,
+  ) async {
+    final picked = await showAppMobileSheet<String>(
+      context: context,
+      builder: (sheet) => MobileModalScaffold(
+        title: 'Pay from',
+        onClose: () => Navigator.of(sheet).pop(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var i = 0; i < vaults.length; i++) ...[
+              if (i > 0) const DetailDivider(),
+              _VaultChoice(
+                vault: vaults[i],
+                selected: vaults[i].id == selectedId,
+                funds: funds(vaults[i]),
+                onTap: funds(vaults[i]).check == FundsCheck.short
+                    ? null
+                    : () => Navigator.of(sheet).pop(vaults[i].id),
+                hideBalance: hideBalances,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+    if (picked != null) onSelect(picked);
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -294,33 +327,45 @@ class PaymentRequestView extends StatelessWidget {
         const SizedBox(height: AppSpacing.md),
         Text('Pay from', style: sectionStyle),
         const SizedBox(height: AppSpacing.xs),
-        MobileSurfaceCard(
-          cornerRadius: AppRadii.large,
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm,
-            vertical: AppSpacing.xs,
-          ),
-          child: Column(
-            children: [
-              for (var i = 0; i < vaults.length; i++) ...[
-                if (i > 0) const DetailDivider(),
-                _VaultChoice(
-                  vault: vaults[i],
-                  selected: vaults[i].id == selectedId,
-                  funds: funds(vaults[i]),
-                  // A single vault is shown, not offered; one that can't pay
-                  // can't be picked.
-                  onTap:
-                      vaults.length > 1 &&
-                          funds(vaults[i]).check != FundsCheck.short
-                      ? () => onSelect(vaults[i].id)
-                      : null,
-                  hideBalance: hideBalances,
+        // Only the chosen vault; "Change" opens the others in a sheet.
+        if (selected != null)
+          MobileSurfaceCard(
+            cornerRadius: AppRadii.large,
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+              vertical: AppSpacing.xs,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _VaultChoice(
+                    vault: selected,
+                    selected: true,
+                    funds: funds(selected),
+                    onTap: null,
+                    hideBalance: hideBalances,
+                  ),
                 ),
+                if (vaults.length > 1 && !busy)
+                  AppTappable(
+                    onTap: () => _pickVault(context, funds),
+                    semanticsLabel: 'Change vault',
+                    child: ExcludeSemantics(
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: AppSpacing.xs),
+                        child: Text(
+                          'Change',
+                          style: AppTypography.labelLarge.copyWith(
+                            color: colors.text.brand,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ],
-            ],
+            ),
           ),
-        ),
         if (selected != null && canPay) ...[
           const SizedBox(height: AppSpacing.s),
           Text(
