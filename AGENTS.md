@@ -503,8 +503,12 @@ scripts/            m0-e2e.sh, android-bench.sh, check_zip2005_vectors.py
 - Keep both pins on the latest `ths` release (`crates/ths-cli/src/runtime.rs` `ZAKURA_IMAGE`;
   lightwalletd is tagged with the release version), so our tests catch its bugs. `ths`
   v0.3.0 (2026-10-02, our PR #124) activates NU6.1-6.3 at height 1 with the same lockbox
-  marker; it doesn't set `disable_pow`. We still start the two containers ourselves
-  (`up.sh`) rather than through `ths start`: tests need their own ports and names.
+  marker; it doesn't set `disable_pow` (costs only ~3 s per 120 blocks: 15.9 s vs 12.7 s).
+  We still start the two containers ourselves (`up.sh`) rather than through `ths start`
+  because our tests mine coinbase straight to the vault's address; `ths` mines to its own
+  wallet and funds others with `ths faucet` (≤ 5 ZEC each). `ths` already has `--name`
+  (isolated `ths-<name>-*` environments) and `start --port-offset` (multiples of 10);
+  `start` stays in the foreground and deletes the environment when interrupted.
 
 ## Mobile findings (spec V7/V8)
 
